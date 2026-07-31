@@ -19,14 +19,17 @@ var useHttpsRedirection = builder.Configuration.GetValue("Hosting:UseHttpsRedire
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.Configure<BootstrapOptions>(builder.Configuration.GetSection(BootstrapOptions.SectionName));
+builder.Services.Configure<UpdateChannelOptions>(builder.Configuration.GetSection(UpdateChannelOptions.SectionName));
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 10L * 1024L * 1024L * 1024L;
 });
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IValueProtector, DpapiValueProtector>();
 builder.Services.AddSingleton<IAppSettingsStore, SqliteAppSettingsStore>();
 builder.Services.AddSingleton<IDeviceLoginStore, InMemoryDeviceLoginStore>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddSingleton<IUpdateManifestService, UpdateManifestService>();
 
 JwtDatabaseConfig jwtConfig;
 var bootstrapSection = builder.Configuration.GetSection(BootstrapOptions.SectionName).Get<BootstrapOptions>() ?? new BootstrapOptions();

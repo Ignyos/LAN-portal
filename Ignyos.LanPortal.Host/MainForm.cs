@@ -14,14 +14,24 @@ public sealed class MainForm : Form
     private const string SetupUrl = "http://localhost:5212/local/setup";
     private const string AdminUrl = "http://localhost:5212/local/admin";
     private const string AccessHistoryUrl = "http://localhost:5212/local/access-history";
+    private const string UpdateStatusUrl = "http://localhost:5212/api/local/update/status";
+    private const string UpdateCheckNowUrl = "http://localhost:5212/api/local/update/check-now";
     private const string AppTitlePrefix = "Ignyos LAN Portal";
 
     private readonly WebView2 browser;
     private readonly string appVersion;
+    private readonly ToolStripMenuItem checkForUpdatesMenuItem;
+    private readonly ToolStripStatusLabel updateStateLabel;
+    private readonly ToolStripStatusLabel updateActionLabel;
+    private readonly System.Windows.Forms.Timer updatePollTimer;
+    private bool isUpdateCheckInProgress;
+    private bool isTestChannel;
+    private string? availableUpdateUrl;
 
     public MainForm()
     {
         appVersion = GetAppVersion();
+        isTestChannel = appVersion.Contains("-test.", StringComparison.OrdinalIgnoreCase);
         Text = $"{AppTitlePrefix} v{appVersion}";
         Width = 1280;
         Height = 860;
@@ -29,8 +39,11 @@ public sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         WindowState = FormWindowState.Maximized;
 
-        var menuStrip = BuildMenuStrip();
+        var menuStrip = BuildMenuStrip(out checkForUpdatesMenuItem);
         MainMenuStrip = menuStrip;
+
+        var statusStrip = BuildStatusStrip(appVersion, out updateStateLabel, out updateActionLabel);
+        updatePollTimer = BuildUpdatePollTimer();
 
         browser = new WebView2
         {
@@ -44,6 +57,7 @@ public sealed class MainForm : Form
 
         Controls.Add(browser);
         Controls.Add(menuStrip);
+        Controls.Add(statusStrip);
 
         Shown += async (_, _) => await InitializeAsync();
     }
@@ -65,6 +79,8 @@ public sealed class MainForm : Form
 
             var initialUrl = await ResolveInitialUrlAsync();
             NavigateTo(initialUrl);
+            await CheckForUpdatesAsync(isManualCheck: false, forceRefresh: false);
+            updatePollTimer.Start();
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -158,7 +174,7 @@ public sealed class MainForm : Form
         throw new TimeoutException("Portal services did not become ready within 60 seconds.");
     }
 
-    private MenuStrip BuildMenuStrip()
+    private MenuStrip BuildMenuStrip(out ToolStripMenuItem checkUpdatesMenuItem)
     {
         var menuStrip = new MenuStrip
         {
@@ -179,13 +195,65 @@ public sealed class MainForm : Form
         var refreshMenuItem = new ToolStripMenuItem("Refresh");
         refreshMenuItem.Click += (_, _) => browser.CoreWebView2?.Reload();
 
+        checkUpdatesMenuItem = new ToolStripMenuItem("Check For Updates");
+        checkUpdatesMenuItem.Click += async (_, _) => await CheckForUpdatesAsync(isManualCheck: true, forceRefresh: true);
+
         fileMenu.DropDownItems.Add(setupMenuItem);
         fileMenu.DropDownItems.Add(adminMenuItem);
         fileMenu.DropDownItems.Add(accessHistoryMenuItem);
         fileMenu.DropDownItems.Add(refreshMenuItem);
+        fileMenu.DropDownItems.Add(new ToolStripSeparator());
+        fileMenu.DropDownItems.Add(checkUpdatesMenuItem);
 
         menuStrip.Items.Add(fileMenu);
         return menuStrip;
+    }
+
+    private static StatusStrip BuildStatusStrip(string currentVersion, out ToolStripStatusLabel stateLabel, out ToolStripStatusLabel actionLabel)
+    {
+        var statusStrip = new StatusStrip
+        {
+            Dock = DockStyle.Bottom,
+            SizingGrip = false
+        };
+
+        var versionLabel = new ToolStripStatusLabel
+        {
+            Text = $"Version {currentVersion}",
+            ForeColor = Color.DimGray
+        };
+
+        stateLabel = new ToolStripStatusLabel
+        {
+            Text = "Checking for updates...",
+            Spring = true,
+            TextAlign = ContentAlignment.MiddleRight,
+            ForeColor = Color.DimGray
+        };
+
+        actionLabel = new ToolStripStatusLabel
+        {
+            IsLink = true,
+            Visible = false,
+            ForeColor = Color.FromArgb(20, 92, 148)
+        };
+
+        statusStrip.Items.Add(versionLabel);
+        statusStrip.Items.Add(stateLabel);
+        statusStrip.Items.Add(actionLabel);
+
+        return statusStrip;
+    }
+
+    private System.Windows.Forms.Timer BuildUpdatePollTimer()
+    {
+        var timer = new System.Windows.Forms.Timer
+        {
+            Interval = (int)TimeSpan.FromHours(1).TotalMilliseconds
+        };
+
+        timer.Tick += async (_, _) => await CheckForUpdatesAsync(isManualCheck: false, forceRefresh: false);
+        return timer;
     }
 
     private static string GetAppVersion()
@@ -227,10 +295,183 @@ public sealed class MainForm : Form
         }
     }
 
+    private async Task CheckForUpdatesAsync(bool isManualCheck, bool forceRefresh)
+    {
+        if (isUpdateCheckInProgress)
+        {
+            return;
+        }
+
+        isUpdateCheckInProgress = true;
+        checkForUpdatesMenuItem.Enabled = false;
+        updateStateLabel.Text = "Checking for updates...";
+
+        try
+        {
+            using var http = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(8)
+            };
+
+            UpdateStatusResponse? updateStatus;
+            if (forceRefresh)
+            {
+                var response = await http.PostAsJsonAsync(UpdateCheckNowUrl, new UpdateCheckNowRequest(appVersion));
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException($"Update check endpoint returned HTTP {(int)response.StatusCode}.");
+                }
+
+                updateStatus = await response.Content.ReadFromJsonAsync<UpdateStatusResponse>();
+            }
+            else
+            {
+                var encodedVersion = Uri.EscapeDataString(appVersion);
+                updateStatus = await http.GetFromJsonAsync<UpdateStatusResponse>($"{UpdateStatusUrl}?currentVersion={encodedVersion}");
+            }
+
+            if (updateStatus is null)
+            {
+                throw new InvalidOperationException("Update status response was empty.");
+            }
+
+            ApplyUpdateStatus(updateStatus, isManualCheck);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[UpdateCheck] Failed: {ex.Message}");
+
+            if (isTestChannel)
+            {
+                updateStateLabel.Text = "Update check unavailable (test channel).";
+                updateStateLabel.ForeColor = Color.DarkGoldenrod;
+            }
+            else
+            {
+                updateStateLabel.Text = "";
+                updateStateLabel.ForeColor = Color.DimGray;
+            }
+
+            if (isManualCheck && isTestChannel)
+            {
+                MessageBox.Show(
+                    "Update check is currently unavailable. See logs for details.",
+                    AppTitlePrefix,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+
+            updateActionLabel.Visible = false;
+            availableUpdateUrl = null;
+        }
+        finally
+        {
+            isUpdateCheckInProgress = false;
+            checkForUpdatesMenuItem.Enabled = true;
+        }
+    }
+
+    private void ApplyUpdateStatus(UpdateStatusResponse updateStatus, bool isManualCheck)
+    {
+        isTestChannel = updateStatus.IsTestChannel;
+
+        if (!string.IsNullOrWhiteSpace(updateStatus.Error))
+        {
+            Trace.WriteLine($"[UpdateCheck] {updateStatus.Error}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(updateStatus.Error) && updateStatus.IsTestChannel)
+        {
+            updateStateLabel.Text = "Update check unavailable (test channel).";
+            updateStateLabel.ForeColor = Color.DarkGoldenrod;
+        }
+        else if (updateStatus.RequiredUpdate)
+        {
+            updateStateLabel.Text = $"Update required: {updateStatus.LatestVersion}";
+            updateStateLabel.ForeColor = Color.DarkOrange;
+        }
+        else if (updateStatus.UpdateAvailable)
+        {
+            updateStateLabel.Text = $"New version available: {updateStatus.LatestVersion}";
+            updateStateLabel.ForeColor = Color.FromArgb(20, 92, 148);
+        }
+        else
+        {
+            updateStateLabel.Text = "Up to date";
+            updateStateLabel.ForeColor = Color.DimGray;
+        }
+
+        if (updateStatus.UpdateAvailable && !string.IsNullOrWhiteSpace(updateStatus.DownloadUrl))
+        {
+            availableUpdateUrl = updateStatus.DownloadUrl;
+            updateActionLabel.Text = updateStatus.RequiredUpdate ? "Update Required" : "New Version Available";
+            updateActionLabel.Visible = true;
+            updateActionLabel.Click -= OpenAvailableUpdate;
+            updateActionLabel.Click += OpenAvailableUpdate;
+        }
+        else
+        {
+            availableUpdateUrl = null;
+            updateActionLabel.Visible = false;
+            updateActionLabel.Click -= OpenAvailableUpdate;
+        }
+
+        if (isManualCheck && !updateStatus.UpdateAvailable && string.IsNullOrWhiteSpace(updateStatus.Error))
+        {
+            updateStateLabel.Text = "No newer version is currently available.";
+            updateStateLabel.ForeColor = Color.DimGray;
+        }
+    }
+
+    private void OpenAvailableUpdate(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(availableUpdateUrl))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = availableUpdateUrl,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[UpdateCheck] Could not open update URL: {ex.Message}");
+            if (isTestChannel)
+            {
+                MessageBox.Show(
+                    "Could not open the update download link. See logs for details.",
+                    AppTitlePrefix,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+        }
+    }
+
     private void ShowFatalError(string title, string detail)
     {
         MessageBox.Show($"{title}\n\n{detail}", AppTitlePrefix, MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
     private sealed record SetupStatus([property: JsonPropertyName("isSetupComplete")] bool IsSetupComplete);
+
+    private sealed record UpdateCheckNowRequest(string CurrentVersion);
+
+    private sealed record UpdateStatusResponse(
+        [property: JsonPropertyName("currentVersion")] string CurrentVersion,
+        [property: JsonPropertyName("latestVersion")] string? LatestVersion,
+        [property: JsonPropertyName("minSupportedVersion")] string? MinSupportedVersion,
+        [property: JsonPropertyName("downloadUrl")] string? DownloadUrl,
+        [property: JsonPropertyName("updateAvailable")] bool UpdateAvailable,
+        [property: JsonPropertyName("requiredUpdate")] bool RequiredUpdate,
+        [property: JsonPropertyName("channel")] string Channel,
+        [property: JsonPropertyName("isTestChannel")] bool IsTestChannel,
+        [property: JsonPropertyName("manifestUrl")] string ManifestUrl,
+        [property: JsonPropertyName("checkedAtUtc")] DateTimeOffset CheckedAtUtc,
+        [property: JsonPropertyName("isStale")] bool IsStale,
+        [property: JsonPropertyName("error")] string? Error);
 }
