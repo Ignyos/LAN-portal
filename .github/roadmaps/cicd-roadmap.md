@@ -27,9 +27,9 @@ Current baseline implementation:
 
 Stage 2 checklist:
 
-- [ ] Run `workflow_dispatch` once and verify uploaded artifacts are complete and downloadable.
-- [ ] Push a non-production test tag (`vX.Y.Z-test`) and verify release asset attachment behavior.
-- [ ] Confirm artifact naming conventions are stable for downstream installer/update workflows.
+- [x] Run `workflow_dispatch` once and verify uploaded artifacts are complete and downloadable.
+- [x] Push a non-production test tag (`vX.Y.Z-test`) and verify release asset attachment behavior.
+- [x] Confirm artifact naming conventions are stable for downstream installer/update workflows.
 - [x] Add optional Host output artifact support for `workflow_dispatch` runs; keep tag-based Stage 2 defaults focused on API/Web.
 
 Stage 2 exit criteria:
@@ -44,6 +44,22 @@ Stage 2 exit criteria:
 - Produce installer executable.
 - Publish installer to GitHub Releases.
 - Defer code-signing milestone until signing certificate is available.
+
+Stage 3 checklist:
+
+- [x] Add installer staging payload build step for tag-triggered runs.
+- [x] Install or resolve Inno Setup compiler (`iscc.exe`) on `windows-latest` runner.
+- [x] Compile installer executable in GitHub Actions using tag-derived version (`vX.Y.Z` -> `X.Y.Z`).
+- [x] Generate installer SHA256 file and include it in release assets.
+- [x] Attach installer `.exe` to tagged GitHub Releases.
+- [ ] Push a non-production Stage 3 validation tag (`vX.Y.Z-stage3-test`) and verify installer + checksum are attached.
+- [ ] Confirm installer output naming convention is stable for Stage 4 manifest consumption.
+
+Stage 3 exit criteria:
+
+- Tagged runs consistently produce installer `.exe` + `.sha256` alongside Stage 2 release artifacts.
+- Tagged runs attach installer assets to GitHub Releases without manual intervention.
+- Team confirms installer assets are sufficient input for Stage 4 manifest publishing.
 
 ## Stage 4: Update Channel
 
