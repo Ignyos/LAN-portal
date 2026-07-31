@@ -66,7 +66,47 @@ Stage 3 exit criteria:
 - Publish version manifest with installer URL and checksum.
 - Define manifest schema now: `version`, `url`, `sha256`, `publishedAt`, `minSupportedVersion`.
 - Add app endpoint to check latest version from manifest.
-- Prompt for updates in local setup/admin page.
+- Prompt for updates in Host UI footer and File menu.
+
+Stage 4 checklist:
+
+- [x] Generate and publish update manifest as part of tagged release workflow.
+- [x] Populate manifest fields from release outputs: `version`, `url`, `sha256`, `publishedAt`, `minSupportedVersion`.
+- [x] Select and document manifest hosting location and URL strategy.
+- [x] Add API endpoint to fetch and return normalized update metadata.
+- [x] Add Host UI footer update indicator and File menu "Check For Updates" action.
+- [x] Support minimum-version gate behavior (`minSupportedVersion`) in update check response, with `requiredUpdate` blocking update actions only.
+- [x] Add failure handling for missing/invalid manifest: silent fallback + logs in production, non-blocking info + logs in test builds.
+- [x] Add hourly polling for update checks with manual refresh from File menu.
+- [x] Add config-based channel selection (`production` or `test`) for update checks.
+- [ ] Validate test-channel prerelease handling using `-test.<yyyyMMddHHmm>` SemVer pre-release identifiers.
+- [ ] Validate end-to-end update check against a Stage 4 test release.
+
+Stage 4 exit criteria:
+
+- Tagged release produces a valid manifest file with installer URL and checksum.
+- App can retrieve update metadata and determine whether an update is available.
+- Host UI footer and File menu update check flow clearly communicate update availability and required action.
+- Team confirms manifest contract is stable enough for Stage 5 safety hardening.
+
+Stage 4 agreed decisions:
+
+- Host manifests on GitHub Pages under dedicated paths that do not interfere with public docs navigation.
+- Pages base host for public docs and manifests: `https://lanportal.ignyos.com`.
+- Use two channels from day one with stable URLs:
+	- production: `/updates/manifest.json`
+	- test: `/updates/manifest-test.json`
+- Keep manifest as raw source of truth, but return normalized update response from API (for example `updateAvailable`, `requiredUpdate`, `latestVersion`).
+- Poll for updates once per hour and provide a manual "Check For Updates" command in the Host File menu.
+- Show a "New Version Available" indicator/action in the Host footer when update is detected.
+- Use config-based channel selection for now (no user-facing opt-in UI in Stage 4).
+- `requiredUpdate` indicates app version is below `minSupportedVersion` and should block update actions only.
+- On update-check failure:
+	- production builds: silent fallback with logs only
+	- test builds: non-blocking info message plus logs
+- Use SemVer as the release contract.
+- For test releases, use pre-release suffixes with minute granularity timestamps, for example `0.2.1-test.202607311202`.
+- Keep optional UI-level pre-release opt-in discovery ideas (for example About-menu surfaced prerelease checks) as a follow-up after Stage 4 baseline.
 
 Example manifest payload:
 
