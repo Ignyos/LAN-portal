@@ -271,6 +271,30 @@ jobs:
               -Body ($requestBody | ConvertTo-Json -Depth 8) `
               -SkipHttpErrorCheck
 
+            # If file exists but SHA was missed during preflight, refetch SHA and retry once.
+            if ($putResponse.StatusCode -eq 422 -and $putResponse.Content -like '*"sha" wasn*supplied*') {
+              Write-Host "SHA required for $targetPath. Refetching and retrying once."
+
+              $retryGetResponse = Invoke-WebRequest -Uri $getUrl -Headers $headers -Method Get -SkipHttpErrorCheck
+              if ($retryGetResponse.StatusCode -ne 200) {
+                throw "Could not refetch $targetPath for SHA. HTTP $($retryGetResponse.StatusCode): $($retryGetResponse.Content)"
+              }
+
+              $retryBody = $retryGetResponse.Content | ConvertFrom-Json
+              if ([string]::IsNullOrWhiteSpace($retryBody.sha)) {
+                throw "Refetch succeeded for $targetPath but SHA was empty."
+              }
+
+              $requestBody.sha = $retryBody.sha
+              $putResponse = Invoke-WebRequest `
+                -Uri $putUrl `
+                -Headers $headers `
+                -Method Put `
+                -ContentType "application/json" `
+                -Body ($requestBody | ConvertTo-Json -Depth 8) `
+                -SkipHttpErrorCheck
+            }
+
             if ($putResponse.StatusCode -ne 200 -and $putResponse.StatusCode -ne 201) {
               throw "Could not publish $targetPath. HTTP $($putResponse.StatusCode): $($putResponse.Content)"
             }
