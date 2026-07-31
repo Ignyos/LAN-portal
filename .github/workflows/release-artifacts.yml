@@ -201,14 +201,40 @@ jobs:
           "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "manifest_file=$manifestFileName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Publish update manifest to GitHub Pages
+      - name: Publish update manifest into docs/updates
         if: startsWith(github.ref, 'refs/tags/')
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: artifacts/release/pages
-          destination_dir: updates
-          keep_files: true
+        shell: pwsh
+        run: |
+          $defaultBranch = "${{ github.event.repository.default_branch }}"
+          $manifestSourceDir = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/pages/updates"
+          $manifestStagingDir = Join-Path $env:RUNNER_TEMP "update-manifests"
+
+          if (-not (Test-Path $manifestSourceDir)) {
+            throw "Manifest source directory not found: $manifestSourceDir"
+          }
+
+          New-Item -ItemType Directory -Path $manifestStagingDir -Force | Out-Null
+          Copy-Item -Path (Join-Path $manifestSourceDir "*.json") -Destination $manifestStagingDir -Force
+
+          git fetch origin $defaultBranch
+          git checkout -B $defaultBranch origin/$defaultBranch
+
+          $docsUpdateDir = Join-Path $env:GITHUB_WORKSPACE "docs/updates"
+          New-Item -ItemType Directory -Path $docsUpdateDir -Force | Out-Null
+          Copy-Item -Path (Join-Path $manifestStagingDir "*.json") -Destination $docsUpdateDir -Force
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/updates/*.json
+
+          $hasChanges = (git status --porcelain docs/updates/*.json)
+          if ([string]::IsNullOrWhiteSpace($hasChanges)) {
+            Write-Host "No manifest changes detected; skipping commit."
+            exit 0
+          }
+
+          git commit -m "chore: update release manifests for $env:GITHUB_REF_NAME"
+          git push origin HEAD:$defaultBranch
 
       - name: Package release artifacts
         shell: pwsh
