@@ -1,0 +1,72 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject Ignyos.LanPortal.Web.Services.PortalConfigClient PortalConfigClient
+@inject IJSRuntime JS
+
+<PageTitle>@networkName - Home</PageTitle>
+
+<h1>@networkName</h1>
+
+<p>Share this page with others on your network so they can request access from their own device.</p>
+
+<div class="card mt-3" style="max-width: 36rem;">
+	<div class="card-body">
+		<h2 class="h5 card-title">Join This Network</h2>
+		<p class="card-text mb-2">Send this link:</p>
+		<p class="text-break mb-3"><a href="@shareUrl">@shareUrl</a></p>
+
+		<img
+			src="@qrCodeUrl"
+			alt="QR code for the LAN portal login link"
+			width="256"
+			height="256"
+			class="img-thumbnail mb-3" />
+
+		<p class="text-muted mb-3">Scan this QR code to open the login page on your device and request access.</p>
+
+		<div>
+			<button class="btn btn-primary" @onclick="CopyShareLinkAsync">Copy Link</button>
+			<a class="btn btn-outline-secondary ms-2" href="login">Open Login</a>
+			<a class="btn btn-outline-secondary ms-2" href="files">Go to Files</a>
+		</div>
+
+		@if (!string.IsNullOrWhiteSpace(copyStatusMessage))
+		{
+			<p class="mt-3 mb-0">@copyStatusMessage</p>
+		}
+	</div>
+</div>
+
+@code {
+	private string networkName = "My Home";
+	private string shareUrl = string.Empty;
+	private string qrCodeUrl = string.Empty;
+	private string? copyStatusMessage;
+
+	protected override async Task OnInitializedAsync()
+	{
+		networkName = await PortalConfigClient.GetNetworkNameAsync();
+
+		shareUrl = Navigation.ToAbsoluteUri("/login").ToString();
+		qrCodeUrl = BuildQrCodeUrl(shareUrl);
+	}
+
+	private async Task CopyShareLinkAsync()
+	{
+		try
+		{
+			await JS.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
+			copyStatusMessage = "Link copied.";
+		}
+		catch
+		{
+			copyStatusMessage = "Could not copy automatically. Please copy the link manually.";
+		}
+	}
+
+	private static string BuildQrCodeUrl(string value)
+	{
+		return $"https://api.qrserver.com/v1/create-qr-code/?size=256x256&data={Uri.EscapeDataString(value)}";
+	}
+}

@@ -1,0 +1,136 @@
+name: Release Artifacts
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      include_host:
+        description: 'Include Host publish artifact (Windows executable payload)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: write
+
+jobs:
+  release-artifacts:
+    runs-on: windows-latest
+
+    env:
+      DOTNET_VERSION: '9.0.x'
+      CONFIGURATION: Release
+      INCLUDE_HOST: ${{ github.event_name == 'workflow_dispatch' && inputs.include_host || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore Ignyos.LanPortal.sln
+
+      - name: Publish API
+        run: >
+          dotnet publish
+          Ignyos.LanPortal.Api/Ignyos.LanPortal.Api.csproj
+          --configuration ${{ env.CONFIGURATION }}
+          --no-restore
+          --output artifacts/release/api
+
+      - name: Publish Web
+        run: >
+          dotnet publish
+          Ignyos.LanPortal.Web/Ignyos.LanPortal.Web.csproj
+          --configuration ${{ env.CONFIGURATION }}
+          --no-restore
+          --output artifacts/release/web
+
+      - name: Publish Host (optional)
+        if: env.INCLUDE_HOST == 'true'
+        run: >
+          dotnet publish
+          Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj
+          --configuration ${{ env.CONFIGURATION }}
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          --output artifacts/release/host
+
+      - name: Package release artifacts
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF -like "refs/tags/*") { $env:GITHUB_REF_NAME } else { "manual-$env:GITHUB_RUN_NUMBER" }
+
+          $releaseRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts\release"
+          $packageRoot = Join-Path $releaseRoot "package"
+          $apiDir = Join-Path $releaseRoot "api"
+          $webDir = Join-Path $releaseRoot "web"
+          $hostDir = Join-Path $releaseRoot "host"
+
+          New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+
+          $apiZip = "Ignyos-LanPortal-Api-$tag.zip"
+          $webZip = "Ignyos-LanPortal-Web-$tag.zip"
+          $hostZip = "Ignyos-LanPortal-Host-$tag.zip"
+
+          $apiZipPath = Join-Path $packageRoot $apiZip
+          $webZipPath = Join-Path $packageRoot $webZip
+          $hostZipPath = Join-Path $packageRoot $hostZip
+
+          Compress-Archive -Path (Join-Path $apiDir "*") -DestinationPath $apiZipPath -CompressionLevel Optimal
+          Compress-Archive -Path (Join-Path $webDir "*") -DestinationPath $webZipPath -CompressionLevel Optimal
+          if (Test-Path $hostDir) {
+            Compress-Archive -Path (Join-Path $hostDir "*") -DestinationPath $hostZipPath -CompressionLevel Optimal
+          }
+
+          $apiHash = Get-FileHash -Path $apiZipPath -Algorithm SHA256
+          $webHash = Get-FileHash -Path $webZipPath -Algorithm SHA256
+
+          "$($apiHash.Hash)  $apiZip" | Set-Content -Path (Join-Path $packageRoot "$apiZip.sha256")
+          "$($webHash.Hash)  $webZip" | Set-Content -Path (Join-Path $packageRoot "$webZip.sha256")
+
+          $manifest = @(
+            [PSCustomObject]@{ name = $apiZip; sha256 = $apiHash.Hash },
+            [PSCustomObject]@{ name = $webZip; sha256 = $webHash.Hash }
+          )
+
+          if (Test-Path $hostZipPath) {
+            $hostHash = Get-FileHash -Path $hostZipPath -Algorithm SHA256
+            "$($hostHash.Hash)  $hostZip" | Set-Content -Path (Join-Path $packageRoot "$hostZip.sha256")
+            $manifest += [PSCustomObject]@{ name = $hostZip; sha256 = $hostHash.Hash }
+          }
+
+          [PSCustomObject]@{
+            generatedAt = (Get-Date).ToUniversalTime().ToString('o')
+            refName = $env:GITHUB_REF_NAME
+            runId = $env:GITHUB_RUN_ID
+            artifacts = $manifest
+          } | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $packageRoot "release-artifacts-manifest.json")
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ github.ref_name || github.run_number }}
+          path: artifacts/release/package/*
+          if-no-files-found: error
+
+      - name: Attach artifacts to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/release/package/*.zip
+            artifacts/release/package/*.sha256
+            artifacts/release/package/release-artifacts-manifest.json
+          generate_release_notes: true

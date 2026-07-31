@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ignyos LAN Portal</title>
+  <meta name="description" content="LAN-first file access and device onboarding for local networks.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="bg-shape bg-shape-a" aria-hidden="true"></div>
+  <div class="bg-shape bg-shape-b" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand-row">
+      <p class="kicker">Ignyos</p>
+      <h1>LAN Portal</h1>
+    </div>
+    <p class="tagline">A local-first portal for onboarding and controlled file access across trusted Wi-Fi.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel intro reveal">
+      <h2>What This Is</h2>
+      <p>
+        This project combines a local API, a web frontend, and a host app to keep setup and sharing fast inside a LAN.
+      </p>
+      <ul>
+        <li>Local setup and admin flow</li>
+        <li>Device onboarding support</li>
+        <li>Release workflow for repeatable deployments</li>
+      </ul>
+    </section>
+
+    <section class="panel reveal delay-1">
+      <h2>Quick Paths</h2>
+      <div class="grid-links">
+        <a href="../README.md" class="card-link">
+          <span class="card-title">Repository Guide</span>
+          <span class="card-copy">Local run steps and architecture overview.</span>
+        </a>
+        <a href="../.github/release/release-notes.md" class="card-link">
+          <span class="card-title">Latest Release Notes</span>
+          <span class="card-copy">Current generated notes for the most recent release flow.</span>
+        </a>
+        <a href="../.github/runbooks/developer-installer.md" class="card-link">
+          <span class="card-title">Developer Installer Runbook</span>
+          <span class="card-copy">Packaging and QA transfer procedure.</span>
+        </a>
+        <a href="../.github/roadmaps/cicd-roadmap.md" class="card-link">
+          <span class="card-title">CI/CD Roadmap</span>
+          <span class="card-copy">Incremental delivery plan for release automation.</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="panel reveal delay-2">
+      <h2>Status</h2>
+      <p>GitHub Pages shell initialized for future SPA content.</p>
+      <p class="mono">Now serving from /docs as the site root candidate.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Ignyos LAN Portal</p>
+    <p class="mono" id="year-line"></p>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>

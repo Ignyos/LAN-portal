@@ -1,0 +1,73 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API (.NET)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-solution",
+      "program": "${workspaceFolder}/Ignyos.LanPortal.Api/bin/Debug/net9.0/Ignyos.LanPortal.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/Ignyos.LanPortal.Api",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5212"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/local/admin"
+      }
+    },
+    {
+      "name": "Web (.NET)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-solution",
+      "program": "${workspaceFolder}/Ignyos.LanPortal.Web/bin/Debug/net9.0/Ignyos.LanPortal.Web.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/Ignyos.LanPortal.Web",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5014"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on:\\s+(https?://\\S+)"
+      }
+    },
+    {
+      "name": "Build Dev Installer",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-dev-installer.ps1 -Configuration Release -Runtime win-x64",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Publish",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-release.ps1",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Publish Dry Run",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-release.ps1 -DryRun",
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Launch API + Web",
+      "configurations": [
+        "API (.NET)",
+        "Web (.NET)"
+      ],
+      "stopAll": true
+    }
+  ]
+}
