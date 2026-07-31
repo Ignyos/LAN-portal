@@ -79,7 +79,7 @@ Stage 4 checklist:
 - [x] Add failure handling for missing/invalid manifest: silent fallback + logs in production, non-blocking info + logs in test builds.
 - [x] Add hourly polling for update checks with manual refresh from File menu.
 - [x] Add config-based channel selection (`production` or `test`) for update checks.
-- [ ] Validate test-channel prerelease handling using `-test.<yyyyMMddHHmm>` SemVer pre-release identifiers.
+- [x] Validate test-channel prerelease handling using `-test.<yyyyMMddHHmm>` SemVer pre-release identifiers.
 - [ ] Validate end-to-end update check against a Stage 4 test release.
 
 Stage 4 exit criteria:
