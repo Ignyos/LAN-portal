@@ -27,6 +27,7 @@ jobs:
       CONFIGURATION: Release
       INCLUDE_HOST: ${{ github.event_name == 'workflow_dispatch' && inputs.include_host || 'false' }}
       PAGES_BASE_URL: https://lanportal.ignyos.com
+      PAGES_SOURCE_BRANCH: main
 
     steps:
       - name: Checkout
@@ -209,7 +210,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $defaultBranch = "${{ github.event.repository.default_branch }}"
+          $defaultBranch = $env:PAGES_SOURCE_BRANCH
           $repo = $env:GITHUB_REPOSITORY
           $contentsApiRoot = "https://api.github.com/repos/$repo/contents"
           $manifestSourceDir = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/pages/updates"
