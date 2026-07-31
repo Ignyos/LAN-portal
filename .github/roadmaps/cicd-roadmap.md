@@ -52,8 +52,8 @@ Stage 3 checklist:
 - [x] Compile installer executable in GitHub Actions using tag-derived version (`vX.Y.Z` -> `X.Y.Z`).
 - [x] Generate installer SHA256 file and include it in release assets.
 - [x] Attach installer `.exe` to tagged GitHub Releases.
-- [ ] Push a non-production Stage 3 validation tag (`vX.Y.Z-stage3-test`) and verify installer + checksum are attached.
-- [ ] Confirm installer output naming convention is stable for Stage 4 manifest consumption.
+- [x] Push a non-production Stage 3 validation tag (`vX.Y.Z-stage3-test`) and verify installer + checksum are attached.
+- [x] Confirm installer output naming convention is stable for Stage 4 manifest consumption.
 
 Stage 3 exit criteria:
 
