@@ -99,6 +99,10 @@ h1 {
   grid-column: 1 / -1;
 }
 
+.panel:nth-child(4) {
+  grid-column: 1 / -1;
+}
+
 h2 {
   margin-top: 0.2rem;
   margin-bottom: 0.65rem;
@@ -153,6 +157,61 @@ li {
   font-size: 0.92rem;
 }
 
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.download-card {
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.download-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.status-line {
+  margin: 0.55rem 0;
+  color: var(--muted);
+}
+
+.download-link {
+  display: inline-block;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(145deg, var(--accent), #0b7070);
+  border: 1px solid #086868;
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.75rem;
+  font-weight: 700;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.download-link:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.download-link.disabled {
+  background: #8ba0a9;
+  border-color: #798f99;
+  pointer-events: none;
+}
+
+.small {
+  margin-top: 0.55rem;
+  font-size: 0.84rem;
+}
+
+.small a {
+  color: inherit;
+}
+
 .mono {
   font-family: "IBM Plex Mono", monospace;
   color: #2d4f5f;
@@ -200,6 +259,10 @@ li {
   }
 
   .grid-links {
+    grid-template-columns: 1fr;
+  }
+
+  .download-grid {
     grid-template-columns: 1fr;
   }
 
