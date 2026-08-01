@@ -10,6 +10,27 @@ Use this runbook to validate Stage 5 update safety behavior on test channel befo
 - A test release exists with installer `.exe` and matching `.sha256`.
 - Update status endpoint returns `expectedSha256` in the payload.
 
+## Optional deterministic fault injection (test channel only)
+
+Set `LANPORTAL_UPDATE_TEST_FAULT` before launching Host to force a specific failure path:
+
+- `DOWNLOAD`: forces all download attempts to fail.
+- `CHECKSUM`: forces checksum mismatch after download.
+- `ORCHESTRATION`: forces pre-install orchestration hook failure.
+- `LAUNCH`: forces installer launch failure after orchestration.
+
+PowerShell example:
+
+```powershell
+$env:LANPORTAL_UPDATE_TEST_FAULT = "DOWNLOAD"
+```
+
+Clear after test:
+
+```powershell
+Remove-Item Env:LANPORTAL_UPDATE_TEST_FAULT
+```
+
 ## Validation 1: Checksum gate (happy path)
 
 1. Launch Host and trigger `File -> Check For Updates`.
@@ -30,14 +51,14 @@ Use this runbook to validate Stage 5 update safety behavior on test channel befo
 
 ## Validation 3: Retry policy and backoff
 
-1. Force transient download failure (for example, block network on first attempt).
+1. Force transient download failure (for example, set `LANPORTAL_UPDATE_TEST_FAULT=DOWNLOAD`).
 2. Trigger update action.
 3. Verify logs show up to 3 attempts with backoff delays.
 4. If all attempts fail, verify failure code `DOWNLOAD_FAILED` is captured in rollback metadata.
 
 ## Validation 4: Checksum mismatch blocks install
 
-1. Publish or inject an incorrect checksum for the test manifest.
+1. Publish or inject an incorrect checksum for the test manifest, or set `LANPORTAL_UPDATE_TEST_FAULT=CHECKSUM`.
 2. Trigger update action.
 3. Verify Host blocks installer launch.
 4. Verify rollback metadata includes failure code `CHECKSUM_MISMATCH`.
@@ -51,7 +72,7 @@ Use this runbook to validate Stage 5 update safety behavior on test channel befo
 
 ## Validation 6: Rollback trigger marker on install/restart failure path
 
-1. Simulate post-orchestration failure (for example, deny installer execution or force launch failure).
+1. Simulate post-orchestration failure (for example, set `LANPORTAL_UPDATE_TEST_FAULT=ORCHESTRATION` or `LANPORTAL_UPDATE_TEST_FAULT=LAUNCH`).
 2. Trigger update action.
 3. Verify rollback metadata is written.
 4. Verify `rollback-trigger.json` is written for test channel when failure code is:

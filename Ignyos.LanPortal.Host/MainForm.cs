@@ -26,6 +26,11 @@ public sealed class MainForm : Form
     private const string FailureCodeOrchestrationFailed = "ORCHESTRATION_FAILED";
     private const string FailureCodeInstallerLaunchFailed = "INSTALLER_LAUNCH_FAILED";
     private const string FailureCodeUnknown = "UNKNOWN";
+    private const string FaultNone = "NONE";
+    private const string FaultDownload = "DOWNLOAD";
+    private const string FaultChecksum = "CHECKSUM";
+    private const string FaultOrchestration = "ORCHESTRATION";
+    private const string FaultLaunch = "LAUNCH";
 
     private readonly WebView2 browser;
     private readonly string appVersion;
@@ -488,13 +493,21 @@ public sealed class MainForm : Form
 
         try
         {
+            var forcedFault = GetForcedUpdateFaultMode();
+
             installerPath = await DownloadAndVerifyUpdateInstallerAsync(
                 availableUpdateUrl,
                 availableUpdateSha256,
-                availableUpdateVersion);
+                availableUpdateVersion,
+                forcedFault);
 
             orchestrationAttempted = true;
-            await RunPreInstallOrchestrationHooksAsync();
+            await RunPreInstallOrchestrationHooksAsync(forcedFault);
+
+            if (forcedFault == FaultLaunch)
+            {
+                throw new InvalidOperationException("Forced launch failure for Stage 5 validation.");
+            }
 
             var launchedInstaller = Process.Start(new ProcessStartInfo
             {
@@ -679,11 +692,19 @@ public sealed class MainForm : Form
     }
 
     private async Task RunPreInstallOrchestrationHooksAsync()
+        => await RunPreInstallOrchestrationHooksAsync(GetForcedUpdateFaultMode());
+
+    private async Task RunPreInstallOrchestrationHooksAsync(string forcedFaultMode)
     {
         if (!EnableUpdateOrchestrationForTestChannel || !isTestChannel)
         {
             Trace.WriteLine("[UpdateInstall] Orchestration hooks skipped (not enabled for this channel).");
             return;
+        }
+
+        if (forcedFaultMode == FaultOrchestration)
+        {
+            throw new InvalidOperationException("Forced orchestration failure for Stage 5 validation.");
         }
 
         Trace.WriteLine("[UpdateInstall] Running pre-install orchestration hooks for test channel.");
@@ -734,7 +755,8 @@ public sealed class MainForm : Form
     private static async Task<string> DownloadAndVerifyUpdateInstallerAsync(
         string downloadUrl,
         string expectedSha256,
-        string? version)
+        string? version,
+        string forcedFaultMode)
     {
         var updatesRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -760,7 +782,7 @@ public sealed class MainForm : Form
             File.Delete(downloadPath);
         }
 
-        await DownloadInstallerWithRetryAsync(downloadUrl, downloadPath, maxAttempts: 3);
+        await DownloadInstallerWithRetryAsync(downloadUrl, downloadPath, maxAttempts: 3, forcedFaultMode);
 
         string actualSha256;
         await using (var verifyStream = new FileStream(downloadPath, FileMode.Open, FileAccess.Read, FileShare.Read))
@@ -770,6 +792,11 @@ public sealed class MainForm : Form
         }
 
         var normalizedExpected = expectedSha256.Trim().ToUpperInvariant();
+        if (forcedFaultMode == FaultChecksum)
+        {
+            normalizedExpected = new string('0', 64);
+        }
+
         if (!string.Equals(actualSha256, normalizedExpected, StringComparison.Ordinal))
         {
             File.Delete(downloadPath);
@@ -788,7 +815,7 @@ public sealed class MainForm : Form
         return targetPath;
     }
 
-    private static async Task DownloadInstallerWithRetryAsync(string downloadUrl, string downloadPath, int maxAttempts)
+    private static async Task DownloadInstallerWithRetryAsync(string downloadUrl, string downloadPath, int maxAttempts, string forcedFaultMode)
     {
         var initialDelay = TimeSpan.FromSeconds(2);
 
@@ -796,6 +823,11 @@ public sealed class MainForm : Form
         {
             try
             {
+                if (forcedFaultMode == FaultDownload)
+                {
+                    throw new InvalidOperationException("Forced download failure for Stage 5 validation.");
+                }
+
                 if (File.Exists(downloadPath))
                 {
                     File.Delete(downloadPath);
@@ -823,6 +855,35 @@ public sealed class MainForm : Form
         }
 
         throw new InvalidOperationException($"Failed to download update package after {maxAttempts} attempts.");
+    }
+
+    private string GetForcedUpdateFaultMode()
+    {
+        if (!isTestChannel)
+        {
+            return FaultNone;
+        }
+
+        var raw = Environment.GetEnvironmentVariable("LANPORTAL_UPDATE_TEST_FAULT");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return FaultNone;
+        }
+
+        var normalized = raw.Trim().ToUpperInvariant();
+        var allowed = normalized == FaultDownload ||
+                      normalized == FaultChecksum ||
+                      normalized == FaultOrchestration ||
+                      normalized == FaultLaunch;
+
+        if (!allowed)
+        {
+            Trace.WriteLine($"[UpdateInstall] Ignoring unsupported fault mode '{raw}'.");
+            return FaultNone;
+        }
+
+        Trace.WriteLine($"[UpdateInstall] Forced test fault mode active: {normalized}");
+        return normalized;
     }
 
     private void ShowFatalError(string title, string detail)
