@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -27,6 +28,8 @@ public sealed class MainForm : Form
     private bool isUpdateCheckInProgress;
     private bool isTestChannel;
     private string? availableUpdateUrl;
+    private string? availableUpdateSha256;
+    private string? availableUpdateVersion;
 
     public MainForm()
     {
@@ -404,6 +407,8 @@ public sealed class MainForm : Form
         if (updateStatus.UpdateAvailable && !string.IsNullOrWhiteSpace(updateStatus.DownloadUrl))
         {
             availableUpdateUrl = updateStatus.DownloadUrl;
+            availableUpdateSha256 = updateStatus.ExpectedSha256;
+            availableUpdateVersion = updateStatus.LatestVersion;
             updateActionLabel.Text = updateStatus.RequiredUpdate ? "Update Required" : "New Version Available";
             updateActionLabel.Visible = true;
             updateActionLabel.Click -= OpenAvailableUpdate;
@@ -412,6 +417,8 @@ public sealed class MainForm : Form
         else
         {
             availableUpdateUrl = null;
+            availableUpdateSha256 = null;
+            availableUpdateVersion = null;
             updateActionLabel.Visible = false;
             updateActionLabel.Click -= OpenAvailableUpdate;
         }
@@ -423,33 +430,149 @@ public sealed class MainForm : Form
         }
     }
 
-    private void OpenAvailableUpdate(object? sender, EventArgs e)
+    private async void OpenAvailableUpdate(object? sender, EventArgs e)
     {
         if (string.IsNullOrWhiteSpace(availableUpdateUrl))
         {
             return;
         }
 
-        try
+        if (string.IsNullOrWhiteSpace(availableUpdateSha256))
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = availableUpdateUrl,
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[UpdateCheck] Could not open update URL: {ex.Message}");
+            Trace.WriteLine("[UpdateInstall] Missing expected SHA256 for update package. Installation blocked.");
+            updateStateLabel.Text = "Update package verification metadata is missing.";
+            updateStateLabel.ForeColor = Color.DarkOrange;
+
             if (isTestChannel)
             {
                 MessageBox.Show(
-                    "Could not open the update download link. See logs for details.",
+                    "Update package metadata is incomplete. Installation was blocked.",
+                    AppTitlePrefix,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+
+            return;
+        }
+
+        var previousActionText = updateActionLabel.Text;
+        var previousActionVisible = updateActionLabel.Visible;
+        var previousStateText = updateStateLabel.Text;
+        var previousStateColor = updateStateLabel.ForeColor;
+
+        updateActionLabel.Enabled = false;
+        updateActionLabel.Text = "Preparing update...";
+        updateStateLabel.Text = "Downloading and verifying installer...";
+        updateStateLabel.ForeColor = Color.DimGray;
+
+        try
+        {
+            var installerPath = await DownloadAndVerifyUpdateInstallerAsync(
+                availableUpdateUrl,
+                availableUpdateSha256,
+                availableUpdateVersion);
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = installerPath,
+                UseShellExecute = true
+            });
+
+            updateStateLabel.Text = "Installer verified and launched.";
+            updateStateLabel.ForeColor = Color.FromArgb(20, 92, 148);
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[UpdateInstall] Installation blocked: {ex.Message}");
+            updateStateLabel.Text = "Update installation blocked by safety checks.";
+            updateStateLabel.ForeColor = Color.DarkOrange;
+
+            if (isTestChannel)
+            {
+                MessageBox.Show(
+                    "Update installation was blocked. See logs for details.",
                     AppTitlePrefix,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
         }
+        finally
+        {
+            updateActionLabel.Enabled = true;
+            updateActionLabel.Text = previousActionText;
+            updateActionLabel.Visible = previousActionVisible;
+
+            if (updateStateLabel.Text == "Downloading and verifying installer...")
+            {
+                updateStateLabel.Text = previousStateText;
+                updateStateLabel.ForeColor = previousStateColor;
+            }
+        }
+    }
+
+    private static async Task<string> DownloadAndVerifyUpdateInstallerAsync(
+        string downloadUrl,
+        string expectedSha256,
+        string? version)
+    {
+        var updatesRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Ignyos",
+            "LanPortalDev",
+            "Updates");
+
+        Directory.CreateDirectory(updatesRoot);
+
+        var parsedUri = new Uri(downloadUrl);
+        var fileName = Path.GetFileName(parsedUri.LocalPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            var suffix = string.IsNullOrWhiteSpace(version) ? DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss") : version;
+            fileName = $"Ignyos-LanPortal-Update-{suffix}.exe";
+        }
+
+        var targetPath = Path.Combine(updatesRoot, fileName);
+        var downloadPath = targetPath + ".download";
+
+        if (File.Exists(downloadPath))
+        {
+            File.Delete(downloadPath);
+        }
+
+        using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) })
+        using (var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+        {
+            response.EnsureSuccessStatusCode();
+
+            await using var sourceStream = await response.Content.ReadAsStreamAsync();
+            await using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await sourceStream.CopyToAsync(fileStream);
+        }
+
+        string actualSha256;
+        await using (var verifyStream = new FileStream(downloadPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var hashBytes = await SHA256.HashDataAsync(verifyStream);
+            actualSha256 = Convert.ToHexString(hashBytes);
+        }
+
+        var normalizedExpected = expectedSha256.Trim().ToUpperInvariant();
+        if (!string.Equals(actualSha256, normalizedExpected, StringComparison.Ordinal))
+        {
+            File.Delete(downloadPath);
+            throw new InvalidOperationException(
+                $"Checksum mismatch for update package. Expected {normalizedExpected}, actual {actualSha256}.");
+        }
+
+        if (File.Exists(targetPath))
+        {
+            File.Delete(targetPath);
+        }
+
+        File.Move(downloadPath, targetPath);
+        Trace.WriteLine($"[UpdateInstall] Verified installer downloaded to {targetPath}");
+
+        return targetPath;
     }
 
     private void ShowFatalError(string title, string detail)
@@ -466,6 +589,7 @@ public sealed class MainForm : Form
         [property: JsonPropertyName("latestVersion")] string? LatestVersion,
         [property: JsonPropertyName("minSupportedVersion")] string? MinSupportedVersion,
         [property: JsonPropertyName("downloadUrl")] string? DownloadUrl,
+        [property: JsonPropertyName("expectedSha256")] string? ExpectedSha256,
         [property: JsonPropertyName("updateAvailable")] bool UpdateAvailable,
         [property: JsonPropertyName("requiredUpdate")] bool RequiredUpdate,
         [property: JsonPropertyName("channel")] string Channel,
