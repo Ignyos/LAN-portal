@@ -1,6 +1,6 @@
 param(
     [switch]$DryRun,
-    [string]$MainBranch = "main",
+    [string]$MainBranch,
     [string]$VersionProjectPath = "Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj",
     [string]$ReleaseNotesPath = ".github/release/release-notes.md",
     [string]$ReleaseNotesStyleGuidePath = ".github/release/release-notes-style-guide.md",
@@ -126,9 +126,13 @@ Write-Log "Starting publish workflow. DryRun=$DryRun"
 
 $branchResult = Invoke-Git -GitArgs @("rev-parse", "--abbrev-ref", "HEAD")
 $currentBranch = $branchResult.Output.Trim()
+$targetBranch = if ([string]::IsNullOrWhiteSpace($MainBranch)) { $currentBranch } else { $MainBranch.Trim() }
+
 Write-Log "Current branch: $currentBranch"
-if ($currentBranch -ne $MainBranch) {
-    Exit-WithError -Code $ExitCodes.BranchGateFailed -Message "Branch gate failed. Expected '$MainBranch' but found '$currentBranch'."
+Write-Log "Target publish branch: $targetBranch"
+
+if ($currentBranch -ne $targetBranch) {
+    Exit-WithError -Code $ExitCodes.BranchGateFailed -Message "Branch gate failed. Expected '$targetBranch' but found '$currentBranch'."
 }
 
 $dirtyPaths = Get-ChangedPaths
@@ -137,13 +141,13 @@ if ($dirtyPaths.Count -gt 0) {
     Exit-WithError -Code $ExitCodes.CleanGateFailed -Message "Clean gate failed. Working tree has pending changes: $joined"
 }
 
-Write-Log "Fetching latest refs and tags from origin/$MainBranch"
-$null = Invoke-Git -GitArgs @("fetch", "origin", $MainBranch, "--tags")
+Write-Log "Fetching latest refs and tags from origin/$targetBranch"
+$null = Invoke-Git -GitArgs @("fetch", "origin", $targetBranch, "--tags")
 
 $localHead = (Invoke-Git -GitArgs @("rev-parse", "HEAD")).Output.Trim()
-$remoteHead = (Invoke-Git -GitArgs @("rev-parse", "origin/$MainBranch")).Output.Trim()
+$remoteHead = (Invoke-Git -GitArgs @("rev-parse", "origin/$targetBranch")).Output.Trim()
 if ($localHead -ne $remoteHead) {
-    Exit-WithError -Code $ExitCodes.SyncGateFailed -Message "Sync gate failed. Local HEAD ($localHead) does not match origin/$MainBranch ($remoteHead)."
+    Exit-WithError -Code $ExitCodes.SyncGateFailed -Message "Sync gate failed. Local HEAD ($localHead) does not match origin/$targetBranch ($remoteHead)."
 }
 
 $versionProjectFullPath = Resolve-RelativePath -RelativePath $VersionProjectPath
@@ -352,9 +356,9 @@ $null = Invoke-Git -GitArgs @("add", $VersionProjectPath, $ReleaseNotesPath)
 $null = Invoke-Git -GitArgs @("commit", "-m", "release: $tagName")
 $null = Invoke-Git -GitArgs @("tag", "-a", $tagName, "-m", "Release $tagName")
 
-$null = Invoke-Git -GitArgs @("push", "origin", "HEAD:$MainBranch")
+$null = Invoke-Git -GitArgs @("push", "origin", "HEAD:$targetBranch")
 $null = Invoke-Git -GitArgs @("push", "origin", $tagName)
 
-Write-Log "Publish complete. Pushed commit and tag $tagName to origin/$MainBranch"
+Write-Log "Publish complete. Pushed commit and tag $tagName to origin/$targetBranch"
 Write-Log "Log file: $logPath"
 exit $ExitCodes.Success
