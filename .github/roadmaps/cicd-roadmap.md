@@ -140,7 +140,7 @@ Stage 5 kickoff checklist:
 
 - [x] Add SHA256 verification step before installer launch in Host update flow.
 - [x] Fail closed on checksum mismatch and log clear diagnostic details.
-- [ ] Add retry policy for installer download (3 attempts with backoff).
+- [x] Add retry policy for installer download (3 attempts with backoff).
 - [x] Add download/install status reporting in Host logs for troubleshooting.
 - [ ] Add safe process orchestration hooks for stop/update/restart sequence (feature-flagged for test channel).
 - [ ] Define rollback metadata contract (backup location, version markers, failure reason codes).

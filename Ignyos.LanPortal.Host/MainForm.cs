@@ -539,15 +539,7 @@ public sealed class MainForm : Form
             File.Delete(downloadPath);
         }
 
-        using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) })
-        using (var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
-        {
-            response.EnsureSuccessStatusCode();
-
-            await using var sourceStream = await response.Content.ReadAsStreamAsync();
-            await using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await sourceStream.CopyToAsync(fileStream);
-        }
+        await DownloadInstallerWithRetryAsync(downloadUrl, downloadPath, maxAttempts: 3);
 
         string actualSha256;
         await using (var verifyStream = new FileStream(downloadPath, FileMode.Open, FileAccess.Read, FileShare.Read))
@@ -573,6 +565,43 @@ public sealed class MainForm : Form
         Trace.WriteLine($"[UpdateInstall] Verified installer downloaded to {targetPath}");
 
         return targetPath;
+    }
+
+    private static async Task DownloadInstallerWithRetryAsync(string downloadUrl, string downloadPath, int maxAttempts)
+    {
+        var initialDelay = TimeSpan.FromSeconds(2);
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                if (File.Exists(downloadPath))
+                {
+                    File.Delete(downloadPath);
+                }
+
+                Trace.WriteLine($"[UpdateInstall] Download attempt {attempt}/{maxAttempts} started.");
+
+                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+                using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+
+                await using var sourceStream = await response.Content.ReadAsStreamAsync();
+                await using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await sourceStream.CopyToAsync(fileStream);
+
+                Trace.WriteLine($"[UpdateInstall] Download attempt {attempt}/{maxAttempts} succeeded.");
+                return;
+            }
+            catch (Exception ex) when (attempt < maxAttempts)
+            {
+                var delay = TimeSpan.FromMilliseconds(initialDelay.TotalMilliseconds * Math.Pow(2, attempt - 1));
+                Trace.WriteLine($"[UpdateInstall] Download attempt {attempt}/{maxAttempts} failed: {ex.Message}. Retrying in {delay.TotalSeconds:N0}s.");
+                await Task.Delay(delay);
+            }
+        }
+
+        throw new InvalidOperationException($"Failed to download update package after {maxAttempts} attempts.");
     }
 
     private void ShowFatalError(string title, string detail)
