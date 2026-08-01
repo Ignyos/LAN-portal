@@ -18,6 +18,7 @@ public sealed class MainForm : Form
     private const string UpdateStatusUrl = "http://localhost:5212/api/local/update/status";
     private const string UpdateCheckNowUrl = "http://localhost:5212/api/local/update/check-now";
     private const string AppTitlePrefix = "Ignyos LAN Portal";
+    private const bool EnableUpdateOrchestrationForTestChannel = true;
 
     private readonly WebView2 browser;
     private readonly string appVersion;
@@ -30,6 +31,8 @@ public sealed class MainForm : Form
     private string? availableUpdateUrl;
     private string? availableUpdateSha256;
     private string? availableUpdateVersion;
+    private Process? managedApiProcess;
+    private Process? managedWebProcess;
 
     public MainForm()
     {
@@ -69,8 +72,8 @@ public sealed class MainForm : Form
     {
         try
         {
-            StartPortalProcess(GetApiExecutablePath(), "Ignyos.LanPortal.Api", new[] { "--urls", ApiListenUrl });
-            StartPortalProcess(GetWebExecutablePath(), "Ignyos.LanPortal.Web", new[] { "--urls", WebListenUrl });
+            managedApiProcess = StartPortalProcess(GetApiExecutablePath(), "Ignyos.LanPortal.Api", new[] { "--urls", ApiListenUrl });
+            managedWebProcess = StartPortalProcess(GetWebExecutablePath(), "Ignyos.LanPortal.Web", new[] { "--urls", WebListenUrl });
 
             await WaitForApiAsync();
 
@@ -127,7 +130,7 @@ public sealed class MainForm : Form
         return userDataFolder;
     }
 
-    private static void StartPortalProcess(string executablePath, string processName, IReadOnlyList<string> arguments)
+    private static Process? StartPortalProcess(string executablePath, string processName, IReadOnlyList<string> arguments)
     {
         if (!File.Exists(executablePath))
         {
@@ -136,10 +139,10 @@ public sealed class MainForm : Form
 
         if (Process.GetProcessesByName(processName).Length > 0)
         {
-            return;
+            return null;
         }
 
-        Process.Start(new ProcessStartInfo
+        return Process.Start(new ProcessStartInfo
         {
             FileName = executablePath,
             Arguments = string.Join(' ', arguments),
@@ -472,6 +475,8 @@ public sealed class MainForm : Form
                 availableUpdateSha256,
                 availableUpdateVersion);
 
+            await RunPreInstallOrchestrationHooksAsync();
+
             Process.Start(new ProcessStartInfo
             {
                 FileName = installerPath,
@@ -480,6 +485,12 @@ public sealed class MainForm : Form
 
             updateStateLabel.Text = "Installer verified and launched.";
             updateStateLabel.ForeColor = Color.FromArgb(20, 92, 148);
+
+            if (isTestChannel && EnableUpdateOrchestrationForTestChannel)
+            {
+                Trace.WriteLine("[UpdateInstall] Closing host to allow installer update sequence.");
+                BeginInvoke(new Action(Close));
+            }
         }
         catch (Exception ex)
         {
@@ -507,6 +518,59 @@ public sealed class MainForm : Form
                 updateStateLabel.Text = previousStateText;
                 updateStateLabel.ForeColor = previousStateColor;
             }
+        }
+    }
+
+    private async Task RunPreInstallOrchestrationHooksAsync()
+    {
+        if (!EnableUpdateOrchestrationForTestChannel || !isTestChannel)
+        {
+            Trace.WriteLine("[UpdateInstall] Orchestration hooks skipped (not enabled for this channel).");
+            return;
+        }
+
+        Trace.WriteLine("[UpdateInstall] Running pre-install orchestration hooks for test channel.");
+        updatePollTimer.Stop();
+
+        await StopManagedProcessAsync(managedWebProcess, "Ignyos.LanPortal.Web");
+        managedWebProcess = null;
+
+        await StopManagedProcessAsync(managedApiProcess, "Ignyos.LanPortal.Api");
+        managedApiProcess = null;
+
+        Trace.WriteLine("[UpdateInstall] Pre-install orchestration hooks completed.");
+    }
+
+    private static async Task StopManagedProcessAsync(Process? process, string processName)
+    {
+        if (process is null)
+        {
+            Trace.WriteLine($"[UpdateInstall] No managed process tracked for {processName}; skipping stop hook.");
+            return;
+        }
+
+        try
+        {
+            if (process.HasExited)
+            {
+                Trace.WriteLine($"[UpdateInstall] Managed process already exited: {processName} (PID {process.Id}).");
+                return;
+            }
+
+            Trace.WriteLine($"[UpdateInstall] Stopping managed process {processName} (PID {process.Id}).");
+            process.Kill(entireProcessTree: true);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await process.WaitForExitAsync(cts.Token);
+            Trace.WriteLine($"[UpdateInstall] Managed process stopped: {processName} (PID {process.Id}).");
+        }
+        catch (OperationCanceledException)
+        {
+            throw new InvalidOperationException($"Timed out stopping managed process {processName}.");
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to stop managed process {processName}: {ex.Message}", ex);
         }
     }
 
