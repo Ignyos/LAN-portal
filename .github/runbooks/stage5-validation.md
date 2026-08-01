@@ -2,6 +2,8 @@
 
 Use this runbook to validate Stage 5 update safety behavior on test channel before production rollout.
 
+For each scenario below, record evidence using [.github/runbooks/stage5-validation-evidence-template.md](stage5-validation-evidence-template.md).
+
 ## Preconditions
 
 - Stage 5 code is merged into the target branch.
@@ -94,3 +96,7 @@ Under `%LOCALAPPDATA%\\Ignyos\\LanPortalDev\\UpdateState` verify:
 - Rollback metadata contract is consistently generated with version markers and backup path reference.
 - Rollback trigger marker is generated only for install/restart failure path in test channel.
 - Team confirms Stage 5 safety behavior before production-channel rollout.
+
+## Evidence handoff
+
+Create one completed copy of the evidence template per scenario and store it with your validation notes for release gate review.
