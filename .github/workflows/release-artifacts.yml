@@ -212,8 +212,8 @@ jobs:
 
           $defaultBranch = $env:PAGES_SOURCE_BRANCH
           $repo = $env:GITHUB_REPOSITORY
-          $contentsApiRoot = "https://api.github.com/repos/$repo/contents"
           $manifestSourceDir = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/pages/updates"
+          $apiRoot = "https://api.github.com/repos/$repo"
 
           $headers = @{
             Authorization = "Bearer $env:GH_TOKEN"
@@ -227,85 +227,55 @@ jobs:
 
           $updatedCount = 0
 
+          $refResponse = Invoke-RestMethod -Uri "$apiRoot/git/ref/heads/$defaultBranch" -Headers $headers -Method Get
+          $baseCommitSha = $refResponse.object.sha
+          if ([string]::IsNullOrWhiteSpace($baseCommitSha)) {
+            throw "Could not resolve $defaultBranch branch SHA."
+          }
+
+          $commitResponse = Invoke-RestMethod -Uri "$apiRoot/git/commits/$baseCommitSha" -Headers $headers -Method Get
+          $baseTreeSha = $commitResponse.tree.sha
+          if ([string]::IsNullOrWhiteSpace($baseTreeSha)) {
+            throw "Could not resolve base tree SHA for $defaultBranch."
+          }
+
+          $treeEntries = @()
+
           foreach ($manifestFile in Get-ChildItem -Path $manifestSourceDir -Filter "*.json" -File) {
             $targetPath = "docs/updates/$($manifestFile.Name)"
-            $getUrl = "$contentsApiRoot/$targetPath?ref=$defaultBranch"
-            $putUrl = "$contentsApiRoot/$targetPath"
-
             $newBytes = [System.IO.File]::ReadAllBytes($manifestFile.FullName)
             $newContentBase64 = [System.Convert]::ToBase64String($newBytes)
 
-            $existingSha = $null
-            $existingContentBase64 = $null
-
-            $getResponse = Invoke-WebRequest -Uri $getUrl -Headers $headers -Method Get -SkipHttpErrorCheck
-            if ($getResponse.StatusCode -eq 200) {
-              $existingBody = $getResponse.Content | ConvertFrom-Json
-              $existingSha = $existingBody.sha
-              $existingContentBase64 = ($existingBody.content -replace "\s", "")
+            $treeEntries += [ordered]@{
+              path = $targetPath
+              mode = "100644"
+              type = "blob"
+              content = [System.Text.Encoding]::UTF8.GetString($newBytes)
             }
-            elseif ($getResponse.StatusCode -ne 404) {
-              throw "Could not inspect $targetPath. HTTP $($getResponse.StatusCode): $($getResponse.Content)"
-            }
-
-            if ($existingContentBase64 -eq $newContentBase64) {
-              Write-Host "No change for $targetPath; skipping update."
-              continue
-            }
-
-            $requestBody = [ordered]@{
-              message = "chore: update release manifests for $env:GITHUB_REF_NAME"
-              content = $newContentBase64
-              branch = $defaultBranch
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($existingSha)) {
-              $requestBody.sha = $existingSha
-            }
-
-            $putResponse = Invoke-WebRequest `
-              -Uri $putUrl `
-              -Headers $headers `
-              -Method Put `
-              -ContentType "application/json" `
-              -Body ($requestBody | ConvertTo-Json -Depth 8) `
-              -SkipHttpErrorCheck
-
-            # If file exists but SHA was missed during preflight, refetch SHA and retry once.
-            if ($putResponse.StatusCode -eq 422 -and $putResponse.Content -like '*"sha" wasn*supplied*') {
-              Write-Host "SHA required for $targetPath. Refetching and retrying once."
-
-              $retryGetResponse = Invoke-WebRequest -Uri $getUrl -Headers $headers -Method Get -SkipHttpErrorCheck
-              if ($retryGetResponse.StatusCode -ne 200) {
-                throw "Could not refetch $targetPath for SHA. HTTP $($retryGetResponse.StatusCode): $($retryGetResponse.Content)"
-              }
-
-              $retryBody = $retryGetResponse.Content | ConvertFrom-Json
-              if ([string]::IsNullOrWhiteSpace($retryBody.sha)) {
-                throw "Refetch succeeded for $targetPath but SHA was empty."
-              }
-
-              $requestBody.sha = $retryBody.sha
-              $putResponse = Invoke-WebRequest `
-                -Uri $putUrl `
-                -Headers $headers `
-                -Method Put `
-                -ContentType "application/json" `
-                -Body ($requestBody | ConvertTo-Json -Depth 8) `
-                -SkipHttpErrorCheck
-            }
-
-            if ($putResponse.StatusCode -ne 200 -and $putResponse.StatusCode -ne 201) {
-              throw "Could not publish $targetPath. HTTP $($putResponse.StatusCode): $($putResponse.Content)"
-            }
-
-            Write-Host "Published $targetPath"
-            $updatedCount++
           }
 
-          if ($updatedCount -eq 0) {
-            Write-Host "No manifest updates were required."
+          if ($treeEntries.Count -eq 0) {
+            Write-Host "No manifest files were found to publish."
+            exit 0
           }
+
+          $newTree = Invoke-RestMethod -Uri "$apiRoot/git/trees" -Headers $headers -Method Post -ContentType "application/json" -Body (@{
+            base_tree = $baseTreeSha
+            tree = $treeEntries
+          } | ConvertTo-Json -Depth 10)
+
+          $newCommit = Invoke-RestMethod -Uri "$apiRoot/git/commits" -Headers $headers -Method Post -ContentType "application/json" -Body (@{
+            message = "chore: update release manifests for $env:GITHUB_REF_NAME"
+            tree = $newTree.sha
+            parents = @($baseCommitSha)
+          } | ConvertTo-Json -Depth 10)
+
+          Invoke-RestMethod -Uri "$apiRoot/git/refs/heads/$defaultBranch" -Headers $headers -Method Patch -ContentType "application/json" -Body (@{
+            sha = $newCommit.sha
+            force = $false
+          } | ConvertTo-Json -Depth 10)
+
+          Write-Host "Published update manifests to $defaultBranch via commit $($newCommit.sha)"
 
       - name: Package release artifacts
         shell: pwsh
