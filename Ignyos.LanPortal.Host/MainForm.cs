@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -19,6 +20,12 @@ public sealed class MainForm : Form
     private const string UpdateCheckNowUrl = "http://localhost:5212/api/local/update/check-now";
     private const string AppTitlePrefix = "Ignyos LAN Portal";
     private const bool EnableUpdateOrchestrationForTestChannel = true;
+    private const string FailureCodeMissingExpectedSha = "MISSING_EXPECTED_SHA";
+    private const string FailureCodeDownloadFailed = "DOWNLOAD_FAILED";
+    private const string FailureCodeChecksumMismatch = "CHECKSUM_MISMATCH";
+    private const string FailureCodeOrchestrationFailed = "ORCHESTRATION_FAILED";
+    private const string FailureCodeInstallerLaunchFailed = "INSTALLER_LAUNCH_FAILED";
+    private const string FailureCodeUnknown = "UNKNOWN";
 
     private readonly WebView2 browser;
     private readonly string appVersion;
@@ -446,6 +453,14 @@ public sealed class MainForm : Form
             updateStateLabel.Text = "Update package verification metadata is missing.";
             updateStateLabel.ForeColor = Color.DarkOrange;
 
+            var missingShaMetadata = BuildRollbackMetadata(
+                failureReasonCode: FailureCodeMissingExpectedSha,
+                failureMessage: "ExpectedSha256 was not provided by update status endpoint.",
+                installerPath: null,
+                orchestrationAttempted: false,
+                rollbackTriggered: false);
+            await WriteRollbackMetadataAsync(missingShaMetadata);
+
             if (isTestChannel)
             {
                 MessageBox.Show(
@@ -468,20 +483,29 @@ public sealed class MainForm : Form
         updateStateLabel.Text = "Downloading and verifying installer...";
         updateStateLabel.ForeColor = Color.DimGray;
 
+        string? installerPath = null;
+        var orchestrationAttempted = false;
+
         try
         {
-            var installerPath = await DownloadAndVerifyUpdateInstallerAsync(
+            installerPath = await DownloadAndVerifyUpdateInstallerAsync(
                 availableUpdateUrl,
                 availableUpdateSha256,
                 availableUpdateVersion);
 
+            orchestrationAttempted = true;
             await RunPreInstallOrchestrationHooksAsync();
 
-            Process.Start(new ProcessStartInfo
+            var launchedInstaller = Process.Start(new ProcessStartInfo
             {
                 FileName = installerPath,
                 UseShellExecute = true
             });
+
+            if (launchedInstaller is null)
+            {
+                throw new InvalidOperationException("Installer process did not start.");
+            }
 
             updateStateLabel.Text = "Installer verified and launched.";
             updateStateLabel.ForeColor = Color.FromArgb(20, 92, 148);
@@ -494,6 +518,24 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            var failureReasonCode = ResolveFailureReasonCode(ex, orchestrationAttempted);
+            var rollbackTriggered = isTestChannel && EnableUpdateOrchestrationForTestChannel &&
+                                    IsRollbackTriggerFailure(failureReasonCode);
+
+            var failureMetadata = BuildRollbackMetadata(
+                failureReasonCode,
+                ex.Message,
+                installerPath,
+                orchestrationAttempted,
+                rollbackTriggered);
+
+            await WriteRollbackMetadataAsync(failureMetadata);
+
+            if (rollbackTriggered)
+            {
+                await WriteRollbackTriggerAsync(failureMetadata);
+            }
+
             Trace.WriteLine($"[UpdateInstall] Installation blocked: {ex.Message}");
             updateStateLabel.Text = "Update installation blocked by safety checks.";
             updateStateLabel.ForeColor = Color.DarkOrange;
@@ -519,6 +561,121 @@ public sealed class MainForm : Form
                 updateStateLabel.ForeColor = previousStateColor;
             }
         }
+    }
+
+    private RollbackMetadata BuildRollbackMetadata(
+        string failureReasonCode,
+        string failureMessage,
+        string? installerPath,
+        bool orchestrationAttempted,
+        bool rollbackTriggered)
+    {
+        var updateRoot = GetLanPortalStateRoot();
+        var backupRoot = Path.Combine(updateRoot, "Backups");
+
+        return new RollbackMetadata(
+            DateTimeOffset.UtcNow,
+            appVersion,
+            availableUpdateVersion,
+            isTestChannel ? "test" : "production",
+            isTestChannel,
+            availableUpdateUrl,
+            availableUpdateSha256,
+            installerPath,
+            backupRoot,
+            $"version-{appVersion}",
+            string.IsNullOrWhiteSpace(availableUpdateVersion) ? null : $"version-{availableUpdateVersion}",
+            failureReasonCode,
+            failureMessage,
+            orchestrationAttempted,
+            rollbackTriggered);
+    }
+
+    private static string ResolveFailureReasonCode(Exception ex, bool orchestrationAttempted)
+    {
+        var message = ex.Message;
+
+        if (message.Contains("Checksum mismatch", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureCodeChecksumMismatch;
+        }
+
+        if (message.Contains("Failed to download update package", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureCodeDownloadFailed;
+        }
+
+        if (message.Contains("stop managed process", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("Timed out stopping managed process", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureCodeOrchestrationFailed;
+        }
+
+        if (orchestrationAttempted)
+        {
+            return FailureCodeInstallerLaunchFailed;
+        }
+
+        return FailureCodeUnknown;
+    }
+
+    private static bool IsRollbackTriggerFailure(string failureReasonCode)
+    {
+        return failureReasonCode == FailureCodeOrchestrationFailed ||
+               failureReasonCode == FailureCodeInstallerLaunchFailed;
+    }
+
+    private static async Task WriteRollbackMetadataAsync(RollbackMetadata metadata)
+    {
+        var updateStateDir = Path.Combine(GetLanPortalStateRoot(), "UpdateState");
+        Directory.CreateDirectory(updateStateDir);
+
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        var latestPath = Path.Combine(updateStateDir, "rollback-metadata-latest.json");
+        var historyPath = Path.Combine(
+            updateStateDir,
+            $"rollback-metadata-{metadata.CreatedAtUtc:yyyyMMddHHmmss}.json");
+
+        var json = JsonSerializer.Serialize(metadata, options);
+        await File.WriteAllTextAsync(latestPath, json);
+        await File.WriteAllTextAsync(historyPath, json);
+
+        Trace.WriteLine($"[UpdateInstall] Rollback metadata recorded: {latestPath}");
+    }
+
+    private static async Task WriteRollbackTriggerAsync(RollbackMetadata metadata)
+    {
+        var updateStateDir = Path.Combine(GetLanPortalStateRoot(), "UpdateState");
+        Directory.CreateDirectory(updateStateDir);
+
+        var trigger = new RollbackTrigger(
+            metadata.CreatedAtUtc,
+            metadata.FailureReasonCode,
+            metadata.TargetVersion,
+            metadata.Channel,
+            "Rollback requested after install/restart failure path.");
+
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        var triggerPath = Path.Combine(updateStateDir, "rollback-trigger.json");
+        await File.WriteAllTextAsync(triggerPath, JsonSerializer.Serialize(trigger, options));
+
+        Trace.WriteLine($"[UpdateInstall] Rollback trigger marker created: {triggerPath}");
+    }
+
+    private static string GetLanPortalStateRoot()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Ignyos",
+            "LanPortalDev");
     }
 
     private async Task RunPreInstallOrchestrationHooksAsync()
@@ -691,4 +848,28 @@ public sealed class MainForm : Form
         [property: JsonPropertyName("checkedAtUtc")] DateTimeOffset CheckedAtUtc,
         [property: JsonPropertyName("isStale")] bool IsStale,
         [property: JsonPropertyName("error")] string? Error);
+
+    private sealed record RollbackMetadata(
+        DateTimeOffset CreatedAtUtc,
+        string CurrentVersion,
+        string? TargetVersion,
+        string Channel,
+        bool IsTestChannel,
+        string? DownloadUrl,
+        string? ExpectedSha256,
+        string? DownloadedInstallerPath,
+        string BackupRootPath,
+        string PreviousVersionMarker,
+        string? TargetVersionMarker,
+        string FailureReasonCode,
+        string FailureMessage,
+        bool OrchestrationAttempted,
+        bool RollbackTriggered);
+
+    private sealed record RollbackTrigger(
+        DateTimeOffset CreatedAtUtc,
+        string FailureReasonCode,
+        string? TargetVersion,
+        string Channel,
+        string Message);
 }
