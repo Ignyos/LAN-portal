@@ -145,7 +145,7 @@ Stage 5 kickoff checklist:
 - [x] Add safe process orchestration hooks for stop/update/restart sequence (feature-flagged for test channel).
 - [x] Define rollback metadata contract (backup location, version markers, failure reason codes).
 - [x] Add rollback trigger path for install/restart failures in test channel.
-- [ ] Create Stage 5 validation runbook for test-channel-only safety scenarios.
+- [x] Create Stage 5 validation runbook for test-channel-only safety scenarios.
 
 Stage 5 exit criteria (test channel):
 
