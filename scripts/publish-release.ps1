@@ -60,15 +60,15 @@ function Exit-WithError {
 
 function Invoke-Git {
     param(
-        [string[]]$Args,
+        [string[]]$GitArgs,
         [switch]$AllowFailure
     )
 
-    $output = & git @Args 2>&1
+    $output = & git @GitArgs 2>&1
     $exitCode = $LASTEXITCODE
 
     if (-not $AllowFailure -and $exitCode -ne 0) {
-        Exit-WithError -Code $ExitCodes.PublishFailed -Message "git $($Args -join ' ') failed: $output"
+        Exit-WithError -Code $ExitCodes.PublishFailed -Message "git $($GitArgs -join ' ') failed: $output"
     }
 
     return [PSCustomObject]@{
@@ -103,7 +103,7 @@ function Resolve-RelativePath {
 }
 
 function Get-ChangedPaths {
-    $statusResult = Invoke-Git -Args @("status", "--porcelain")
+    $statusResult = Invoke-Git -GitArgs @("status", "--porcelain")
     if ([string]::IsNullOrWhiteSpace($statusResult.Output)) {
         return @()
     }
@@ -124,7 +124,7 @@ function Get-ChangedPaths {
 
 Write-Log "Starting publish workflow. DryRun=$DryRun"
 
-$branchResult = Invoke-Git -Args @("rev-parse", "--abbrev-ref", "HEAD")
+$branchResult = Invoke-Git -GitArgs @("rev-parse", "--abbrev-ref", "HEAD")
 $currentBranch = $branchResult.Output.Trim()
 Write-Log "Current branch: $currentBranch"
 if ($currentBranch -ne $MainBranch) {
@@ -138,10 +138,10 @@ if ($dirtyPaths.Count -gt 0) {
 }
 
 Write-Log "Fetching latest refs and tags from origin/$MainBranch"
-$null = Invoke-Git -Args @("fetch", "origin", $MainBranch, "--tags")
+$null = Invoke-Git -GitArgs @("fetch", "origin", $MainBranch, "--tags")
 
-$localHead = (Invoke-Git -Args @("rev-parse", "HEAD")).Output.Trim()
-$remoteHead = (Invoke-Git -Args @("rev-parse", "origin/$MainBranch")).Output.Trim()
+$localHead = (Invoke-Git -GitArgs @("rev-parse", "HEAD")).Output.Trim()
+$remoteHead = (Invoke-Git -GitArgs @("rev-parse", "origin/$MainBranch")).Output.Trim()
 if ($localHead -ne $remoteHead) {
     Exit-WithError -Code $ExitCodes.SyncGateFailed -Message "Sync gate failed. Local HEAD ($localHead) does not match origin/$MainBranch ($remoteHead)."
 }
@@ -177,17 +177,17 @@ if ($confirmVersion -notin @("y", "Y", "yes", "YES")) {
 
 $tagName = "$TagPrefix$targetVersion"
 
-$localTagExists = Invoke-Git -Args @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$tagName") -AllowFailure
+$localTagExists = Invoke-Git -GitArgs @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$tagName") -AllowFailure
 if ($localTagExists.ExitCode -eq 0) {
     Exit-WithError -Code $ExitCodes.TagExistsFailed -Message "Tag '$tagName' already exists locally."
 }
 
-$remoteTagLookup = Invoke-Git -Args @("ls-remote", "--tags", "origin", "refs/tags/$tagName")
+$remoteTagLookup = Invoke-Git -GitArgs @("ls-remote", "--tags", "origin", "refs/tags/$tagName")
 if (-not [string]::IsNullOrWhiteSpace($remoteTagLookup.Output)) {
     Exit-WithError -Code $ExitCodes.TagExistsFailed -Message "Tag '$tagName' already exists on origin."
 }
 
-$previousTagResult = Invoke-Git -Args @("describe", "--tags", "--abbrev=0") -AllowFailure
+$previousTagResult = Invoke-Git -GitArgs @("describe", "--tags", "--abbrev=0") -AllowFailure
 $baselineRef = $null
 $baselineDescription = $null
 
@@ -196,7 +196,7 @@ if ($previousTagResult.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($pr
     $baselineDescription = "latest tag $baselineRef"
 }
 else {
-    $rootCommit = (Invoke-Git -Args @("rev-list", "--max-parents=0", "HEAD")).Output.Split([Environment]::NewLine)[0].Trim()
+    $rootCommit = (Invoke-Git -GitArgs @("rev-list", "--max-parents=0", "HEAD")).Output.Split([Environment]::NewLine)[0].Trim()
     if ([string]::IsNullOrWhiteSpace($rootCommit)) {
         Exit-WithError -Code $ExitCodes.DiffFailed -Message "Unable to resolve root commit baseline."
     }
@@ -208,10 +208,10 @@ else {
 Write-Log "Diff baseline: $baselineDescription"
 
 $diffRange = "$baselineRef..HEAD"
-$fullDiff = Invoke-Git -Args @("diff", $diffRange)
-$summaryStat = Invoke-Git -Args @("diff", "--stat", $diffRange)
-$summaryNames = Invoke-Git -Args @("diff", "--name-status", $diffRange)
-$commitSummary = Invoke-Git -Args @("log", "--oneline", $diffRange)
+$fullDiff = Invoke-Git -GitArgs @("diff", $diffRange)
+$summaryStat = Invoke-Git -GitArgs @("diff", "--stat", $diffRange)
+$summaryNames = Invoke-Git -GitArgs @("diff", "--name-status", $diffRange)
+$commitSummary = Invoke-Git -GitArgs @("log", "--oneline", $diffRange)
 
 Set-Content -Path $diffPath -Value $fullDiff.Output -NoNewline
 
@@ -348,12 +348,12 @@ if ($unexpected.Count -gt 0) {
     Exit-WithError -Code $ExitCodes.CleanGateFailed -Message "Unexpected changed files before commit: $unexpectedJoined"
 }
 
-$null = Invoke-Git -Args @("add", $VersionProjectPath, $ReleaseNotesPath)
-$null = Invoke-Git -Args @("commit", "-m", "release: $tagName")
-$null = Invoke-Git -Args @("tag", "-a", $tagName, "-m", "Release $tagName")
+$null = Invoke-Git -GitArgs @("add", $VersionProjectPath, $ReleaseNotesPath)
+$null = Invoke-Git -GitArgs @("commit", "-m", "release: $tagName")
+$null = Invoke-Git -GitArgs @("tag", "-a", $tagName, "-m", "Release $tagName")
 
-$null = Invoke-Git -Args @("push", "origin", "HEAD:$MainBranch")
-$null = Invoke-Git -Args @("push", "origin", $tagName)
+$null = Invoke-Git -GitArgs @("push", "origin", "HEAD:$MainBranch")
+$null = Invoke-Git -GitArgs @("push", "origin", $tagName)
 
 Write-Log "Publish complete. Pushed commit and tag $tagName to origin/$MainBranch"
 Write-Log "Log file: $logPath"
