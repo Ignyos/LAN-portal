@@ -130,3 +130,26 @@ Example manifest payload:
 	- Retry download up to 3 times with backoff before surfacing failure.
 	- Trigger rollback when install or restart fails after backup is captured.
 	- Show recovery guidance and keep local logs for troubleshooting.
+
+Stage 5 kickoff plan (pre-production focused):
+
+- Keep Stage 5 implementation and validation on test channel first; defer production tag requirements until release readiness.
+- Prioritize installer safety verification using existing Stage 4 test manifest and test installer flow.
+
+Stage 5 kickoff checklist:
+
+- [ ] Add SHA256 verification step before installer launch in Host update flow.
+- [ ] Fail closed on checksum mismatch and log clear diagnostic details.
+- [ ] Add retry policy for installer download (3 attempts with backoff).
+- [ ] Add download/install status reporting in Host logs for troubleshooting.
+- [ ] Add safe process orchestration hooks for stop/update/restart sequence (feature-flagged for test channel).
+- [ ] Define rollback metadata contract (backup location, version markers, failure reason codes).
+- [ ] Add rollback trigger path for install/restart failures in test channel.
+- [ ] Create Stage 5 validation runbook for test-channel-only safety scenarios.
+
+Stage 5 exit criteria (test channel):
+
+- Test-channel update verifies checksum before install and blocks on mismatch.
+- Retry and failure-path behaviors are exercised and logged end-to-end.
+- Rollback metadata is generated and validated in failure simulation.
+- Team approves readiness for production-channel Stage 5 rollout gate.
