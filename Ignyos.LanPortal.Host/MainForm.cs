@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -17,6 +19,18 @@ public sealed class MainForm : Form
     private const string UpdateStatusUrl = "http://localhost:5212/api/local/update/status";
     private const string UpdateCheckNowUrl = "http://localhost:5212/api/local/update/check-now";
     private const string AppTitlePrefix = "Ignyos LAN Portal";
+    private const bool EnableUpdateOrchestrationForTestChannel = true;
+    private const string FailureCodeMissingExpectedSha = "MISSING_EXPECTED_SHA";
+    private const string FailureCodeDownloadFailed = "DOWNLOAD_FAILED";
+    private const string FailureCodeChecksumMismatch = "CHECKSUM_MISMATCH";
+    private const string FailureCodeOrchestrationFailed = "ORCHESTRATION_FAILED";
+    private const string FailureCodeInstallerLaunchFailed = "INSTALLER_LAUNCH_FAILED";
+    private const string FailureCodeUnknown = "UNKNOWN";
+    private const string FaultNone = "NONE";
+    private const string FaultDownload = "DOWNLOAD";
+    private const string FaultChecksum = "CHECKSUM";
+    private const string FaultOrchestration = "ORCHESTRATION";
+    private const string FaultLaunch = "LAUNCH";
 
     private readonly WebView2 browser;
     private readonly string appVersion;
@@ -27,6 +41,10 @@ public sealed class MainForm : Form
     private bool isUpdateCheckInProgress;
     private bool isTestChannel;
     private string? availableUpdateUrl;
+    private string? availableUpdateSha256;
+    private string? availableUpdateVersion;
+    private Process? managedApiProcess;
+    private Process? managedWebProcess;
 
     public MainForm()
     {
@@ -66,8 +84,8 @@ public sealed class MainForm : Form
     {
         try
         {
-            StartPortalProcess(GetApiExecutablePath(), "Ignyos.LanPortal.Api", new[] { "--urls", ApiListenUrl });
-            StartPortalProcess(GetWebExecutablePath(), "Ignyos.LanPortal.Web", new[] { "--urls", WebListenUrl });
+            managedApiProcess = StartPortalProcess(GetApiExecutablePath(), "Ignyos.LanPortal.Api", new[] { "--urls", ApiListenUrl });
+            managedWebProcess = StartPortalProcess(GetWebExecutablePath(), "Ignyos.LanPortal.Web", new[] { "--urls", WebListenUrl });
 
             await WaitForApiAsync();
 
@@ -124,7 +142,7 @@ public sealed class MainForm : Form
         return userDataFolder;
     }
 
-    private static void StartPortalProcess(string executablePath, string processName, IReadOnlyList<string> arguments)
+    private static Process? StartPortalProcess(string executablePath, string processName, IReadOnlyList<string> arguments)
     {
         if (!File.Exists(executablePath))
         {
@@ -133,10 +151,10 @@ public sealed class MainForm : Form
 
         if (Process.GetProcessesByName(processName).Length > 0)
         {
-            return;
+            return null;
         }
 
-        Process.Start(new ProcessStartInfo
+        return Process.Start(new ProcessStartInfo
         {
             FileName = executablePath,
             Arguments = string.Join(' ', arguments),
@@ -404,6 +422,8 @@ public sealed class MainForm : Form
         if (updateStatus.UpdateAvailable && !string.IsNullOrWhiteSpace(updateStatus.DownloadUrl))
         {
             availableUpdateUrl = updateStatus.DownloadUrl;
+            availableUpdateSha256 = updateStatus.ExpectedSha256;
+            availableUpdateVersion = updateStatus.LatestVersion;
             updateActionLabel.Text = updateStatus.RequiredUpdate ? "Update Required" : "New Version Available";
             updateActionLabel.Visible = true;
             updateActionLabel.Click -= OpenAvailableUpdate;
@@ -412,6 +432,8 @@ public sealed class MainForm : Form
         else
         {
             availableUpdateUrl = null;
+            availableUpdateSha256 = null;
+            availableUpdateVersion = null;
             updateActionLabel.Visible = false;
             updateActionLabel.Click -= OpenAvailableUpdate;
         }
@@ -423,33 +445,445 @@ public sealed class MainForm : Form
         }
     }
 
-    private void OpenAvailableUpdate(object? sender, EventArgs e)
+    private async void OpenAvailableUpdate(object? sender, EventArgs e)
     {
         if (string.IsNullOrWhiteSpace(availableUpdateUrl))
         {
             return;
         }
 
-        try
+        if (string.IsNullOrWhiteSpace(availableUpdateSha256))
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = availableUpdateUrl,
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[UpdateCheck] Could not open update URL: {ex.Message}");
+            Trace.WriteLine("[UpdateInstall] Missing expected SHA256 for update package. Installation blocked.");
+            updateStateLabel.Text = "Update package verification metadata is missing.";
+            updateStateLabel.ForeColor = Color.DarkOrange;
+
+            var missingShaMetadata = BuildRollbackMetadata(
+                failureReasonCode: FailureCodeMissingExpectedSha,
+                failureMessage: "ExpectedSha256 was not provided by update status endpoint.",
+                installerPath: null,
+                orchestrationAttempted: false,
+                rollbackTriggered: false);
+            await WriteRollbackMetadataAsync(missingShaMetadata);
+
             if (isTestChannel)
             {
                 MessageBox.Show(
-                    "Could not open the update download link. See logs for details.",
+                    "Update package metadata is incomplete. Installation was blocked.",
+                    AppTitlePrefix,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+
+            return;
+        }
+
+        var previousActionText = updateActionLabel.Text;
+        var previousActionVisible = updateActionLabel.Visible;
+        var previousStateText = updateStateLabel.Text;
+        var previousStateColor = updateStateLabel.ForeColor;
+
+        updateActionLabel.Enabled = false;
+        updateActionLabel.Text = "Preparing update...";
+        updateStateLabel.Text = "Downloading and verifying installer...";
+        updateStateLabel.ForeColor = Color.DimGray;
+
+        string? installerPath = null;
+        var orchestrationAttempted = false;
+
+        try
+        {
+            var forcedFault = GetForcedUpdateFaultMode();
+
+            installerPath = await DownloadAndVerifyUpdateInstallerAsync(
+                availableUpdateUrl,
+                availableUpdateSha256,
+                availableUpdateVersion,
+                forcedFault);
+
+            orchestrationAttempted = true;
+            await RunPreInstallOrchestrationHooksAsync(forcedFault);
+
+            if (forcedFault == FaultLaunch)
+            {
+                throw new InvalidOperationException("Forced launch failure for Stage 5 validation.");
+            }
+
+            var launchedInstaller = Process.Start(new ProcessStartInfo
+            {
+                FileName = installerPath,
+                UseShellExecute = true
+            });
+
+            if (launchedInstaller is null)
+            {
+                throw new InvalidOperationException("Installer process did not start.");
+            }
+
+            updateStateLabel.Text = "Installer verified and launched.";
+            updateStateLabel.ForeColor = Color.FromArgb(20, 92, 148);
+
+            if (isTestChannel && EnableUpdateOrchestrationForTestChannel)
+            {
+                Trace.WriteLine("[UpdateInstall] Closing host to allow installer update sequence.");
+                BeginInvoke(new Action(Close));
+            }
+        }
+        catch (Exception ex)
+        {
+            var failureReasonCode = ResolveFailureReasonCode(ex, orchestrationAttempted);
+            var rollbackTriggered = isTestChannel && EnableUpdateOrchestrationForTestChannel &&
+                                    IsRollbackTriggerFailure(failureReasonCode);
+
+            var failureMetadata = BuildRollbackMetadata(
+                failureReasonCode,
+                ex.Message,
+                installerPath,
+                orchestrationAttempted,
+                rollbackTriggered);
+
+            await WriteRollbackMetadataAsync(failureMetadata);
+
+            if (rollbackTriggered)
+            {
+                await WriteRollbackTriggerAsync(failureMetadata);
+            }
+
+            Trace.WriteLine($"[UpdateInstall] Installation blocked: {ex.Message}");
+            updateStateLabel.Text = "Update installation blocked by safety checks.";
+            updateStateLabel.ForeColor = Color.DarkOrange;
+
+            if (isTestChannel)
+            {
+                MessageBox.Show(
+                    "Update installation was blocked. See logs for details.",
                     AppTitlePrefix,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
         }
+        finally
+        {
+            updateActionLabel.Enabled = true;
+            updateActionLabel.Text = previousActionText;
+            updateActionLabel.Visible = previousActionVisible;
+
+            if (updateStateLabel.Text == "Downloading and verifying installer...")
+            {
+                updateStateLabel.Text = previousStateText;
+                updateStateLabel.ForeColor = previousStateColor;
+            }
+        }
+    }
+
+    private RollbackMetadata BuildRollbackMetadata(
+        string failureReasonCode,
+        string failureMessage,
+        string? installerPath,
+        bool orchestrationAttempted,
+        bool rollbackTriggered)
+    {
+        var updateRoot = GetLanPortalStateRoot();
+        var backupRoot = Path.Combine(updateRoot, "Backups");
+
+        return new RollbackMetadata(
+            DateTimeOffset.UtcNow,
+            appVersion,
+            availableUpdateVersion,
+            isTestChannel ? "test" : "production",
+            isTestChannel,
+            availableUpdateUrl,
+            availableUpdateSha256,
+            installerPath,
+            backupRoot,
+            $"version-{appVersion}",
+            string.IsNullOrWhiteSpace(availableUpdateVersion) ? null : $"version-{availableUpdateVersion}",
+            failureReasonCode,
+            failureMessage,
+            orchestrationAttempted,
+            rollbackTriggered);
+    }
+
+    private static string ResolveFailureReasonCode(Exception ex, bool orchestrationAttempted)
+    {
+        var message = ex.Message;
+
+        if (message.Contains("Checksum mismatch", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureCodeChecksumMismatch;
+        }
+
+        if (message.Contains("Failed to download update package", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureCodeDownloadFailed;
+        }
+
+        if (message.Contains("stop managed process", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("Timed out stopping managed process", StringComparison.OrdinalIgnoreCase))
+        {
+            return FailureCodeOrchestrationFailed;
+        }
+
+        if (orchestrationAttempted)
+        {
+            return FailureCodeInstallerLaunchFailed;
+        }
+
+        return FailureCodeUnknown;
+    }
+
+    private static bool IsRollbackTriggerFailure(string failureReasonCode)
+    {
+        return failureReasonCode == FailureCodeOrchestrationFailed ||
+               failureReasonCode == FailureCodeInstallerLaunchFailed;
+    }
+
+    private static async Task WriteRollbackMetadataAsync(RollbackMetadata metadata)
+    {
+        var updateStateDir = Path.Combine(GetLanPortalStateRoot(), "UpdateState");
+        Directory.CreateDirectory(updateStateDir);
+
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        var latestPath = Path.Combine(updateStateDir, "rollback-metadata-latest.json");
+        var historyPath = Path.Combine(
+            updateStateDir,
+            $"rollback-metadata-{metadata.CreatedAtUtc:yyyyMMddHHmmss}.json");
+
+        var json = JsonSerializer.Serialize(metadata, options);
+        await File.WriteAllTextAsync(latestPath, json);
+        await File.WriteAllTextAsync(historyPath, json);
+
+        Trace.WriteLine($"[UpdateInstall] Rollback metadata recorded: {latestPath}");
+    }
+
+    private static async Task WriteRollbackTriggerAsync(RollbackMetadata metadata)
+    {
+        var updateStateDir = Path.Combine(GetLanPortalStateRoot(), "UpdateState");
+        Directory.CreateDirectory(updateStateDir);
+
+        var trigger = new RollbackTrigger(
+            metadata.CreatedAtUtc,
+            metadata.FailureReasonCode,
+            metadata.TargetVersion,
+            metadata.Channel,
+            "Rollback requested after install/restart failure path.");
+
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        var triggerPath = Path.Combine(updateStateDir, "rollback-trigger.json");
+        await File.WriteAllTextAsync(triggerPath, JsonSerializer.Serialize(trigger, options));
+
+        Trace.WriteLine($"[UpdateInstall] Rollback trigger marker created: {triggerPath}");
+    }
+
+    private static string GetLanPortalStateRoot()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Ignyos",
+            "LanPortalDev");
+    }
+
+    private async Task RunPreInstallOrchestrationHooksAsync()
+        => await RunPreInstallOrchestrationHooksAsync(GetForcedUpdateFaultMode());
+
+    private async Task RunPreInstallOrchestrationHooksAsync(string forcedFaultMode)
+    {
+        if (!EnableUpdateOrchestrationForTestChannel || !isTestChannel)
+        {
+            Trace.WriteLine("[UpdateInstall] Orchestration hooks skipped (not enabled for this channel).");
+            return;
+        }
+
+        if (forcedFaultMode == FaultOrchestration)
+        {
+            throw new InvalidOperationException("Forced orchestration failure for Stage 5 validation.");
+        }
+
+        Trace.WriteLine("[UpdateInstall] Running pre-install orchestration hooks for test channel.");
+        updatePollTimer.Stop();
+
+        await StopManagedProcessAsync(managedWebProcess, "Ignyos.LanPortal.Web");
+        managedWebProcess = null;
+
+        await StopManagedProcessAsync(managedApiProcess, "Ignyos.LanPortal.Api");
+        managedApiProcess = null;
+
+        Trace.WriteLine("[UpdateInstall] Pre-install orchestration hooks completed.");
+    }
+
+    private static async Task StopManagedProcessAsync(Process? process, string processName)
+    {
+        if (process is null)
+        {
+            Trace.WriteLine($"[UpdateInstall] No managed process tracked for {processName}; skipping stop hook.");
+            return;
+        }
+
+        try
+        {
+            if (process.HasExited)
+            {
+                Trace.WriteLine($"[UpdateInstall] Managed process already exited: {processName} (PID {process.Id}).");
+                return;
+            }
+
+            Trace.WriteLine($"[UpdateInstall] Stopping managed process {processName} (PID {process.Id}).");
+            process.Kill(entireProcessTree: true);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await process.WaitForExitAsync(cts.Token);
+            Trace.WriteLine($"[UpdateInstall] Managed process stopped: {processName} (PID {process.Id}).");
+        }
+        catch (OperationCanceledException)
+        {
+            throw new InvalidOperationException($"Timed out stopping managed process {processName}.");
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to stop managed process {processName}: {ex.Message}", ex);
+        }
+    }
+
+    private static async Task<string> DownloadAndVerifyUpdateInstallerAsync(
+        string downloadUrl,
+        string expectedSha256,
+        string? version,
+        string forcedFaultMode)
+    {
+        var updatesRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Ignyos",
+            "LanPortalDev",
+            "Updates");
+
+        Directory.CreateDirectory(updatesRoot);
+
+        var parsedUri = new Uri(downloadUrl);
+        var fileName = Path.GetFileName(parsedUri.LocalPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            var suffix = string.IsNullOrWhiteSpace(version) ? DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss") : version;
+            fileName = $"Ignyos-LanPortal-Update-{suffix}.exe";
+        }
+
+        var targetPath = Path.Combine(updatesRoot, fileName);
+        var downloadPath = targetPath + ".download";
+
+        if (File.Exists(downloadPath))
+        {
+            File.Delete(downloadPath);
+        }
+
+        await DownloadInstallerWithRetryAsync(downloadUrl, downloadPath, maxAttempts: 3, forcedFaultMode);
+
+        string actualSha256;
+        await using (var verifyStream = new FileStream(downloadPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var hashBytes = await SHA256.HashDataAsync(verifyStream);
+            actualSha256 = Convert.ToHexString(hashBytes);
+        }
+
+        var normalizedExpected = expectedSha256.Trim().ToUpperInvariant();
+        if (forcedFaultMode == FaultChecksum)
+        {
+            normalizedExpected = new string('0', 64);
+        }
+
+        if (!string.Equals(actualSha256, normalizedExpected, StringComparison.Ordinal))
+        {
+            File.Delete(downloadPath);
+            throw new InvalidOperationException(
+                $"Checksum mismatch for update package. Expected {normalizedExpected}, actual {actualSha256}.");
+        }
+
+        if (File.Exists(targetPath))
+        {
+            File.Delete(targetPath);
+        }
+
+        File.Move(downloadPath, targetPath);
+        Trace.WriteLine($"[UpdateInstall] Verified installer downloaded to {targetPath}");
+
+        return targetPath;
+    }
+
+    private static async Task DownloadInstallerWithRetryAsync(string downloadUrl, string downloadPath, int maxAttempts, string forcedFaultMode)
+    {
+        var initialDelay = TimeSpan.FromSeconds(2);
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                if (forcedFaultMode == FaultDownload)
+                {
+                    throw new InvalidOperationException("Forced download failure for Stage 5 validation.");
+                }
+
+                if (File.Exists(downloadPath))
+                {
+                    File.Delete(downloadPath);
+                }
+
+                Trace.WriteLine($"[UpdateInstall] Download attempt {attempt}/{maxAttempts} started.");
+
+                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+                using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+
+                await using var sourceStream = await response.Content.ReadAsStreamAsync();
+                await using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await sourceStream.CopyToAsync(fileStream);
+
+                Trace.WriteLine($"[UpdateInstall] Download attempt {attempt}/{maxAttempts} succeeded.");
+                return;
+            }
+            catch (Exception ex) when (attempt < maxAttempts)
+            {
+                var delay = TimeSpan.FromMilliseconds(initialDelay.TotalMilliseconds * Math.Pow(2, attempt - 1));
+                Trace.WriteLine($"[UpdateInstall] Download attempt {attempt}/{maxAttempts} failed: {ex.Message}. Retrying in {delay.TotalSeconds:N0}s.");
+                await Task.Delay(delay);
+            }
+        }
+
+        throw new InvalidOperationException($"Failed to download update package after {maxAttempts} attempts.");
+    }
+
+    private string GetForcedUpdateFaultMode()
+    {
+        if (!isTestChannel)
+        {
+            return FaultNone;
+        }
+
+        var raw = Environment.GetEnvironmentVariable("LANPORTAL_UPDATE_TEST_FAULT");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return FaultNone;
+        }
+
+        var normalized = raw.Trim().ToUpperInvariant();
+        var allowed = normalized == FaultDownload ||
+                      normalized == FaultChecksum ||
+                      normalized == FaultOrchestration ||
+                      normalized == FaultLaunch;
+
+        if (!allowed)
+        {
+            Trace.WriteLine($"[UpdateInstall] Ignoring unsupported fault mode '{raw}'.");
+            return FaultNone;
+        }
+
+        Trace.WriteLine($"[UpdateInstall] Forced test fault mode active: {normalized}");
+        return normalized;
     }
 
     private void ShowFatalError(string title, string detail)
@@ -466,6 +900,7 @@ public sealed class MainForm : Form
         [property: JsonPropertyName("latestVersion")] string? LatestVersion,
         [property: JsonPropertyName("minSupportedVersion")] string? MinSupportedVersion,
         [property: JsonPropertyName("downloadUrl")] string? DownloadUrl,
+        [property: JsonPropertyName("expectedSha256")] string? ExpectedSha256,
         [property: JsonPropertyName("updateAvailable")] bool UpdateAvailable,
         [property: JsonPropertyName("requiredUpdate")] bool RequiredUpdate,
         [property: JsonPropertyName("channel")] string Channel,
@@ -474,4 +909,28 @@ public sealed class MainForm : Form
         [property: JsonPropertyName("checkedAtUtc")] DateTimeOffset CheckedAtUtc,
         [property: JsonPropertyName("isStale")] bool IsStale,
         [property: JsonPropertyName("error")] string? Error);
+
+    private sealed record RollbackMetadata(
+        DateTimeOffset CreatedAtUtc,
+        string CurrentVersion,
+        string? TargetVersion,
+        string Channel,
+        bool IsTestChannel,
+        string? DownloadUrl,
+        string? ExpectedSha256,
+        string? DownloadedInstallerPath,
+        string BackupRootPath,
+        string PreviousVersionMarker,
+        string? TargetVersionMarker,
+        string FailureReasonCode,
+        string FailureMessage,
+        bool OrchestrationAttempted,
+        bool RollbackTriggered);
+
+    private sealed record RollbackTrigger(
+        DateTimeOffset CreatedAtUtc,
+        string FailureReasonCode,
+        string? TargetVersion,
+        string Channel,
+        string Message);
 }

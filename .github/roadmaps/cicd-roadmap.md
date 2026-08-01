@@ -80,7 +80,7 @@ Stage 4 checklist:
 - [x] Add hourly polling for update checks with manual refresh from File menu.
 - [x] Add config-based channel selection (`production` or `test`) for update checks.
 - [x] Validate test-channel prerelease handling using `-test.<yyyyMMddHHmm>` SemVer pre-release identifiers.
-- [ ] Validate end-to-end update check against a Stage 4 test release.
+- [x] Validate end-to-end update check against a Stage 4 test release.
 
 Stage 4 exit criteria:
 
@@ -130,3 +130,26 @@ Example manifest payload:
 	- Retry download up to 3 times with backoff before surfacing failure.
 	- Trigger rollback when install or restart fails after backup is captured.
 	- Show recovery guidance and keep local logs for troubleshooting.
+
+Stage 5 kickoff plan (pre-production focused):
+
+- Keep Stage 5 implementation and validation on test channel first; defer production tag requirements until release readiness.
+- Prioritize installer safety verification using existing Stage 4 test manifest and test installer flow.
+
+Stage 5 kickoff checklist:
+
+- [x] Add SHA256 verification step before installer launch in Host update flow.
+- [x] Fail closed on checksum mismatch and log clear diagnostic details.
+- [x] Add retry policy for installer download (3 attempts with backoff).
+- [x] Add download/install status reporting in Host logs for troubleshooting.
+- [x] Add safe process orchestration hooks for stop/update/restart sequence (feature-flagged for test channel).
+- [x] Define rollback metadata contract (backup location, version markers, failure reason codes).
+- [x] Add rollback trigger path for install/restart failures in test channel.
+- [x] Create Stage 5 validation runbook for test-channel-only safety scenarios.
+
+Stage 5 exit criteria (test channel):
+
+- Test-channel update verifies checksum before install and blocks on mismatch.
+- Retry and failure-path behaviors are exercised and logged end-to-end.
+- Rollback metadata is generated and validated in failure simulation.
+- Team approves readiness for production-channel Stage 5 rollout gate.
