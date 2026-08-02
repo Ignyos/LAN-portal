@@ -89,7 +89,7 @@ Status values:
 | NRM-05 | Manual artifact rehearsal with Host | Run `.github/workflows/publish-dev.yml` via `workflow_dispatch` with `include_host=true` | API/Web/Host zip outputs plus `.sha256` and release-artifacts manifest | Pass run: https://github.com/Ignyos/LAN-portal/actions/runs/30762251585 ; artifact `publish-dev-artifacts-1` (63.9 MB, digest `sha256:c327052f0c582bae9498a0a5548514fb16d964da17efceaa958398010adaac95`) | Pass |
 | NRM-06 | Test tag release assets | Push `vX.Y.Z-test` tag | Tagged run generates installer `.exe`, `.sha256`, zips, and attaches all release assets | Pass run: https://github.com/Ignyos/LAN-portal/actions/runs/30762845605 ; release assets: https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0-test.202608021912 | Pass |
 | NRM-07 | Manifest channel routing (test) | Test tag with `-test` suffix | `manifest-test.json` generated and published with tag-matching URL/checksum | Pass commit on `main`: `27a609f` (`chore: update release manifests for v0.1.0-test.202608021912`) updating `docs/updates/manifest-test.json` | Pass |
-| NRM-08 | Manifest channel routing (production) | Production tag `vX.Y.Z` | `manifest.json` generated and published with tag-matching URL/checksum | Commit in default branch + file content | Pending |
+| NRM-08 | Manifest channel routing (production) | Production tag `vX.Y.Z` | `manifest.json` generated and published with tag-matching URL/checksum | Pass commit on `main`: `d2b37c6` (`chore: update release manifests for v0.1.0`); downstream Pages deployment: https://github.com/Ignyos/LAN-portal/actions/runs/30764030967 | Pass |
 | NRM-09 | Installer checksum integrity artifact | Any tagged run | Installer checksum file present and parseable in release package | Pass asset in release: `Ignyos-LanPortal-Dev-0.1.0-test.202608021912.exe.sha256` on https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0-test.202608021912 | Pass |
 | NRM-10 | Release artifact package naming stability | Any tagged run | API/Web/Host zip naming and `release-artifacts-manifest.json` format unchanged | Pass release package set for test tag includes stable API/Web zip naming and `release-artifacts-manifest.json`; tagged live lane intentionally omits Host zip (`INCLUDE_HOST='false'`) while still publishing installer + checksum and `update-manifest-test.json` | Pass |
 
@@ -191,6 +191,16 @@ Use this per execution round:
 - Actions run links: https://github.com/Ignyos/LAN-portal/actions/runs/30762845605
 - Release links: https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0-test.202608021912
 - Notes: Release assets include API/Web zips + `.sha256`, installer `.exe` + `.exe.sha256`, `release-artifacts-manifest.json`, and `update-manifest-test.json`; workflow artifact `release-artifacts-v0.1.0-test.202608021912` published (digest `sha256:5fdbb7ea8b3d6c7d413879dd50d3e95ddb0c83389f1ae2e0e178597118b160b7`).
+
+- Date: 2026-08-02
+- Branch: main (production tag)
+- Commit SHA: 1af2c72 (tagged commit), d2b37c6 (manifest publish commit)
+- Matrix IDs executed: NRM-08
+- Pass IDs: NRM-08
+- Fail IDs: None
+- Actions run links: https://github.com/Ignyos/LAN-portal/actions/runs/30763938366 ; downstream Pages deployment https://github.com/Ignyos/LAN-portal/actions/runs/30764030967
+- Release links: https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0
+- Notes: Production manifest routing validated by creation of `docs/updates/manifest.json` on `main` via commit `d2b37c6` (`chore: update release manifests for v0.1.0`). Pages deployment completed successfully after manifest publish.
 
 ## Stage 6F Remote Execution Checklist (NRM-04 through NRM-10)
 

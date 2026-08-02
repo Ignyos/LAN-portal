@@ -405,7 +405,7 @@ Stage 6E progress snapshot (2026-08-02):
 
 Backlog:
 
-- [ ] S6F-01: Execute dry-run and test-tag rehearsals against non-regression matrix.
+- [x] S6F-01: Execute dry-run and test-tag rehearsals against non-regression matrix.
 	- Owner: QA Lead
 	- Effort: M
 	- Depends on: S6E-04
@@ -430,7 +430,7 @@ Stage 6F exit criteria:
 
 Stage 6F progress snapshot (2026-08-02):
 
-- S6F-01 is in progress.
+- S6F-01 is complete.
 - Completed local rehearsal subset from non-regression matrix:
 	- `NRM-01` pass (local dry run gate path + artifact generation).
 	- `NRM-02` pass (approval gate reached; explicit EXIT cancel path validated).
@@ -443,9 +443,11 @@ Stage 6F progress snapshot (2026-08-02):
 	- `NRM-07` pass (test channel manifest routing to `manifest-test.json`).
 	- `NRM-09` pass (installer checksum artifact present in release assets).
 	- `NRM-10` pass (release artifact naming stability + `release-artifacts-manifest.json`).
+- Completed tagged production-release evidence:
+	- `NRM-08` pass (production manifest routing to `manifest.json`) via commit `d2b37c6` and Pages deployment https://github.com/Ignyos/LAN-portal/actions/runs/30764030967.
 - Evidence recorded in `.github/runbooks/cicd-non-regression-matrix.md` under execution rounds.
 - Remaining S6F-01 scope:
-	- `NRM-08` (production tag manifest routing validation).
+	- None.
 - Remote execution steps for `NRM-04` through `NRM-10` documented in `.github/runbooks/cicd-non-regression-matrix.md` under `Stage 6F Remote Execution Checklist`.
 
 ## Stage 6 Risk Register
