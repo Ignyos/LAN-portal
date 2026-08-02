@@ -39,6 +39,13 @@
       }
     },
     {
+      "name": "Build",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "dotnet build ./Ignyos.LanPortal.sln",
+      "cwd": "${workspaceFolder}"
+    },
+    {
       "name": "Build Dev Installer",
       "type": "node-terminal",
       "request": "launch",
@@ -46,17 +53,17 @@
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "Publish",
+      "name": "Publish-live",
       "type": "node-terminal",
       "request": "launch",
-      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-release.ps1",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-live.ps1",
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "Publish Dry Run",
+      "name": "Publish-dev",
       "type": "node-terminal",
       "request": "launch",
-      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-release.ps1 -DryRun",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-dev.ps1",
       "cwd": "${workspaceFolder}"
     }
   ],
