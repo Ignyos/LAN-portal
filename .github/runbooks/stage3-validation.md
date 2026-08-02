@@ -9,10 +9,10 @@ Use this runbook to validate Stage 3 installer packaging automation.
 - GitHub Actions is enabled for the repository.
 - `.github/workflows/release-artifacts.yml` includes Stage 3 installer steps.
 
-## Validation 1: workflow_dispatch baseline check
+## Validation 1: Publish-dev baseline check
 
 1. Open GitHub repository Actions tab.
-2. Select workflow: Release Artifacts.
+2. Select workflow: Publish-dev.
 3. Click Run workflow.
 4. For include_host, select true.
 5. Run on the target branch (for example dev).
@@ -32,7 +32,7 @@ git push origin $testTag
 
 Then:
 
-1. Open GitHub Actions and confirm Release Artifacts workflow runs for the tag.
+1. Open GitHub Actions and confirm Publish-live workflow runs for the tag.
 2. Open the created or updated GitHub Release for the tag.
 3. Verify attached files include:
    - API zip + `.sha256`
@@ -51,6 +51,6 @@ git tag -d v0.1.2-stage3-test
 
 ## Pass Criteria
 
-- workflow_dispatch run succeeds and preserves Stage 2 artifact behavior.
+- Publish-dev manual run succeeds and preserves Stage 2 artifact behavior.
 - tag run succeeds and attaches installer `.exe` + `.sha256` to GitHub Release.
 - installer file naming is stable and suitable for Stage 4 manifest generation.

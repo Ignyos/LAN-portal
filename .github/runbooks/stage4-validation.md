@@ -21,7 +21,7 @@ git push origin $testTag
 
 Then verify:
 
-1. Release Artifacts workflow succeeds for the tag run.
+1. Publish-live workflow succeeds for the tag run.
 2. GitHub Release assets include:
    - installer `.exe` + `.sha256`
    - `update-manifest-test.json`

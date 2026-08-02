@@ -409,15 +409,15 @@ Backlog:
 	- Owner: QA Lead
 	- Effort: M
 	- Depends on: S6E-04
-- [ ] S6F-02: Approve cutover after evidence review.
+- [x] S6F-02: Approve cutover after evidence review.
 	- Owner: Release Lead
 	- Effort: S
 	- Depends on: S6F-01
-- [ ] S6F-03: Remove deprecated names and stale references after cutover.
+- [x] S6F-03: Remove deprecated names and stale references after cutover.
 	- Owner: DevOps Engineer
 	- Effort: S
 	- Depends on: S6F-02
-- [ ] S6F-04: Publish final operator runbook for lanes and escalation paths.
+- [x] S6F-04: Publish final operator runbook for lanes and escalation paths.
 	- Owner: QA Lead
 	- Effort: S
 	- Depends on: S6F-02
@@ -445,6 +445,9 @@ Stage 6F progress snapshot (2026-08-02):
 	- `NRM-10` pass (release artifact naming stability + `release-artifacts-manifest.json`).
 - Completed tagged production-release evidence:
 	- `NRM-08` pass (production manifest routing to `manifest.json`) via commit `d2b37c6` and Pages deployment https://github.com/Ignyos/LAN-portal/actions/runs/30764030967.
+- Cutover approved after evidence review.
+- Deprecated operator alias removed; canonical operator entry points are now `Publish-dev` and `Publish-live` only.
+- Final operator lane runbook published at `.github/runbooks/cicd-operator-runbook.md`.
 - Evidence recorded in `.github/runbooks/cicd-non-regression-matrix.md` under execution rounds.
 - Remaining S6F-01 scope:
 	- None.

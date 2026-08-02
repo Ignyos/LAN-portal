@@ -8,10 +8,10 @@ Use this runbook to validate Stage 2 release artifact automation.
 - Branch and tag pushes to origin are allowed.
 - GitHub Actions is enabled for the repository.
 
-## Validation 1: workflow_dispatch with Host enabled
+## Validation 1: Publish-dev manual rehearsal with Host enabled
 
 1. Open GitHub repository Actions tab.
-2. Select workflow: Release Artifacts.
+2. Select workflow: Publish-dev.
 3. Click Run workflow.
 4. For include_host, select true.
 5. Run on the target branch (for example dev).
@@ -35,7 +35,7 @@ git push origin $testTag
 
 Then:
 
-1. Open GitHub Actions and confirm Release Artifacts workflow runs for the tag.
+1. Open GitHub Actions and confirm Publish-live workflow runs for the tag.
 2. Open the created/updated GitHub Release for the tag.
 3. Verify attached files include:
    - API zip + sha256
@@ -51,6 +51,6 @@ git tag -d v0.1.1-test
 
 ## Pass Criteria
 
-- workflow_dispatch run succeeds with include_host=true and produces host artifact.
+- Publish-dev manual run succeeds with include_host=true and produces host artifact.
 - tag run succeeds and attaches expected assets to GitHub Release.
 - checksums and manifest are present and downloadable.

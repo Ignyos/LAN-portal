@@ -8,6 +8,9 @@ This index maps existing validation runbooks to the canonical operator lanes:
 
 Use this file as the first stop before running validation.
 
+Final cutover runbook:
+- `.github/runbooks/cicd-operator-runbook.md`
+
 ## Build Lane
 
 Purpose:
@@ -24,7 +27,7 @@ Runbooks:
 Purpose:
 - Rehearse release preparation and non-production verification without production publish side effects.
 
-Current entry points:
+Primary entry points:
 - VS Code Run and Debug: `Publish-dev`
 - Script: `./scripts/publish-dev.ps1`
 - Workflow: `.github/workflows/publish-dev.yml`
@@ -42,6 +45,11 @@ Purpose:
 
 Primary automation:
 - `.github/workflows/release-artifacts.yml`
+
+Escalation:
+- Release preparation gate issues: Release Lead
+- Workflow or permissions issues: DevOps Engineer
+- Validation evidence gaps: QA Lead
 
 Runbooks:
 - `.github/runbooks/stage2-validation.md`

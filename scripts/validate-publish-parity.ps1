@@ -35,12 +35,10 @@ function Test-FileContentContains {
 
 $publishLivePath = Join-Path $scriptRoot "publish-live.ps1"
 $publishDevPath = Join-Path $scriptRoot "publish-dev.ps1"
-$publishReleasePath = Join-Path $scriptRoot "publish-release.ps1"
 $releaseCommonPath = Join-Path $scriptRoot "release-common.ps1"
 
 Add-Check -Name "publish-live exists" -Passed (Test-Path -LiteralPath $publishLivePath) -Details $publishLivePath
 Add-Check -Name "publish-dev exists" -Passed (Test-Path -LiteralPath $publishDevPath) -Details $publishDevPath
-Add-Check -Name "publish-release exists" -Passed (Test-Path -LiteralPath $publishReleasePath) -Details $publishReleasePath
 Add-Check -Name "release-common exists" -Passed (Test-Path -LiteralPath $releaseCommonPath) -Details $releaseCommonPath
 
 Add-Check -Name "publish-live preserves AI gate" -Passed (Test-FileContentContains -Path $publishLivePath -Pattern "Type CONTINUE to proceed after AI finishes") -Details "CONTINUE gate text found"
@@ -49,7 +47,6 @@ Add-Check -Name "publish-live preserves release notes output path default" -Pass
 
 Add-Check -Name "publish-dev routes to publish-live" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "publish-live.ps1") -Details "publish-dev wrapper target"
 Add-Check -Name "publish-dev enforces DryRun" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "-DryRun") -Details "DryRun forwarding"
-Add-Check -Name "publish-release routes to publish-live" -Passed (Test-FileContentContains -Path $publishReleasePath -Pattern "publish-live.ps1") -Details "publish-release alias target"
 
 $commonFunctions = @(
     "Invoke-ReleaseGit",
