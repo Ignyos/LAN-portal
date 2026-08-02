@@ -85,8 +85,8 @@ Status values:
 | NRM-01 | Local dry run gate path | `./scripts/publish-release.ps1 -DryRun` | Branch, clean-tree, sync, SemVer, and tag checks execute; diff/prompt/log artifacts generated; no commit/tag/push | Pass run at 2026-08-02 13:37 local time in isolated runner (`.tmp/nrm-runner2`), exit code `0`, artifacts: `release-diff-20260802-133735.patch`, `release-diff-summary-20260802-133735.txt`, `ai-release-prompt-20260802-133735.md`, `publish-20260802-133735.log` | Pass |
 | NRM-02 | Local release approval gates | `./scripts/publish-release.ps1` | AI release-notes pause + explicit final approval required; cancel path exits without publish | Pass run at 2026-08-02 13:38 local time in isolated runner (`.tmp/nrm-runner2`): CONTINUE prompt displayed, operator entered `EXIT`, script logged `User exited before publish.` with no publish action | Pass |
 | NRM-03 | Unexpected-change block | Run publish with extra modified file outside allowed set | Script aborts before commit with clean-gate style error | Pass run at 2026-08-02 13:37 local time in isolated runner (`.tmp/nrm-runner2`): extra file `.nrm-extra-change.txt` caused clean-gate failure and exit code `11`; `git status --porcelain` showed `?? .nrm-extra-change.txt` | Pass |
-| NRM-04 | CI branch protection parity | PR to `main` | Restore/build/test executed and required to pass | Actions run link | Pending |
-| NRM-05 | Manual artifact rehearsal with Host | Run `.github/workflows/publish-dev.yml` via `workflow_dispatch` with `include_host=true` | API/Web/Host zip outputs plus `.sha256` and release-artifacts manifest | Actions artifact listing | Pending |
+| NRM-04 | CI branch protection parity | PR to `main` | Restore/build/test executed and required to pass | Pass run for PR `dev -> main` (#3): https://github.com/Ignyos/LAN-portal/actions/runs/30760878466 | Pass |
+| NRM-05 | Manual artifact rehearsal with Host | Run `.github/workflows/publish-dev.yml` via `workflow_dispatch` with `include_host=true` | API/Web/Host zip outputs plus `.sha256` and release-artifacts manifest | Pass run: https://github.com/Ignyos/LAN-portal/actions/runs/30762251585 ; artifact `publish-dev-artifacts-1` (63.9 MB, digest `sha256:c327052f0c582bae9498a0a5548514fb16d964da17efceaa958398010adaac95`) | Pass |
 | NRM-06 | Test tag release assets | Push `vX.Y.Z-test` tag | Tagged run generates installer `.exe`, `.sha256`, zips, and attaches all release assets | Release asset listing | Pending |
 | NRM-07 | Manifest channel routing (test) | Test tag with `-test` suffix | `manifest-test.json` generated and published with tag-matching URL/checksum | Commit in default branch + file content | Pending |
 | NRM-08 | Manifest channel routing (production) | Production tag `vX.Y.Z` | `manifest.json` generated and published with tag-matching URL/checksum | Commit in default branch + file content | Pending |
@@ -161,6 +161,26 @@ Use this per execution round:
 - Actions run links: https://github.com/Ignyos/LAN-Portal-dev/actions/runs/30757938543
 - Release links: N/A
 - Notes: Supplemental evidence from LAN-Portal-dev pages workflow. Per repository targeting rule, this does not replace required primary evidence from LAN-Portal for NRM-04 through NRM-10.
+
+- Date: 2026-08-02
+- Branch: dev (PR to main)
+- Commit SHA: b9c3662
+- Matrix IDs executed: NRM-04
+- Pass IDs: NRM-04
+- Fail IDs: None
+- Actions run links: https://github.com/Ignyos/LAN-portal/actions/runs/30760878466
+- Release links: N/A
+- Notes: Primary evidence captured from LAN-Portal PR #3 (`dev -> main`) CI run.
+
+- Date: 2026-08-02
+- Branch: dev (manual workflow dispatch)
+- Commit SHA: 9fd10bc
+- Matrix IDs executed: NRM-05
+- Pass IDs: NRM-05
+- Fail IDs: None
+- Actions run links: https://github.com/Ignyos/LAN-portal/actions/runs/30762251585
+- Release links: N/A
+- Notes: Primary evidence captured from LAN-Portal `Publish-dev` run with `include_host=true`. Artifact `publish-dev-artifacts-1` recorded at 63.9 MB with digest `sha256:c327052f0c582bae9498a0a5548514fb16d964da17efceaa958398010adaac95`.
 
 ## Stage 6F Remote Execution Checklist (NRM-04 through NRM-10)
 
