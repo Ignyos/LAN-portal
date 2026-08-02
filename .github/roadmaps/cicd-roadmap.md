@@ -438,9 +438,14 @@ Stage 6F progress snapshot (2026-08-02):
 - Completed primary remote CI evidence:
 	- `NRM-04` pass (LAN-Portal PR CI run on `dev -> main`).
 	- `NRM-05` pass (LAN-Portal Publish-dev manual dispatch with `include_host=true`).
+- Completed tagged test-release evidence:
+	- `NRM-06` pass (test tag release assets): https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0-test.202608021912
+	- `NRM-07` pass (test channel manifest routing to `manifest-test.json`).
+	- `NRM-09` pass (installer checksum artifact present in release assets).
+	- `NRM-10` pass (release artifact naming stability + `release-artifacts-manifest.json`).
 - Evidence recorded in `.github/runbooks/cicd-non-regression-matrix.md` under execution rounds.
 - Remaining S6F-01 scope:
-	- `NRM-06` through `NRM-10` (tag-driven release/manifest validation).
+	- `NRM-08` (production tag manifest routing validation).
 - Remote execution steps for `NRM-04` through `NRM-10` documented in `.github/runbooks/cicd-non-regression-matrix.md` under `Stage 6F Remote Execution Checklist`.
 
 ## Stage 6 Risk Register

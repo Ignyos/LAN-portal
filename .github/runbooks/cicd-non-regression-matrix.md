@@ -87,11 +87,11 @@ Status values:
 | NRM-03 | Unexpected-change block | Run publish with extra modified file outside allowed set | Script aborts before commit with clean-gate style error | Pass run at 2026-08-02 13:37 local time in isolated runner (`.tmp/nrm-runner2`): extra file `.nrm-extra-change.txt` caused clean-gate failure and exit code `11`; `git status --porcelain` showed `?? .nrm-extra-change.txt` | Pass |
 | NRM-04 | CI branch protection parity | PR to `main` | Restore/build/test executed and required to pass | Pass run for PR `dev -> main` (#3): https://github.com/Ignyos/LAN-portal/actions/runs/30760878466 | Pass |
 | NRM-05 | Manual artifact rehearsal with Host | Run `.github/workflows/publish-dev.yml` via `workflow_dispatch` with `include_host=true` | API/Web/Host zip outputs plus `.sha256` and release-artifacts manifest | Pass run: https://github.com/Ignyos/LAN-portal/actions/runs/30762251585 ; artifact `publish-dev-artifacts-1` (63.9 MB, digest `sha256:c327052f0c582bae9498a0a5548514fb16d964da17efceaa958398010adaac95`) | Pass |
-| NRM-06 | Test tag release assets | Push `vX.Y.Z-test` tag | Tagged run generates installer `.exe`, `.sha256`, zips, and attaches all release assets | Release asset listing | Pending |
-| NRM-07 | Manifest channel routing (test) | Test tag with `-test` suffix | `manifest-test.json` generated and published with tag-matching URL/checksum | Commit in default branch + file content | Pending |
+| NRM-06 | Test tag release assets | Push `vX.Y.Z-test` tag | Tagged run generates installer `.exe`, `.sha256`, zips, and attaches all release assets | Pass run: https://github.com/Ignyos/LAN-portal/actions/runs/30762845605 ; release assets: https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0-test.202608021912 | Pass |
+| NRM-07 | Manifest channel routing (test) | Test tag with `-test` suffix | `manifest-test.json` generated and published with tag-matching URL/checksum | Pass commit on `main`: `27a609f` (`chore: update release manifests for v0.1.0-test.202608021912`) updating `docs/updates/manifest-test.json` | Pass |
 | NRM-08 | Manifest channel routing (production) | Production tag `vX.Y.Z` | `manifest.json` generated and published with tag-matching URL/checksum | Commit in default branch + file content | Pending |
-| NRM-09 | Installer checksum integrity artifact | Any tagged run | Installer checksum file present and parseable in release package | `*.exe.sha256` in package assets | Pending |
-| NRM-10 | Release artifact package naming stability | Any tagged run | API/Web/Host zip naming and `release-artifacts-manifest.json` format unchanged | Package file list + JSON schema diff | Pending |
+| NRM-09 | Installer checksum integrity artifact | Any tagged run | Installer checksum file present and parseable in release package | Pass asset in release: `Ignyos-LanPortal-Dev-0.1.0-test.202608021912.exe.sha256` on https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0-test.202608021912 | Pass |
+| NRM-10 | Release artifact package naming stability | Any tagged run | API/Web/Host zip naming and `release-artifacts-manifest.json` format unchanged | Pass release package set for test tag includes stable API/Web zip naming and `release-artifacts-manifest.json`; tagged live lane intentionally omits Host zip (`INCLUDE_HOST='false'`) while still publishing installer + checksum and `update-manifest-test.json` | Pass |
 
 ## Rollback Strategy (Migration Safety)
 
@@ -181,6 +181,16 @@ Use this per execution round:
 - Actions run links: https://github.com/Ignyos/LAN-portal/actions/runs/30762251585
 - Release links: N/A
 - Notes: Primary evidence captured from LAN-Portal `Publish-dev` run with `include_host=true`. Artifact `publish-dev-artifacts-1` recorded at 63.9 MB with digest `sha256:c327052f0c582bae9498a0a5548514fb16d964da17efceaa958398010adaac95`.
+
+- Date: 2026-08-02
+- Branch: main (test tag)
+- Commit SHA: 2404d7e (tagged commit), 27a609f (manifest publish commit)
+- Matrix IDs executed: NRM-06, NRM-07, NRM-09, NRM-10
+- Pass IDs: NRM-06, NRM-07, NRM-09, NRM-10
+- Fail IDs: None
+- Actions run links: https://github.com/Ignyos/LAN-portal/actions/runs/30762845605
+- Release links: https://github.com/Ignyos/LAN-portal/releases/tag/v0.1.0-test.202608021912
+- Notes: Release assets include API/Web zips + `.sha256`, installer `.exe` + `.exe.sha256`, `release-artifacts-manifest.json`, and `update-manifest-test.json`; workflow artifact `release-artifacts-v0.1.0-test.202608021912` published (digest `sha256:5fdbb7ea8b3d6c7d413879dd50d3e95ddb0c83389f1ae2e0e178597118b160b7`).
 
 ## Stage 6F Remote Execution Checklist (NRM-04 through NRM-10)
 
