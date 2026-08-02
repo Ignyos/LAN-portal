@@ -153,3 +153,314 @@ Stage 5 exit criteria (test channel):
 - Retry and failure-path behaviors are exercised and logged end-to-end.
 - Rollback metadata is generated and validated in failure simulation.
 - Team approves readiness for production-channel Stage 5 rollout gate.
+
+## Stage 6: DevOps/CICD Pattern Adoption Refactor Plan (No-Behavior-Change First)
+
+Goal:
+
+- Adopt the `Build` / `Publish-dev` / `Publish-live` operating pattern from `DevOps_CICD_EXAMPLE`.
+- Preserve all existing LAN Portal release behavior from Stages 2-5.
+- Reduce implementation noise by completing naming and documentation cleanup before script/workflow refactors.
+
+Guardrails:
+
+- Do not change release behavior during Stage 6A and 6B.
+- Keep installer, checksum, manifest, and GitHub Release asset behavior intact.
+- Keep branch and clean-tree gates equivalent to current publish process.
+
+### Stage 6A: Pre-Refactor Cleanup (Noise Reduction)
+
+Owner defaults:
+
+- Release Lead: primary owner of release-flow decisions.
+- DevOps Engineer: primary owner of workflow and secrets changes.
+- QA Lead: primary owner of validation runbooks and evidence capture.
+
+Effort scale:
+
+- S: <= 0.5 day
+- M: 1 day
+- L: 2-3 days
+
+Backlog:
+
+- [x] S6A-01: Create CI/CD source-of-truth map doc section in this roadmap.
+	- Owner: Release Lead
+	- Effort: S
+	- Output: table mapping current assets to future `Build` / `Publish-dev` / `Publish-live` names.
+- [x] S6A-02: Freeze naming decisions before edits.
+	- Owner: Release Lead
+	- Effort: S
+	- Output: approved naming matrix for scripts, workflow files, run/debug entries, and runbooks.
+- [x] S6A-03: Reconcile release notes standards.
+	- Owner: Release Lead
+	- Effort: S
+	- Output: one canonical style guide path and one canonical release notes output path.
+- [x] S6A-04: Define workflow ownership boundaries.
+	- Owner: DevOps Engineer
+	- Effort: S
+	- Output: explicit ownership for CI checks, dev lane publish, live release publish, and manifest publish.
+- [x] S6A-05: Align runbooks to one sequence.
+	- Owner: QA Lead
+	- Effort: M
+	- Output: Stage 2/3/4/5 runbooks indexed by lane and trigger type (manual, branch, tag).
+
+Stage 6A exit criteria:
+
+- Canonical names approved and documented.
+- No duplicate source-of-truth docs for release notes style/output.
+- Clear lane ownership documented for each automation step.
+
+Stage 6A deliverables (frozen 2026-08-02):
+
+#### 6A.1 Source-of-Truth Mapping (Current -> Canonical)
+
+| Area | Current Asset | Canonical Lane Name | Decision |
+|---|---|---|---|
+| VS Code Run/Debug | `Publish` | `Publish-live` | Keep behavior, rename entry point in Stage 6C |
+| VS Code Run/Debug | `Publish Dry Run` | `Publish-dev` | Keep behavior, rename entry point in Stage 6C |
+| Script | `scripts/publish-release.ps1` | `scripts/publish-live.ps1` (target) | Introduce alias path first, then migrate in Stage 6D |
+| Workflow | `.github/workflows/release-artifacts.yml` | `.github/workflows/publish-live.yml` (target) | Rename after behavior parity checks in Stage 6E |
+| Workflow | `.github/workflows/ci.yml` | `.github/workflows/ci.yml` | Keep name, keep CI-only responsibility |
+| Runbook set | `stage2/3/4/5-validation.md` | Lane-indexed runbook flow | Keep files, add index and lane mapping |
+
+#### 6A.2 Canonical Release Notes Standard
+
+Canonical release-note source-of-truth paths for LAN Portal:
+
+- Style guide: `.github/release/release-notes-style-guide.md`
+- Release notes output: `.github/release/release-notes.md`
+
+Template-only reference paths (non-authoritative for LAN Portal operations):
+
+- `DevOps_CICD_EXAMPLE/RELEASE_NOTES_STYLE.md`
+- `DevOps_CICD_EXAMPLE/RELEASE_NOTES.md`
+
+Rule:
+
+- Any script/workflow changes in Stage 6D/6E must preserve `.github/release/*` as the operational release notes paths unless explicitly changed by a dedicated migration decision.
+
+#### 6A.3 Workflow Ownership Boundaries
+
+| Responsibility | Owner Lane | Primary Workflow/Entry | Notes |
+|---|---|---|---|
+| Restore/build/test gates | Build lane | `.github/workflows/ci.yml` | No release side effects |
+| Local release prep, branch/clean/sync gates, AI notes prompt | Publish-live lane (local) | `scripts/publish-release.ps1` (current) | Human-gated release preparation |
+| Tagged artifact packaging + installer + checksums | Publish-live lane (remote) | `.github/workflows/release-artifacts.yml` (current) | Must preserve Stages 2-5 behavior |
+| Manifest generation + docs/updates publish | Publish-live lane (remote) | `.github/workflows/release-artifacts.yml` (current) | Keep channel logic and schema stable |
+| Dev lane rehearsal behavior | Publish-dev lane | `Publish Dry Run` mapping (current) | To be split into explicit path in Stage 6D |
+
+#### 6A.4 Naming Freeze Rules
+
+- Canonical operator lane names are `Build`, `Publish-dev`, and `Publish-live`.
+- During transition, old names may exist only as compatibility aliases.
+- New docs and runbooks must use canonical names first, then map old names in parentheses when needed.
+
+#### 6A.5 Runbook Sequence Index
+
+- Runbook lane index path: `.github/runbooks/cicd-lane-index.md`
+- Existing validation runbooks remain in place and are now referenced through the lane index.
+
+### Stage 6B: Planning Baseline And Non-Regression Matrix
+
+Backlog:
+
+- [x] S6B-01: Capture current release behavior baseline.
+	- Owner: DevOps Engineer
+	- Effort: M
+	- Output: checklist of gates, prompts, artifacts, and release side effects currently implemented.
+- [x] S6B-02: Define non-regression acceptance matrix.
+	- Owner: QA Lead
+	- Effort: M
+	- Output: test matrix for dry run, test tag, production tag, manifest publish, and installer checksum behavior.
+- [x] S6B-03: Define migration rollback strategy.
+	- Owner: Release Lead
+	- Effort: S
+	- Output: branch/tag rollback steps if refactor behavior deviates from baseline.
+
+Stage 6B exit criteria:
+
+- Baseline behavior matrix is complete and reviewed.
+- Non-regression test matrix is approved before implementation edits begin.
+
+Stage 6B deliverables (frozen 2026-08-02):
+
+- Baseline + non-regression + rollback runbook path: `.github/runbooks/cicd-non-regression-matrix.md`
+- Matrix IDs `NRM-01` through `NRM-10` define required parity checks for Stage 6D/6E.
+- Rollback policy requires a dedicated rollback PR and manifest restore verification when release behavior regresses.
+
+### Stage 6C: Operator Experience Alignment (VS Code Entry Points)
+
+Backlog:
+
+- [x] S6C-01: Rework Run and Debug labels to the canonical three-lane model.
+	- Owner: Release Lead
+	- Effort: S
+	- Depends on: S6A-02
+- [x] S6C-02: Keep current command behavior while renaming entry points.
+	- Owner: DevOps Engineer
+	- Effort: S
+	- Depends on: S6B-01
+- [x] S6C-03: Update README operator instructions to new lane names.
+	- Owner: Release Lead
+	- Effort: S
+	- Depends on: S6C-01
+
+Stage 6C exit criteria:
+
+- Operators have clear `Build`, `Publish-dev`, and `Publish-live` launch paths.
+- No behavior change from existing publish commands yet.
+
+Stage 6C deliverables (frozen 2026-08-02):
+
+- Updated Run and Debug entries in `.vscode/launch.json`:
+	- `Build`
+	- `Publish-dev`
+	- `Publish-live`
+- Updated operator guidance in `README.md` to match canonical lane names.
+- Publish command behavior preserved with `scripts/publish-live.ps1` as canonical engine and `scripts/publish-release.ps1` retained as compatibility alias.
+
+### Stage 6D: Script Refactor (Composable Architecture)
+
+Backlog:
+
+- [x] S6D-01: Extract shared git validation utilities.
+	- Owner: DevOps Engineer
+	- Effort: M
+	- Depends on: S6B-01
+- [x] S6D-02: Introduce publish-dev orchestration script path.
+	- Owner: DevOps Engineer
+	- Effort: M
+	- Depends on: S6D-01
+- [x] S6D-03: Introduce publish-live orchestration script path.
+	- Owner: DevOps Engineer
+	- Effort: L
+	- Depends on: S6D-01
+- [x] S6D-04: Preserve AI-assisted release notes gate and explicit approvals.
+	- Owner: Release Lead
+	- Effort: S
+	- Depends on: S6D-03
+- [x] S6D-05: Add script-level parity checks against Stage 6B matrix.
+	- Owner: QA Lead
+	- Effort: M
+	- Depends on: S6D-02, S6D-03
+
+Stage 6D exit criteria:
+
+- Script responsibilities are separated by lane.
+- All prior gates and release protections remain functionally equivalent.
+
+Stage 6D deliverables (frozen 2026-08-02):
+
+- Shared release utilities extracted to `scripts/release-common.ps1`.
+- Canonical publish-live orchestration implemented in `scripts/publish-live.ps1`.
+- Canonical publish-dev path implemented in `scripts/publish-dev.ps1` (DryRun lane).
+- Backward compatibility retained via `scripts/publish-release.ps1` alias forwarding to publish-live.
+- AI-assisted release notes prompt, manual confirmation gates, and final approval steps preserved in publish-live flow.
+- Script-level parity validator added: `scripts/validate-publish-parity.ps1`.
+
+### Stage 6E: Workflow Refactor (Lane Ownership)
+
+Backlog:
+
+- [x] S6E-01: Keep CI workflow focused on restore/build/test only.
+	- Owner: DevOps Engineer
+	- Effort: S
+	- Depends on: S6A-04
+- [x] S6E-02: Add or rename workflow for dev lane publish responsibilities.
+	- Owner: DevOps Engineer
+	- Effort: M
+	- Depends on: S6D-02
+- [x] S6E-03: Add or rename workflow for live lane release responsibilities.
+	- Owner: DevOps Engineer
+	- Effort: M
+	- Depends on: S6D-03
+- [x] S6E-04: Preserve Stage 2-5 artifact pipeline behavior in live lane.
+	- Owner: DevOps Engineer
+	- Effort: L
+	- Depends on: S6E-03
+- [x] S6E-05: Revalidate secrets and permissions model.
+	- Owner: DevOps Engineer
+	- Effort: S
+	- Depends on: S6E-02, S6E-03
+
+Stage 6E exit criteria:
+
+- Workflow responsibilities are lane-specific and non-overlapping.
+- Tagged release behavior still produces installer, checksums, manifest, and release assets.
+
+Stage 6E progress snapshot (2026-08-02):
+
+- CI ownership remains isolated to `.github/workflows/ci.yml` for restore/build/test.
+- Live lane workflow identity renamed to `Publish-live` (in `.github/workflows/release-artifacts.yml`) with unchanged triggers and steps.
+- Stage 2-5 behavior preserved by retaining existing live workflow implementation logic and artifact pipeline steps.
+- Dev lane manual artifact rehearsal moved to dedicated workflow `.github/workflows/publish-dev.yml`.
+- Permissions revalidated by lane:
+	- Publish-dev workflow uses `contents: read`.
+	- Publish-live workflow retains `contents: write` for manifest commit and release attachment.
+- Remaining Stage 6E work:
+	- None.
+
+### Stage 6F: Validation, Cutover, And Decommissioning
+
+Backlog:
+
+- [ ] S6F-01: Execute dry-run and test-tag rehearsals against non-regression matrix.
+	- Owner: QA Lead
+	- Effort: M
+	- Depends on: S6E-04
+- [ ] S6F-02: Approve cutover after evidence review.
+	- Owner: Release Lead
+	- Effort: S
+	- Depends on: S6F-01
+- [ ] S6F-03: Remove deprecated names and stale references after cutover.
+	- Owner: DevOps Engineer
+	- Effort: S
+	- Depends on: S6F-02
+- [ ] S6F-04: Publish final operator runbook for lanes and escalation paths.
+	- Owner: QA Lead
+	- Effort: S
+	- Depends on: S6F-02
+
+Stage 6F exit criteria:
+
+- Evidence confirms no regression for Stage 2-5 functionality.
+- Team uses only the new lane naming and run paths.
+- Deprecated aliases and duplicate docs are removed.
+
+Stage 6F progress snapshot (2026-08-02):
+
+- S6F-01 is in progress.
+- Completed local rehearsal subset from non-regression matrix:
+	- `NRM-01` pass (local dry run gate path + artifact generation).
+	- `NRM-02` pass (approval gate reached; explicit EXIT cancel path validated).
+	- `NRM-03` pass (unexpected-change clean-gate block validated).
+- Evidence recorded in `.github/runbooks/cicd-non-regression-matrix.md` under execution rounds.
+- Remaining S6F-01 scope:
+	- `NRM-04` through `NRM-10` (GitHub Actions and tagged release/manifest validation).
+- Remote execution steps for `NRM-04` through `NRM-10` documented in `.github/runbooks/cicd-non-regression-matrix.md` under `Stage 6F Remote Execution Checklist`.
+
+## Stage 6 Risk Register
+
+- R1: Behavioral drift in release gates during script split.
+	- Mitigation: Stage 6B parity matrix plus script-level parity checks.
+- R2: Trigger collisions during workflow transition.
+	- Mitigation: temporary branch/tag trigger freeze window and staged rollout.
+- R3: Manifest publish races on default branch updates.
+	- Mitigation: explicit ref resolution and post-run verification of manifest commit.
+- R4: Operator confusion while old and new names coexist.
+	- Mitigation: short overlap window and README/runbook updates in same PR.
+
+## Stage 6 Implementation PR Strategy
+
+- PR-1: Docs and naming cleanup only (Stage 6A, 6B, partial 6C).
+- PR-2: VS Code operator entry point alignment (remaining 6C).
+- PR-3: Script refactor with parity checks (6D).
+- PR-4: Workflow refactor preserving artifact semantics (6E).
+- PR-5: Validation evidence, cutover, and decommissioning (6F).
+
+Success gate for each PR:
+
+- Must pass CI.
+- Must include updated runbook notes for changed operator behavior.
+- Must map changed behavior to a Stage 6 backlog item.

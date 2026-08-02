@@ -1,19 +1,9 @@
-name: Release Artifacts
+name: Publish-live
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      include_host:
-        description: 'Include Host publish artifact (Windows executable payload)'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
 
 permissions:
   contents: write
@@ -25,7 +15,7 @@ jobs:
     env:
       DOTNET_VERSION: '9.0.x'
       CONFIGURATION: Release
-      INCLUDE_HOST: ${{ github.event_name == 'workflow_dispatch' && inputs.include_host || 'false' }}
+      INCLUDE_HOST: 'false'
       PAGES_BASE_URL: https://lanportal.ignyos.com
       PAGES_SOURCE_BRANCH: main
 

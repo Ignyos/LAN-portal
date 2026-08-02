@@ -80,19 +80,48 @@ See `.github/runbooks/developer-installer.md` for full steps.
 
 Release notes and release automation are intentionally stored under `.github` so `docs/` can be reserved for the future GitHub Pages SPA.
 
+Stage 6 naming decision:
+
+- Canonical operator lane names are `Build`, `Publish-dev`, and `Publish-live`.
+- During transition, current command names remain valid until script/workflow refactor phases complete.
+
+Current-to-canonical mapping:
+
+- Current Run/Debug `Publish` -> canonical `Publish-live`
+- Current Run/Debug `Publish Dry Run` -> canonical `Publish-dev`
+- `scripts/publish-live.ps1` is the canonical implementation engine.
+- `scripts/publish-release.ps1` remains as a compatibility alias during transition.
+
 ### Release Files
 
 - Style guide: `.github/release/release-notes-style-guide.md`
 - AI output target: `.github/release/release-notes.md`
-- Publish script: `scripts/publish-release.ps1`
+- Publish-live script: `scripts/publish-live.ps1`
+- Publish-dev script: `scripts/publish-dev.ps1`
+- Underlying implementation engine: `scripts/publish-live.ps1`
+- Compatibility alias: `scripts/publish-release.ps1`
+
+Canonical release notes source of truth for LAN Portal is always `.github/release/*`.
+Files under `DevOps_CICD_EXAMPLE` are template references only.
 
 ### Run and Debug
 
-Use the VS Code **Run and Debug** configuration named **Publish**.
-It runs:
+Use these VS Code **Run and Debug** configurations:
+
+- **Build** (local build validation)
+- **Publish-dev** (dry-run release preparation)
+- **Publish-live** (full release preparation and publish flow)
+
+`Publish-live` runs:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-release.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-live.ps1
+```
+
+`Publish-dev` runs:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-dev.ps1
 ```
 
 ### What Publish Does
