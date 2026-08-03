@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -33,7 +34,9 @@ public sealed class MainForm : Form
     private const string FaultLaunch = "LAUNCH";
 
     private readonly WebView2 browser;
-    private readonly string appVersion;
+    private readonly string appVersionFull;
+    private readonly string appVersionDisplay;
+    private readonly bool isDevInstaller;
     private readonly ToolStripMenuItem checkForUpdatesMenuItem;
     private readonly ToolStripStatusLabel updateStateLabel;
     private readonly ToolStripStatusLabel updateActionLabel;
@@ -48,9 +51,13 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        appVersion = GetAppVersion();
-        isTestChannel = appVersion.Contains("-test.", StringComparison.OrdinalIgnoreCase);
-        Text = $"{AppTitlePrefix} v{appVersion}";
+        appVersionFull = GetAppVersion();
+        isDevInstaller = IsDevInstallerFlavor();
+        appVersionDisplay = GetDisplayVersionForInstaller(appVersionFull, isDevInstaller);
+        isTestChannel = appVersionFull.Contains("-test.", StringComparison.OrdinalIgnoreCase);
+        Text = isDevInstaller
+            ? $"{AppTitlePrefix} (Dev) v{appVersionDisplay}"
+            : $"{AppTitlePrefix} v{appVersionDisplay}";
         Width = 1280;
         Height = 860;
         MinimumSize = new Size(900, 640);
@@ -60,7 +67,7 @@ public sealed class MainForm : Form
         var menuStrip = BuildMenuStrip(out checkForUpdatesMenuItem);
         MainMenuStrip = menuStrip;
 
-        var statusStrip = BuildStatusStrip(appVersion, out updateStateLabel, out updateActionLabel);
+        var statusStrip = BuildStatusStrip(appVersionDisplay, out updateStateLabel, out updateActionLabel);
         updatePollTimer = BuildUpdatePollTimer();
 
         browser = new WebView2
@@ -286,8 +293,36 @@ public sealed class MainForm : Form
             return "unknown";
         }
 
-        var version = informationalVersion.Split('+', 2)[0].Trim();
+        var version = informationalVersion.Trim();
         return string.IsNullOrWhiteSpace(version) ? "unknown" : version;
+    }
+
+    private static bool IsDevInstallerFlavor()
+    {
+        var flavorPath = Path.Combine(AppContext.BaseDirectory, "installer-flavor.txt");
+        if (!File.Exists(flavorPath))
+        {
+            return false;
+        }
+
+        var flavor = File.ReadAllText(flavorPath).Trim();
+        return string.Equals(flavor, "dev", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetDisplayVersionForInstaller(string fullVersion, bool isDevFlavor)
+    {
+        if (isDevFlavor)
+        {
+            return fullVersion;
+        }
+
+        var match = Regex.Match(fullVersion, "(?<core>\\d+\\.\\d+\\.\\d+)");
+        if (match.Success)
+        {
+            return match.Groups["core"].Value;
+        }
+
+        return fullVersion;
     }
 
     private static async Task<string> ResolveInitialUrlAsync()
@@ -334,7 +369,7 @@ public sealed class MainForm : Form
             UpdateStatusResponse? updateStatus;
             if (forceRefresh)
             {
-                var response = await http.PostAsJsonAsync(UpdateCheckNowUrl, new UpdateCheckNowRequest(appVersion));
+                var response = await http.PostAsJsonAsync(UpdateCheckNowUrl, new UpdateCheckNowRequest(appVersionFull));
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new HttpRequestException($"Update check endpoint returned HTTP {(int)response.StatusCode}.");
@@ -344,7 +379,7 @@ public sealed class MainForm : Form
             }
             else
             {
-                var encodedVersion = Uri.EscapeDataString(appVersion);
+                var encodedVersion = Uri.EscapeDataString(appVersionFull);
                 updateStatus = await http.GetFromJsonAsync<UpdateStatusResponse>($"{UpdateStatusUrl}?currentVersion={encodedVersion}");
             }
 
@@ -588,7 +623,7 @@ public sealed class MainForm : Form
 
         return new RollbackMetadata(
             DateTimeOffset.UtcNow,
-            appVersion,
+            appVersionFull,
             availableUpdateVersion,
             isTestChannel ? "test" : "production",
             isTestChannel,
@@ -596,7 +631,7 @@ public sealed class MainForm : Form
             availableUpdateSha256,
             installerPath,
             backupRoot,
-            $"version-{appVersion}",
+            $"version-{appVersionFull}",
             string.IsNullOrWhiteSpace(availableUpdateVersion) ? null : $"version-{availableUpdateVersion}",
             failureReasonCode,
             failureMessage,
