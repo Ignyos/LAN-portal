@@ -64,6 +64,12 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           --output artifacts/release/host
 
+      - name: Mark Host artifact as dev flavor
+        if: env.INCLUDE_HOST == 'true'
+        shell: pwsh
+        run: |
+          Set-Content -Path (Join-Path $env:GITHUB_WORKSPACE "artifacts/release/host/installer-flavor.txt") -Value "dev"
+
       - name: Package release artifacts
         shell: pwsh
         run: |

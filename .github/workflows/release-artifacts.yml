@@ -83,13 +83,64 @@ jobs:
             -p:IncludeNativeLibrariesForSelfExtract=true `
             --output artifacts/release/staging/app/web
 
+          $hostVersion = $env:GITHUB_REF_NAME
+          if ($hostVersion.StartsWith('v')) {
+            $hostVersion = $hostVersion.Substring(1)
+          }
+
           dotnet publish Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj `
             --configuration $env:CONFIGURATION `
             --runtime win-x64 `
             --self-contained true `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:InformationalVersion=$hostVersion `
             --output artifacts/release/staging/app/host
+
+          $version = $hostVersion
+
+          $channel = if ($version -match '-test(\.|$)') { 'test' } else { 'production' }
+          $apiProductionSettingsPath = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/staging/app/api/appsettings.Production.json"
+          if (Test-Path $apiProductionSettingsPath) {
+            $config = Get-Content -Path $apiProductionSettingsPath -Raw | ConvertFrom-Json
+            if ($null -eq $config.UpdateChannel) {
+              $config | Add-Member -NotePropertyName UpdateChannel -NotePropertyValue ([PSCustomObject]@{})
+            }
+
+            function Set-JsonPropertyValue {
+              param(
+                [Parameter(Mandatory = $true)]
+                [psobject]$Target,
+                [Parameter(Mandatory = $true)]
+                [string]$PropertyName,
+                [Parameter(Mandatory = $true)]
+                $PropertyValue
+              )
+
+              $property = $Target.PSObject.Properties[$PropertyName]
+              if ($null -eq $property) {
+                $Target | Add-Member -NotePropertyName $PropertyName -NotePropertyValue $PropertyValue
+              }
+              else {
+                $Target.$PropertyName = $PropertyValue
+              }
+            }
+
+            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "BaseUrl" -PropertyValue $env:PAGES_BASE_URL
+            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "Channel" -PropertyValue $channel
+
+            if ($null -eq $config.UpdateChannel.PSObject.Properties["ProductionManifestPath"] -or [string]::IsNullOrWhiteSpace([string]$config.UpdateChannel.ProductionManifestPath)) {
+              Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "ProductionManifestPath" -PropertyValue '/updates/manifest.json'
+            }
+
+            if ($null -eq $config.UpdateChannel.PSObject.Properties["TestManifestPath"] -or [string]::IsNullOrWhiteSpace([string]$config.UpdateChannel.TestManifestPath)) {
+              Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "TestManifestPath" -PropertyValue '/updates/manifest-test.json'
+            }
+
+            $config | ConvertTo-Json -Depth 20 | Set-Content -Path $apiProductionSettingsPath
+          }
+
+          Set-Content -Path (Join-Path $env:GITHUB_WORKSPACE "artifacts/release/staging/app/host/installer-flavor.txt") -Value "live"
 
           Copy-Item installer/templates/Launch-LanPortal.ps1 artifacts/release/staging/app/Launch-LanPortal.ps1
           Copy-Item installer/templates/Open-LanPortal-Admin.cmd artifacts/release/staging/app/Open-LanPortal-Admin.cmd
@@ -119,9 +170,9 @@ jobs:
             $version = $version.Substring(1)
           }
 
-          iscc.exe installer/Ignyos.LanPortal.Dev.iss "/DMyAppVersion=$version" "/DStagingRoot=$env:GITHUB_WORKSPACE/artifacts/release/staging" "/DInstallerOutRoot=$env:GITHUB_WORKSPACE/artifacts/release/package"
+          iscc.exe installer/Ignyos.LanPortal.Dev.iss "/DMyAppVersion=$version" "/DInstallerFlavor=live" "/DStagingRoot=$env:GITHUB_WORKSPACE/artifacts/release/staging" "/DInstallerOutRoot=$env:GITHUB_WORKSPACE/artifacts/release/package"
 
-          $installer = Get-ChildItem -Path artifacts/release/package -Filter "Ignyos-LanPortal-Dev-$version.exe" -File | Select-Object -First 1
+          $installer = Get-ChildItem -Path artifacts/release/package -Filter "Ignyos-LanPortal-$version.exe" -File | Select-Object -First 1
           if ($null -eq $installer) {
             throw "Installer output not found for version $version."
           }
@@ -142,7 +193,7 @@ jobs:
           $isTestChannel = $version -match '-test(\.|$)'
           $channel = if ($isTestChannel) { 'test' } else { 'production' }
 
-          $installerName = "Ignyos-LanPortal-Dev-$version.exe"
+          $installerName = "Ignyos-LanPortal-$version.exe"
           $packageRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/package"
           $installerPath = Join-Path $packageRoot $installerName
           $installerHashPath = "$installerPath.sha256"

@@ -1,14 +1,29 @@
 param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
-    [string]$Version
+    [string]$Version,
+    [string]$DevUpdateBaseUrl = "https://ignyos.github.io/LAN-Portal-dev",
+    [string]$DevUpdateChannel = "test"
 )
 
 $ErrorActionPreference = "Stop"
 
-$defaultVersion = "0.1.0-dev"
+$versionStamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddHHmm")
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$versionProjectPath = Join-Path $repoRoot "Ignyos.LanPortal.Host\Ignyos.LanPortal.Host.csproj"
+$defaultVersionCore = "0.1.0"
+if (Test-Path $versionProjectPath) {
+    $projectXml = Get-Content -Path $versionProjectPath -Raw
+    if ($projectXml -match '<Version>\s*(?<version>[^<\s]+)\s*</Version>') {
+        $candidate = $Matches.version.Trim()
+        if ($candidate -match '^(?<core>\d+\.\d+\.\d+)') {
+            $defaultVersionCore = $Matches.core
+        }
+    }
+}
+
+$defaultVersion = "$defaultVersionCore-dev.$versionStamp"
 $artifactsRoot = Join-Path $repoRoot "artifacts\dev-installer"
 $stagingRoot = Join-Path $artifactsRoot "staging"
 $appRoot = Join-Path $stagingRoot "app"
@@ -165,6 +180,71 @@ function Resolve-InnoCompiler {
     return $null
 }
 
+function Set-ApiUpdateChannelConfiguration {
+    param(
+        [string]$ApiOutputDirectory,
+        [string]$BaseUrl,
+        [string]$Channel
+    )
+
+    function Set-JsonPropertyValue {
+        param(
+            [Parameter(Mandatory = $true)]
+            [psobject]$Target,
+            [Parameter(Mandatory = $true)]
+            [string]$PropertyName,
+            [Parameter(Mandatory = $true)]
+            $PropertyValue
+        )
+
+        $property = $Target.PSObject.Properties[$PropertyName]
+        if ($null -eq $property) {
+            $Target | Add-Member -NotePropertyName $PropertyName -NotePropertyValue $PropertyValue
+        }
+        else {
+            $Target.$PropertyName = $PropertyValue
+        }
+    }
+
+    $configFiles = @(
+        "appsettings.json",
+        "appsettings.Production.json"
+    )
+
+    foreach ($configFile in $configFiles) {
+        $configPath = Join-Path $ApiOutputDirectory $configFile
+        if (-not (Test-Path $configPath)) {
+            continue
+        }
+
+        $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
+
+        if ($null -eq $config.UpdateChannel) {
+            $config | Add-Member -NotePropertyName UpdateChannel -NotePropertyValue ([PSCustomObject]@{})
+        }
+
+        $updateChannel = $config.UpdateChannel
+        Set-JsonPropertyValue -Target $updateChannel -PropertyName "BaseUrl" -PropertyValue $BaseUrl
+        Set-JsonPropertyValue -Target $updateChannel -PropertyName "Channel" -PropertyValue $Channel
+
+        if ($null -eq $updateChannel.PSObject.Properties["ProductionManifestPath"] -or
+            [string]::IsNullOrWhiteSpace([string]$updateChannel.ProductionManifestPath)) {
+            Set-JsonPropertyValue -Target $updateChannel -PropertyName "ProductionManifestPath" -PropertyValue "/updates/manifest.json"
+        }
+
+        if ($null -eq $updateChannel.PSObject.Properties["TestManifestPath"] -or
+            [string]::IsNullOrWhiteSpace([string]$updateChannel.TestManifestPath)) {
+            Set-JsonPropertyValue -Target $updateChannel -PropertyName "TestManifestPath" -PropertyValue "/updates/manifest-test.json"
+        }
+
+        if ($null -eq $updateChannel.PSObject.Properties["PollIntervalMinutes"]) {
+            Set-JsonPropertyValue -Target $updateChannel -PropertyName "PollIntervalMinutes" -PropertyValue 60
+        }
+
+        $config | ConvertTo-Json -Depth 20 | Set-Content -Path $configPath -Encoding utf8
+    }
+}
+
 if (-not (Test-Path $packageOut)) {
     New-Item -ItemType Directory -Force -Path $packageOut | Out-Null
 }
@@ -204,6 +284,8 @@ dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Api\Ignyos.LanPortal.Api.c
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -o $apiOut
 
+Set-ApiUpdateChannelConfiguration -ApiOutputDirectory $apiOut -BaseUrl $DevUpdateBaseUrl -Channel $DevUpdateChannel
+
 Write-Host "Publishing Web..."
 dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Web\Ignyos.LanPortal.Web.csproj") `
     -c $Configuration `
@@ -223,6 +305,8 @@ dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Host\Ignyos.LanPortal.Host
     -p:InformationalVersion=$Version `
     -o $hostOut
 
+Set-Content -Path (Join-Path $hostOut "installer-flavor.txt") -Value "dev"
+
 Copy-Item (Join-Path $repoRoot "installer\templates\Launch-LanPortal.ps1") (Join-Path $appRoot "Launch-LanPortal.ps1")
 Copy-Item (Join-Path $repoRoot "installer\templates\Open-LanPortal-Admin.cmd") (Join-Path $appRoot "Open-LanPortal-Admin.cmd")
 Copy-Item (Join-Path $repoRoot "installer\templates\README-QA.txt") (Join-Path $appRoot "README-QA.txt")
@@ -239,7 +323,7 @@ $hash = Get-FileHash -Path $zipPath -Algorithm SHA256
 $isccPath = Resolve-InnoCompiler
 if ($null -ne $isccPath) {
     Write-Host "Building Inno Setup installer..."
-    & $isccPath (Join-Path $repoRoot "installer\Ignyos.LanPortal.Dev.iss") "/DMyAppVersion=$Version" "/DStagingRoot=$stagingRoot" "/DInstallerOutRoot=$installerOut"
+    & $isccPath (Join-Path $repoRoot "installer\Ignyos.LanPortal.Dev.iss") "/DMyAppVersion=$Version" "/DInstallerFlavor=dev" "/DStagingRoot=$stagingRoot" "/DInstallerOutRoot=$installerOut"
 }
 else {
     Write-Warning "Inno Setup compiler (iscc.exe) not found. Zip package was created; skipping .exe installer build."
