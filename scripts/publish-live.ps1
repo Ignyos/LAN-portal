@@ -1,6 +1,7 @@
 param(
     [switch]$DryRun,
     [switch]$NonInteractive,
+    [switch]$DevVersionSuggestion,
     [string]$MainBranch,
     [string]$VersionProjectPath = "Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj",
     [string]$ReleaseNotesPath = ".github/release/release-notes.md",
@@ -128,7 +129,12 @@ if (-not (Test-ReleaseSemVer -Value $currentVersion)) {
 }
 
 try {
-    $defaultVersion = Get-NextReleasePatchVersion -CurrentVersion $currentVersion
+    if ($DevVersionSuggestion) {
+        $defaultVersion = Get-DevSuggestedVersion -CurrentVersion $currentVersion
+    }
+    else {
+        $defaultVersion = Get-NextReleasePatchVersion -CurrentVersion $currentVersion
+    }
 }
 catch {
     Exit-WithError -Code $ExitCodes.VersionValidationFailed -Message $_.Exception.Message

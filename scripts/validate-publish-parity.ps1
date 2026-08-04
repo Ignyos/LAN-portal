@@ -49,12 +49,14 @@ Add-Check -Name "publish-live preserves release notes output path default" -Pass
 
 Add-Check -Name "publish-dev routes to publish-live" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "publish-live.ps1") -Details "publish-dev wrapper target"
 Add-Check -Name "publish-dev prompts for DryRun" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Run as dry run? [Y/n]") -Details "Prompt-based DryRun selection"
+Add-Check -Name "publish-dev enables dev suggestion" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "-DevVersionSuggestion") -Details "Dev version suggestion forwarding"
 Add-Check -Name "publish-release routes to publish-live" -Passed (Test-FileContentContains -Path $publishReleasePath -Pattern "publish-live.ps1") -Details "publish-release alias target"
 
 $commonFunctions = @(
     "Invoke-ReleaseGit",
     "Test-ReleaseSemVer",
     "Get-NextReleasePatchVersion",
+    "Get-DevSuggestedVersion",
     "Resolve-ReleasePath",
     "Get-ReleaseChangedPaths"
 )

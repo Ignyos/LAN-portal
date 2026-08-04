@@ -44,6 +44,21 @@ function Get-NextReleasePatchVersion {
     return "$major.$minor.$($patch + 1).0"
 }
 
+function Get-DevSuggestedVersion {
+    param([string]$CurrentVersion)
+
+    if ($CurrentVersion -notmatch '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)') {
+        throw "Current version '$CurrentVersion' is not valid for dev version suggestion."
+    }
+
+    $major = [int]$Matches.major
+    $minor = [int]$Matches.minor
+    $patch = [int]$Matches.patch
+    $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddHHmm")
+
+    return "$major.$minor.$patch.$stamp"
+}
+
 function Resolve-ReleasePath {
     param(
         [Parameter(Mandatory = $true)]
