@@ -17,6 +17,7 @@ jobs:
       CONFIGURATION: Release
       INCLUDE_HOST: 'false'
       PAGES_BASE_URL: https://lanportal.ignyos.com
+      DEV_PAGES_BASE_URL: https://lanportal-dev.ignyos.com
       PAGES_SOURCE_BRANCH: main
 
     steps:
@@ -99,7 +100,6 @@ jobs:
 
           $version = $hostVersion
 
-          $channel = if ($version -match '-test(\.|$)') { 'test' } else { 'production' }
           $apiProductionSettingsPath = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/staging/app/api/appsettings.Production.json"
           if (Test-Path $apiProductionSettingsPath) {
             $config = Get-Content -Path $apiProductionSettingsPath -Raw | ConvertFrom-Json
@@ -126,8 +126,8 @@ jobs:
               }
             }
 
-            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "BaseUrl" -PropertyValue $env:PAGES_BASE_URL
-            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "Channel" -PropertyValue $channel
+            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "ProductionBaseUrl" -PropertyValue $env:PAGES_BASE_URL
+            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "DevBaseUrl" -PropertyValue $env:DEV_PAGES_BASE_URL
 
             if ($null -eq $config.UpdateChannel.PSObject.Properties["ProductionManifestPath"] -or [string]::IsNullOrWhiteSpace([string]$config.UpdateChannel.ProductionManifestPath)) {
               Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "ProductionManifestPath" -PropertyValue '/updates/manifest.json'

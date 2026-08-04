@@ -2,8 +2,7 @@ param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$Version,
-    [string]$DevUpdateBaseUrl = "https://ignyos.github.io/LAN-Portal-dev",
-    [string]$DevUpdateChannel = "test"
+    [string]$DevUpdateBaseUrl = "https://lanportal-dev.ignyos.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,7 +22,7 @@ if (Test-Path $versionProjectPath) {
     }
 }
 
-$defaultVersion = "$defaultVersionCore-dev.$versionStamp"
+$defaultVersion = "$defaultVersionCore.$versionStamp"
 $artifactsRoot = Join-Path $repoRoot "artifacts\dev-installer"
 $stagingRoot = Join-Path $artifactsRoot "staging"
 $appRoot = Join-Path $stagingRoot "app"
@@ -183,8 +182,7 @@ function Resolve-InnoCompiler {
 function Set-ApiUpdateChannelConfiguration {
     param(
         [string]$ApiOutputDirectory,
-        [string]$BaseUrl,
-        [string]$Channel
+        [string]$DevBaseUrl
     )
 
     function Set-JsonPropertyValue {
@@ -224,8 +222,8 @@ function Set-ApiUpdateChannelConfiguration {
         }
 
         $updateChannel = $config.UpdateChannel
-        Set-JsonPropertyValue -Target $updateChannel -PropertyName "BaseUrl" -PropertyValue $BaseUrl
-        Set-JsonPropertyValue -Target $updateChannel -PropertyName "Channel" -PropertyValue $Channel
+        Set-JsonPropertyValue -Target $updateChannel -PropertyName "ProductionBaseUrl" -PropertyValue "https://lanportal.ignyos.com"
+        Set-JsonPropertyValue -Target $updateChannel -PropertyName "DevBaseUrl" -PropertyValue $DevBaseUrl
 
         if ($null -eq $updateChannel.PSObject.Properties["ProductionManifestPath"] -or
             [string]::IsNullOrWhiteSpace([string]$updateChannel.ProductionManifestPath)) {
@@ -284,7 +282,7 @@ dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Api\Ignyos.LanPortal.Api.c
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -o $apiOut
 
-Set-ApiUpdateChannelConfiguration -ApiOutputDirectory $apiOut -BaseUrl $DevUpdateBaseUrl -Channel $DevUpdateChannel
+Set-ApiUpdateChannelConfiguration -ApiOutputDirectory $apiOut -DevBaseUrl $DevUpdateBaseUrl
 
 Write-Host "Publishing Web..."
 dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Web\Ignyos.LanPortal.Web.csproj") `

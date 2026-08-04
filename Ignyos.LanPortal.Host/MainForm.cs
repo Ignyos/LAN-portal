@@ -52,9 +52,9 @@ public sealed class MainForm : Form
     public MainForm()
     {
         appVersionFull = GetAppVersion();
-        isDevInstaller = IsDevInstallerFlavor();
+        isDevInstaller = IsDeveloperVersionByFourthNode(appVersionFull);
         appVersionDisplay = GetDisplayVersionForInstaller(appVersionFull, isDevInstaller);
-        isTestChannel = appVersionFull.Contains("-test.", StringComparison.OrdinalIgnoreCase);
+        isTestChannel = isDevInstaller;
         Text = isDevInstaller
             ? $"{AppTitlePrefix} (Dev) v{appVersionDisplay}"
             : $"{AppTitlePrefix} v{appVersionDisplay}";
@@ -297,16 +297,21 @@ public sealed class MainForm : Form
         return string.IsNullOrWhiteSpace(version) ? "unknown" : version;
     }
 
-    private static bool IsDevInstallerFlavor()
+    private static bool IsDeveloperVersionByFourthNode(string fullVersion)
     {
-        var flavorPath = Path.Combine(AppContext.BaseDirectory, "installer-flavor.txt");
-        if (!File.Exists(flavorPath))
+        if (string.IsNullOrWhiteSpace(fullVersion))
         {
             return false;
         }
 
-        var flavor = File.ReadAllText(flavorPath).Trim();
-        return string.Equals(flavor, "dev", StringComparison.OrdinalIgnoreCase);
+        var match = Regex.Match(fullVersion, "^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var buildNode = match.Groups["build"].Value;
+        return !string.Equals(buildNode, "0", StringComparison.Ordinal);
     }
 
     private static string GetDisplayVersionForInstaller(string fullVersion, bool isDevFlavor)

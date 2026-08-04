@@ -12,14 +12,17 @@ public sealed class UpdateManifestService(
     private readonly object syncRoot = new();
     private UpdateManifestDocument? cachedManifest;
     private DateTimeOffset lastCheckedAtUtc = DateTimeOffset.MinValue;
-    private string? cachedChannel;
     private string? cachedManifestUrl;
 
-    public async Task<UpdateManifestFetchResult> GetLatestManifestAsync(bool forceRefresh, CancellationToken cancellationToken)
+    public async Task<UpdateManifestFetchResult> GetLatestManifestAsync(
+        bool forceRefresh,
+        bool isDeveloperInstaller,
+        CancellationToken cancellationToken)
     {
         var options = optionsMonitor.CurrentValue;
-        var channel = NormalizeChannel(options.Channel);
-        var manifestUrl = BuildManifestUrl(options, channel);
+        var channel = isDeveloperInstaller ? "test" : "production";
+        var baseUrl = ResolveBaseUrl(options, isDeveloperInstaller);
+        var manifestUrl = BuildManifestUrl(baseUrl, options, channel);
         var pollInterval = NormalizePollInterval(options.PollIntervalMinutes);
 
         lock (syncRoot)
@@ -27,7 +30,7 @@ public sealed class UpdateManifestService(
             var hasFreshCache =
                 !forceRefresh &&
                 cachedManifest is not null &&
-                string.Equals(cachedChannel, channel, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(cachedManifestUrl, manifestUrl, StringComparison.OrdinalIgnoreCase) &&
                 DateTimeOffset.UtcNow - lastCheckedAtUtc < pollInterval;
 
             if (hasFreshCache)
@@ -68,7 +71,6 @@ public sealed class UpdateManifestService(
             lock (syncRoot)
             {
                 cachedManifest = document;
-                cachedChannel = channel;
                 cachedManifestUrl = manifestUrl;
                 lastCheckedAtUtc = DateTimeOffset.UtcNow;
 
@@ -88,7 +90,7 @@ public sealed class UpdateManifestService(
             lock (syncRoot)
             {
                 if (cachedManifest is not null &&
-                    string.Equals(cachedChannel, channel, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(cachedManifestUrl, manifestUrl, StringComparison.OrdinalIgnoreCase))
                 {
                     return new UpdateManifestFetchResult(
                         channel,
@@ -116,19 +118,22 @@ public sealed class UpdateManifestService(
         return TimeSpan.FromMinutes(clampedMinutes);
     }
 
-    private static string NormalizeChannel(string? configuredChannel)
+    private static string ResolveBaseUrl(UpdateChannelOptions options, bool isDeveloperInstaller)
     {
-        return string.Equals(configuredChannel, "test", StringComparison.OrdinalIgnoreCase)
-            ? "test"
-            : "production";
+        if (isDeveloperInstaller)
+        {
+            return string.IsNullOrWhiteSpace(options.DevBaseUrl)
+                ? "https://lanportal-dev.ignyos.com"
+                : options.DevBaseUrl.TrimEnd('/');
+        }
+
+        return string.IsNullOrWhiteSpace(options.ProductionBaseUrl)
+            ? "https://lanportal.ignyos.com"
+            : options.ProductionBaseUrl.TrimEnd('/');
     }
 
-    private static string BuildManifestUrl(UpdateChannelOptions options, string channel)
+    private static string BuildManifestUrl(string baseUrl, UpdateChannelOptions options, string channel)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(options.BaseUrl)
-            ? "https://lanportal.ignyos.com"
-            : options.BaseUrl.TrimEnd('/');
-
         var manifestPath = channel == "test"
             ? options.TestManifestPath
             : options.ProductionManifestPath;

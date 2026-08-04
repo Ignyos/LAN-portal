@@ -27,7 +27,7 @@ function Invoke-ReleaseGit {
 function Test-ReleaseSemVer {
     param([string]$Value)
 
-    return $Value -match '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
+    return $Value -match '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
 }
 
 function Get-NextReleasePatchVersion {
@@ -41,7 +41,7 @@ function Get-NextReleasePatchVersion {
     $minor = [int]$Matches.minor
     $patch = [int]$Matches.patch
 
-    return "$major.$minor.$($patch + 1)"
+    return "$major.$minor.$($patch + 1).0"
 }
 
 function Resolve-ReleasePath {
