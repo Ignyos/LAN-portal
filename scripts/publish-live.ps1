@@ -1,5 +1,6 @@
 param(
     [switch]$DryRun,
+    [switch]$NonInteractive,
     [string]$MainBranch,
     [string]$VersionProjectPath = "Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj",
     [string]$ReleaseNotesPath = ".github/release/release-notes.md",
@@ -134,8 +135,18 @@ catch {
 }
 
 $targetVersion = if ([string]::IsNullOrWhiteSpace($PublishVersion)) {
-    $enteredVersion = Read-Host "Enter version to publish [$defaultVersion]"
-    if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $defaultVersion } else { $enteredVersion.Trim() }
+    if ($DryRun) {
+        Write-Log "DryRun mode: using default publish version $defaultVersion"
+        $defaultVersion
+    }
+    elseif ($NonInteractive) {
+        Write-Log "NonInteractive mode: using default publish version $defaultVersion"
+        $defaultVersion
+    }
+    else {
+        $enteredVersion = Read-Host "Enter version to publish [$defaultVersion]"
+        if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $defaultVersion } else { $enteredVersion.Trim() }
+    }
 }
 else {
     $PublishVersion.Trim()
@@ -145,8 +156,16 @@ if (-not (Test-ReleaseSemVer -Value $targetVersion)) {
     Exit-WithError -Code $ExitCodes.VersionValidationFailed -Message "Chosen version '$targetVersion' is not valid SemVer."
 }
 
-if ($ConfirmVersion) {
-    Write-Log "Version confirmation override enabled via -ConfirmVersion for $targetVersion"
+if ($ConfirmVersion -or $DryRun) {
+    if ($DryRun -and -not $ConfirmVersion) {
+        Write-Log "DryRun mode: auto-confirming version $targetVersion"
+    }
+    else {
+        Write-Log "Version confirmation override enabled via -ConfirmVersion for $targetVersion"
+    }
+}
+elseif ($NonInteractive) {
+    Exit-WithError -Code $ExitCodes.UserCancelled -Message "NonInteractive mode requires -ConfirmVersion for non-dry-run publishes."
 }
 else {
     $confirmVersion = Read-Host "Publish version $targetVersion? [y/N]"
@@ -280,6 +299,9 @@ if ($DryRun) {
 if ($ContinueAfterReleaseNotes) {
     Write-Log "Continue override enabled via -ContinueAfterReleaseNotes"
 }
+elseif ($NonInteractive) {
+    Exit-WithError -Code $ExitCodes.UserCancelled -Message "NonInteractive mode requires -ContinueAfterReleaseNotes for non-dry-run publishes."
+}
 else {
     $continueChoice = Read-Host "Type CONTINUE to proceed after AI finishes, or EXIT to cancel"
     if ($continueChoice -notin @("CONTINUE", "continue")) {
@@ -306,6 +328,9 @@ Write-Host ""
 
 if ($ApprovePublish) {
     Write-Log "Final approval override enabled via -ApprovePublish"
+}
+elseif ($NonInteractive) {
+    Exit-WithError -Code $ExitCodes.UserCancelled -Message "NonInteractive mode requires -ApprovePublish for non-dry-run publishes."
 }
 else {
     $approval = Read-Host "Proceed with commit, tag, and push? [y/N]"

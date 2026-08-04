@@ -136,25 +136,31 @@ function Get-SuggestedVersion {
     return Get-NextPatchVersion -CurrentVersion $latest.Raw
 }
 
-function Get-UniqueVersionFromUser {
+function Get-UniqueVersion {
     param(
         [string]$InitialVersion,
         [string]$InstallerDirectory
     )
 
     $candidateVersion = $InitialVersion
+    $attempt = 0
 
     while ($true) {
         if (-not (Test-VersionAlreadyExists -CandidateVersion $candidateVersion -InstallerDirectory $InstallerDirectory)) {
             return $candidateVersion
         }
 
-        $enteredVersion = Read-Host "Version '$candidateVersion' already exists. Enter a different installer version"
-        if ([string]::IsNullOrWhiteSpace($enteredVersion)) {
-            continue
+        $attempt += 1
+        if ($attempt -gt 50) {
+            throw "Unable to find a unique installer version starting from '$InitialVersion'."
         }
 
-        $candidateVersion = $enteredVersion.Trim()
+        if ($candidateVersion -match '^(?<prefix>.*\.)(?<last>\d+)$') {
+            $candidateVersion = "$($Matches.prefix)$([int64]$Matches.last + 1)"
+        }
+        else {
+            $candidateVersion = "$InitialVersion.$attempt"
+        }
     }
 }
 
@@ -251,17 +257,12 @@ Get-ChildItem -Path $packageOut -Force -ErrorAction SilentlyContinue | Remove-It
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $suggestedVersion = Get-SuggestedVersion -InstallerDirectory $installerOut -FallbackVersion $defaultVersion
-    $enteredVersion = Read-Host "Enter installer version [$suggestedVersion]"
-    $candidateVersion = if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $suggestedVersion } else { $enteredVersion.Trim() }
-    $Version = Get-UniqueVersionFromUser -InitialVersion $candidateVersion -InstallerDirectory $installerOut
+    $Version = Get-UniqueVersion -InitialVersion $suggestedVersion -InstallerDirectory $installerOut
+    Write-Host "Using installer version: $Version"
 }
 elseif (Test-VersionAlreadyExists -CandidateVersion $Version -InstallerDirectory $installerOut) {
-    if ([Environment]::UserInteractive) {
-        $Version = Get-UniqueVersionFromUser -InitialVersion $Version -InstallerDirectory $installerOut
-    }
-    else {
-        throw "Version '$Version' already exists (installer). Please provide a new version."
-    }
+    $Version = Get-UniqueVersion -InitialVersion $Version -InstallerDirectory $installerOut
+    Write-Host "Requested version already exists; using next available: $Version"
 }
 
 if (Test-Path $stagingRoot) {
