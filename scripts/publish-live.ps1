@@ -174,8 +174,8 @@ elseif ($NonInteractive) {
     Exit-WithError -Code $ExitCodes.UserCancelled -Message "NonInteractive mode requires -ConfirmVersion for non-dry-run publishes."
 }
 else {
-    $confirmVersion = Read-Host "Publish version $targetVersion? [y/N]"
-    if ($confirmVersion -notin @("y", "Y", "yes", "YES")) {
+    $confirmVersionResponse = Read-Host "Publish version $targetVersion? [y/N]"
+    if ($confirmVersionResponse -notin @("y", "Y", "yes", "YES")) {
         Write-Log -Level "WARN" -Message "User cancelled at version confirmation step."
         exit $ExitCodes.UserCancelled
     }
