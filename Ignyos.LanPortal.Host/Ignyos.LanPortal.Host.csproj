@@ -7,7 +7,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>0.2.0</Version>
-    <InformationalVersion>0.2.0.262170003</InformationalVersion>
+    <InformationalVersion>0.2.0.262182240</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,3 +19,4 @@
   </ItemGroup>
 
 </Project>
+
