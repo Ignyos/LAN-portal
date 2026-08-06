@@ -347,12 +347,35 @@ else {
 }
 
 $projectXmlLatest = Get-Content -Path $versionProjectFullPath -Raw
+$targetVersionCoreMatch = [regex]::Match($targetVersion, '^(?<core>\d+\.\d+\.\d+)')
+if (-not $targetVersionCoreMatch.Success) {
+    Exit-WithError -Code $ExitCodes.VersionValidationFailed -Message "Chosen version '$targetVersion' does not contain a valid major.minor.patch core."
+}
+
+$targetVersionCore = $targetVersionCoreMatch.Groups['core'].Value
 $updatedProjectXml = [regex]::Replace(
     $projectXmlLatest,
     '<Version>\s*[^<\s]+\s*</Version>',
-    "<Version>$targetVersion</Version>",
+    "<Version>$targetVersionCore</Version>",
     1
 )
+
+if ($updatedProjectXml -match '<InformationalVersion>\s*[^<]*\s*</InformationalVersion>') {
+    $updatedProjectXml = [regex]::Replace(
+        $updatedProjectXml,
+        '<InformationalVersion>\s*[^<]*\s*</InformationalVersion>',
+        "<InformationalVersion>$targetVersion</InformationalVersion>",
+        1
+    )
+}
+elseif ($updatedProjectXml -match '<Version>\s*[^<\s]+\s*</Version>') {
+    $updatedProjectXml = [regex]::Replace(
+        $updatedProjectXml,
+        '(<Version>\s*[^<\s]+\s*</Version>)',
+        "$1`r`n    <InformationalVersion>$targetVersion</InformationalVersion>",
+        1
+    )
+}
 
 if ($updatedProjectXml -ne $projectXmlLatest) {
     Set-Content -Path $versionProjectFullPath -Value $updatedProjectXml

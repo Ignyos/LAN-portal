@@ -7,7 +7,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$versionStamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddHHmm")
+$utcNow = (Get-Date).ToUniversalTime()
+$versionStamp = "{0:00}{1:000}{2:00}{3:00}" -f ($utcNow.Year % 100), $utcNow.DayOfYear, $utcNow.Hour, $utcNow.Minute
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $versionProjectPath = Join-Path $repoRoot "Ignyos.LanPortal.Host\Ignyos.LanPortal.Host.csproj"
