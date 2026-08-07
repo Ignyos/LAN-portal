@@ -59,6 +59,25 @@
       ]
     },
     {
+      "name": "Publish",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/scripts/publish-live.ps1",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Publish Dry Run",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/scripts/publish-dev.ps1",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "-DryRun",
+        "-NonInteractive",
+        "-ConfirmVersion"
+      ]
+    },
+    {
       "name": "Publish-live",
       "type": "PowerShell",
       "request": "launch",
