@@ -37,6 +37,8 @@ $publishLivePath = Join-Path $scriptRoot "publish-live.ps1"
 $publishDevPath = Join-Path $scriptRoot "publish-dev.ps1"
 $publishReleasePath = Join-Path $scriptRoot "publish-release.ps1"
 $releaseCommonPath = Join-Path $scriptRoot "release-common.ps1"
+$publishDevWorkflowPath = Join-Path $scriptRoot ".." ".github/workflows/publish-dev.yml"
+$publishDevWorkflowPath = [System.IO.Path]::GetFullPath($publishDevWorkflowPath)
 
 Add-Check -Name "publish-live exists" -Passed (Test-Path -LiteralPath $publishLivePath) -Details $publishLivePath
 Add-Check -Name "publish-dev exists" -Passed (Test-Path -LiteralPath $publishDevPath) -Details $publishDevPath
@@ -50,6 +52,7 @@ Add-Check -Name "publish-live preserves release notes output path default" -Pass
 Add-Check -Name "publish-dev uses dev branch gate" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Expected 'dev' but found") -Details "publish-dev enforces the dev branch"
 Add-Check -Name "publish-dev uses dev version suggestion" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Get-DevSuggestedVersion") -Details "publish-dev uses dev version suggestion logic"
 Add-Check -Name "publish-dev skips release-notes gate" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Release notes are optional") -Details "publish-dev does not require release notes"
+Add-Check -Name "publish-dev workflow triggers on push to dev" -Passed (Test-FileContentContains -Path $publishDevWorkflowPath -Pattern "push") -Details "dev workflow responds to dev branch pushes"
 Add-Check -Name "publish-release routes to publish-live" -Passed (Test-FileContentContains -Path $publishReleasePath -Pattern "publish-live.ps1") -Details "publish-release alias target"
 
 $commonFunctions = @(
