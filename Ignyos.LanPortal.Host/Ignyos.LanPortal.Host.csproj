@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.2.0.1</Version>
-    <InformationalVersion>0.2.0.1</InformationalVersion>
+    <Version>0.2.0.2</Version>
+    <InformationalVersion>0.2.0.2</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,5 +19,6 @@
   </ItemGroup>
 
 </Project>
+
 
 
