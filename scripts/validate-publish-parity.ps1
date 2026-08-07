@@ -47,9 +47,9 @@ Add-Check -Name "publish-live preserves AI gate" -Passed (Test-FileContentContai
 Add-Check -Name "publish-live preserves final approval" -Passed (Test-FileContentContains -Path $publishLivePath -Pattern "Proceed with commit, tag, and push?") -Details "Final approval prompt found"
 Add-Check -Name "publish-live preserves release notes output path default" -Passed (Test-FileContentContains -Path $publishLivePath -Pattern ".github/release/release-notes.md") -Details "Default release notes path found"
 
-Add-Check -Name "publish-dev routes to publish-live" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "publish-live.ps1") -Details "publish-dev wrapper target"
-Add-Check -Name "publish-dev prompts for DryRun" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Run as dry run? [Y/n]") -Details "Prompt-based DryRun selection"
-Add-Check -Name "publish-dev enables dev suggestion" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "-DevVersionSuggestion") -Details "Dev version suggestion forwarding"
+Add-Check -Name "publish-dev uses dev branch gate" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Expected 'dev' but found") -Details "publish-dev enforces the dev branch"
+Add-Check -Name "publish-dev uses dev version suggestion" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Get-DevSuggestedVersion") -Details "publish-dev uses dev version suggestion logic"
+Add-Check -Name "publish-dev skips release-notes gate" -Passed (Test-FileContentContains -Path $publishDevPath -Pattern "Release notes are optional") -Details "publish-dev does not require release notes"
 Add-Check -Name "publish-release routes to publish-live" -Passed (Test-FileContentContains -Path $publishReleasePath -Pattern "publish-live.ps1") -Details "publish-release alias target"
 
 $commonFunctions = @(

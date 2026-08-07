@@ -162,6 +162,15 @@ if (-not (Test-ReleaseSemVer -Value $targetVersion)) {
     Exit-WithError -Code $ExitCodes.VersionValidationFailed -Message "Chosen version '$targetVersion' is not valid SemVer."
 }
 
+$targetVersionParts = $targetVersion -split '\.'
+if ($targetVersionParts.Length -ne 4) {
+    Exit-WithError -Code $ExitCodes.VersionValidationFailed -Message "Live publish version '$targetVersion' must be a four-part version ending in .0."
+}
+
+if ([int]$targetVersionParts[3] -ne 0) {
+    Exit-WithError -Code $ExitCodes.VersionValidationFailed -Message "Live publish version '$targetVersion' must end in .0 for production lane identity."
+}
+
 if ($ConfirmVersion -or $DryRun) {
     if ($DryRun -and -not $ConfirmVersion) {
         Write-Log "DryRun mode: auto-confirming version $targetVersion"
@@ -347,16 +356,10 @@ else {
 }
 
 $projectXmlLatest = Get-Content -Path $versionProjectFullPath -Raw
-$targetVersionCoreMatch = [regex]::Match($targetVersion, '^(?<core>\d+\.\d+\.\d+)')
-if (-not $targetVersionCoreMatch.Success) {
-    Exit-WithError -Code $ExitCodes.VersionValidationFailed -Message "Chosen version '$targetVersion' does not contain a valid major.minor.patch core."
-}
-
-$targetVersionCore = $targetVersionCoreMatch.Groups['core'].Value
 $updatedProjectXml = [regex]::Replace(
     $projectXmlLatest,
     '<Version>\s*[^<\s]+\s*</Version>',
-    "<Version>$targetVersionCore</Version>",
+    "<Version>$targetVersion</Version>",
     1
 )
 

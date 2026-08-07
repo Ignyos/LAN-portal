@@ -8,6 +8,11 @@ This index maps existing validation runbooks to the canonical operator lanes:
 
 Use this file as the first stop before running validation.
 
+## Current Direction (Session Handoff)
+
+- Current in-progress implementation contract: `.github/runbooks/publish-lanes-vision-handoff.md`
+- Use that handoff file as the first reference when a new session asks "What's next?"
+
 ## Build Lane
 
 Purpose:
@@ -22,7 +27,14 @@ Runbooks:
 ## Publish-dev Lane
 
 Purpose:
-- Rehearse release preparation and non-production verification without production publish side effects.
+- Execute fast developer iterations on `dev` with full dev workflow outputs and no production publish side effects.
+
+Versioning contract:
+- Dev lane uses `n.n.n.r` where `r > 0`.
+- Default suggestion is `n.n.n.(r+1)` from the latest build on the same core version.
+- Leading zeros are formatting only and are not required.
+- LAN-portal-dev is reserved for dev releases only.
+- The build node selects the update source/download lane and the version style shown in the app.
 
 Current entry points:
 - VS Code Run and Debug: `Publish-dev`

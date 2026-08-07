@@ -69,7 +69,7 @@ function Get-NextReleasePatchVersion {
 function Get-DevSuggestedVersion {
     param([string]$CurrentVersion)
 
-    $match = [regex]::Match($CurrentVersion, '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)')
+    $match = [regex]::Match($CurrentVersion, '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:\.(?<build>0|[1-9]\d*))?$')
     if (-not $match.Success) {
         throw "Current version '$CurrentVersion' is not valid for dev version suggestion."
     }
@@ -77,10 +77,16 @@ function Get-DevSuggestedVersion {
     $major = [int]$match.Groups['major'].Value
     $minor = [int]$match.Groups['minor'].Value
     $patch = [int]$match.Groups['patch'].Value
-    $utcNow = (Get-Date).ToUniversalTime()
-    $stamp = "{0:00}{1:000}{2:00}{3:00}" -f ($utcNow.Year % 100), $utcNow.DayOfYear, $utcNow.Hour, $utcNow.Minute
 
-    return "$major.$minor.$patch.$stamp"
+    if ($match.Groups['build'].Success) {
+        $build = [int]$match.Groups['build'].Value
+        $build += 1
+    }
+    else {
+        $build = 1
+    }
+
+    return "$major.$minor.$patch.$build"
 }
 
 function Resolve-ReleasePath {

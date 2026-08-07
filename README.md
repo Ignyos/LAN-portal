@@ -126,11 +126,23 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-dev.ps1
 
 ### What Publish Does
 
+`Publish-dev`:
+
+1. Verifies branch is `dev`.
+2. Verifies working tree is clean.
+3. Verifies local `dev` matches `origin/dev`.
+4. Reads current version from `Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj` (`<Version>` is the source of truth).
+5. Suggests a dev version using the current core version plus a non-zero build component.
+6. Allows a dev-only version override before confirmation.
+7. Skips the release-notes gate and publishes a dev commit directly.
+
+`Publish-live`:
+
 1. Verifies branch is `main`.
 2. Verifies working tree is clean.
 3. Verifies local `main` matches `origin/main`.
 4. Reads current version from `Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj` (`<Version>` is the source of truth).
-5. Prompts for publish version (defaults to current patch + 1).
+5. Requires a release version that ends in `.0` for the production lane.
 6. Creates diff artifacts from the latest release tag (or root commit if no tag exists).
 7. Clears `.github/release/release-notes.md`.
 8. Generates an AI prompt and copies it to clipboard.
