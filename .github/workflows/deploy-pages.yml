@@ -56,7 +56,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-          cp -R "$GITHUB_WORKSPACE/docs/." .
+          mkdir -p "$repo_dir/docs"
+          cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
+          if [ -f "$GITHUB_WORKSPACE/CNAME" ]; then
+            cp "$GITHUB_WORKSPACE/CNAME" "$repo_dir/docs/CNAME"
+          fi
 
           git add --all
           if git diff --cached --quiet; then
@@ -99,7 +103,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-          cp -R "$GITHUB_WORKSPACE/docs/." .
+          mkdir -p "$repo_dir/docs"
+          cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
+          if [ -f "$GITHUB_WORKSPACE/CNAME" ]; then
+            cp "$GITHUB_WORKSPACE/CNAME" "$repo_dir/docs/CNAME"
+          fi
 
           git add --all
           if git diff --cached --quiet; then
