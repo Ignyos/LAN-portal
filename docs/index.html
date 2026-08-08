@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ignyos LAN Portal</title>
-  <meta name="description" content="LAN-first file access and device onboarding for local networks.">
+  <title>LAN Portal Downloads</title>
+  <meta name="description" content="Latest LAN Portal production and developer installers for trusted local networks.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -30,71 +30,51 @@
       <p class="kicker">Ignyos</p>
       <h1>LAN Portal</h1>
     </div>
-    <p class="tagline">A local-first portal for onboarding and controlled file access across trusted Wi-Fi.</p>
+    <p class="tagline">An easy to use, secure file sharing tool that just works.</p>
   </header>
 
   <main class="layout">
     <section class="panel intro reveal">
       <h2>What This Is</h2>
       <p>
-        This project combines a local API, a web frontend, and a host app to keep setup and sharing fast inside a LAN.
+        Secure file sharing within your Wi‑Fi network.
       </p>
       <ul>
-        <li>Local setup and admin flow</li>
-        <li>Device onboarding support</li>
-        <li>Release workflow for repeatable deployments</li>
+        <li>Simple install</li>
+        <li>Use the QR code or URL to log in</li>
+        <li>Secure control of who is allowed to connect</li>
+        <li>Easy permissions system for file read/write</li>
       </ul>
-    </section>
-
-    <section class="panel reveal delay-1">
-      <h2>Quick Paths</h2>
-      <div class="grid-links">
-        <a href="../README.md" class="card-link">
-          <span class="card-title">Repository Guide</span>
-          <span class="card-copy">Local run steps and architecture overview.</span>
-        </a>
-        <a href="../.github/release/release-notes.md" class="card-link">
-          <span class="card-title">Latest Release Notes</span>
-          <span class="card-copy">Current generated notes for the most recent release flow.</span>
-        </a>
-        <a href="../.github/runbooks/developer-installer.md" class="card-link">
-          <span class="card-title">Developer Installer Runbook</span>
-          <span class="card-copy">Packaging and QA transfer procedure.</span>
-        </a>
-        <a href="../.github/roadmaps/cicd-roadmap.md" class="card-link">
-          <span class="card-title">CI/CD Roadmap</span>
-          <span class="card-copy">Incremental delivery plan for release automation.</span>
-        </a>
-      </div>
     </section>
 
     <section class="panel reveal delay-2">
       <h2>Downloads</h2>
-      <div class="download-grid">
-        <article class="download-card">
-          <h3>Latest Production Installer</h3>
-          <p id="prod-status" class="status-line">Loading manifest...</p>
-          <a id="prod-download" class="download-link disabled" href="#" aria-disabled="true">Manifest unavailable</a>
-          <p class="mono small">Manifest: <a href="./updates/manifest.json">/updates/manifest.json</a></p>
-        </article>
-        <article class="download-card">
-          <h3>Latest Test Installer</h3>
-          <p id="test-status" class="status-line">Loading manifest...</p>
-          <a id="test-download" class="download-link disabled" href="#" aria-disabled="true">Manifest unavailable</a>
-          <p class="mono small">Manifest: <a href="./updates/manifest-test.json">/updates/manifest-test.json</a></p>
-        </article>
+      <div class="download-card single-download-card">
+        <p id="download-status" class="status-line">Loading latest build...</p>
+        <a id="download-link" class="download-link disabled" href="#" aria-disabled="true">Download unavailable</a>
+        <p class="mono small">
+          <a id="release-notes-link" href="../.github/release/release-notes.md">Release notes</a>
+        </p>
       </div>
     </section>
 
     <section class="panel reveal delay-2">
-      <h2>Status</h2>
-      <p>GitHub Pages shell initialized for future SPA content.</p>
-      <p class="mono">Now serving from /docs as the site root candidate.</p>
+      <h2>For IT Professionals &amp; Power Users</h2>
+      <p>
+        LAN Portal is built as a local-first platform with a web front end, a host application, and an API service that can be deployed inside a trusted network.
+      </p>
+      <p>
+        Authentication is handled through an OIDC-based model, allowing secure sign-in, identity verification, and controlled access for users and devices without relying on a public cloud dependency for every interaction.
+      </p>
+      <p>
+        The design supports simple deployment for homes and small offices while still providing the flexibility to extend toward larger environments later.
+      </p>
     </section>
+
   </main>
 
   <footer class="site-footer">
-    <p>Ignyos LAN Portal</p>
+    <a href="https://ignyos.com" class="footer-link" target="_blank" rel="noopener noreferrer">About Ignyos</a>
     <p class="mono" id="year-line"></p>
   </footer>
 
