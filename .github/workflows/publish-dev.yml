@@ -144,14 +144,54 @@ jobs:
 
       - name: Publish dev artifacts to LAN-portal-dev repo
         if: ${{ env.DEV_PAGES_TOKEN != '' && env.DEV_PAGES_REPO != '' }}
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          personal_token: ${{ secrets.DEV_PAGES_TOKEN }}
-          external_repository: ${{ secrets.DEV_PAGES_REPO }}
-          publish_branch: main
-          publish_dir: ${{ github.workspace }}/artifacts/dev-installer/site-publish
-          force_orphan: false
-          keep_files: true
+        shell: pwsh
+        env:
+          DEV_PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
+          DEV_PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
+        run: |
+          $publishDir = Join-Path $env:GITHUB_WORKSPACE "artifacts/dev-installer/site-publish"
+          if (-not (Test-Path $publishDir)) {
+            throw "Publish directory not found: $publishDir"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:DEV_PAGES_TOKEN) -or [string]::IsNullOrWhiteSpace($env:DEV_PAGES_REPO)) {
+            Write-Host "DEV_PAGES_TOKEN or DEV_PAGES_REPO is not configured; skipping external deployment to the dev repository."
+            exit 0
+          }
+
+          $repoDir = Join-Path $env:RUNNER_TEMP "lanportal-dev-site"
+          if (Test-Path $repoDir) {
+            Remove-Item -Recurse -Force $repoDir
+          }
+
+          New-Item -ItemType Directory -Path $repoDir -Force | Out-Null
+          $repoUrl = "https://x-access-token:$($env:DEV_PAGES_TOKEN)@github.com/$($env:DEV_PAGES_REPO).git"
+
+          git clone --depth 1 --branch main $repoUrl $repoDir
+
+          Push-Location $repoDir
+          try {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+
+            Get-ChildItem -Path $publishDir -Force | Copy-Item -Destination $repoDir -Recurse -Force
+
+            git add --all
+            $changes = git status --porcelain
+            if ([string]::IsNullOrWhiteSpace($changes)) {
+              Write-Host "No changes to publish."
+              exit 0
+            }
+
+            git commit -m "deploy: ${{ github.repository }}@${{ github.sha }}"
+            git fetch origin main
+            git push origin HEAD:main --force
+          }
+          finally {
+            Pop-Location
+          }
 
       - name: Warn when dev publish target is not configured
         if: ${{ env.DEV_PAGES_TOKEN == '' || env.DEV_PAGES_REPO == '' }}
