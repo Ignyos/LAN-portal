@@ -1,4 +1,4 @@
-name: Publish-live
+name: Live-Deploy
 
 on:
   push:

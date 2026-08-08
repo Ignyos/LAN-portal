@@ -59,36 +59,28 @@
       ]
     },
     {
-      "name": "Publish",
+      "name": "Deploy-pages",
       "type": "PowerShell",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/publish-live.ps1",
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "Publish Dry Run",
-      "type": "PowerShell",
-      "request": "launch",
-      "script": "${workspaceFolder}/scripts/publish-dev.ps1",
+      "script": "${workspaceFolder}/scripts/deploy-pages.ps1",
       "cwd": "${workspaceFolder}",
       "args": [
-        "-DryRun",
-        "-NonInteractive",
-        "-ConfirmVersion"
+        "-Target",
+        "both"
       ]
     },
     {
-      "name": "Publish-live",
+      "name": "Live-Deploy",
       "type": "PowerShell",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/publish-live.ps1",
+      "script": "${workspaceFolder}/scripts/live-deploy.ps1",
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "Publish-dev",
+      "name": "Dev-Deploy",
       "type": "PowerShell",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/publish-dev.ps1",
+      "script": "${workspaceFolder}/scripts/dev-deploy.ps1",
       "cwd": "${workspaceFolder}"
     }
   ],
