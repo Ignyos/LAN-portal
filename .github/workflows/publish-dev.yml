@@ -16,7 +16,7 @@ on:
           - 'true'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   publish-dev-artifacts:
@@ -26,7 +26,8 @@ jobs:
       DOTNET_VERSION: '9.0.x'
       CONFIGURATION: Release
       INCLUDE_HOST: ${{ inputs.include_host }}
-      DEV_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      DEV_PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
+      DEV_PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
 
     steps:
       - name: Checkout
@@ -131,3 +132,20 @@ jobs:
           name: publish-dev-artifacts-${{ github.run_number }}-${{ github.ref_name }}
           path: artifacts/release/package/*
           if-no-files-found: error
+
+      - name: Publish dev artifacts to LAN-portal-dev repo
+        if: ${{ env.DEV_PAGES_TOKEN != '' && env.DEV_PAGES_REPO != '' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DEV_PAGES_TOKEN }}
+          external_repository: ${{ secrets.DEV_PAGES_REPO }}
+          publish_branch: main
+          publish_dir: ${{ github.workspace }}/artifacts/release/package
+          force_orphan: false
+          keep_files: true
+
+      - name: Warn when dev publish target is not configured
+        if: ${{ env.DEV_PAGES_TOKEN == '' || env.DEV_PAGES_REPO == '' }}
+        shell: pwsh
+        run: |
+          Write-Host "DEV_PAGES_TOKEN or DEV_PAGES_REPO is not configured; skipping external deployment to the dev repository."
