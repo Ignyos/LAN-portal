@@ -1,0 +1,111 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'docs/**'
+      - 'CNAME'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which Pages target to publish'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-dev-pages:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'dev' || github.event_name != 'workflow_dispatch' && github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish docs to LAN-Portal-dev Pages repo
+        env:
+          PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
+          PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PAGES_TOKEN" ] || [ -z "$PAGES_REPO" ]; then
+            echo "DEV_PAGES_TOKEN or DEV_PAGES_REPO is not configured; skipping dev Pages deployment."
+            exit 0
+          fi
+
+          repo_dir="${RUNNER_TEMP}/lanportal-dev-pages"
+          rm -rf "$repo_dir"
+          mkdir -p "$repo_dir"
+
+          repo_url="https://x-access-token:${PAGES_TOKEN}@github.com/${PAGES_REPO}.git"
+          git clone --depth 1 --branch main "$repo_url" "$repo_dir"
+
+          cd "$repo_dir"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          cp -R "$GITHUB_WORKSPACE/docs/." .
+
+          git add --all
+          if git diff --cached --quiet; then
+            echo "No Pages changes to publish."
+            exit 0
+          fi
+
+          git commit -m "deploy: $GITHUB_REPOSITORY@$GITHUB_SHA"
+          git push origin HEAD:main --force
+
+  deploy-prod-pages:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'prod' || github.event_name != 'workflow_dispatch' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish docs to production Pages repo
+        env:
+          PAGES_TOKEN: ${{ secrets.PROD_PAGES_TOKEN }}
+          PAGES_REPO: ${{ secrets.PROD_PAGES_REPO }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PAGES_TOKEN" ] || [ -z "$PAGES_REPO" ]; then
+            echo "PROD_PAGES_TOKEN or PROD_PAGES_REPO is not configured; skipping production Pages deployment."
+            exit 0
+          fi
+
+          repo_dir="${RUNNER_TEMP}/lanportal-prod-pages"
+          rm -rf "$repo_dir"
+          mkdir -p "$repo_dir"
+
+          repo_url="https://x-access-token:${PAGES_TOKEN}@github.com/${PAGES_REPO}.git"
+          git clone --depth 1 --branch main "$repo_url" "$repo_dir"
+
+          cd "$repo_dir"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          cp -R "$GITHUB_WORKSPACE/docs/." .
+
+          git add --all
+          if git diff --cached --quiet; then
+            echo "No Pages changes to publish."
+            exit 0
+          fi
+
+          git commit -m "deploy: $GITHUB_REPOSITORY@$GITHUB_SHA"
+          git push origin HEAD:main --force
