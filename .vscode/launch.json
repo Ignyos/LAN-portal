@@ -59,10 +59,10 @@
       ]
     },
     {
-      "name": "Deploy-pages",
+      "name": "Docs-Deploy",
       "type": "PowerShell",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/deploy-pages.ps1",
+      "script": "${workspaceFolder}/scripts/deploy-docs.ps1",
       "cwd": "${workspaceFolder}",
       "args": [
         "-Target",
@@ -70,17 +70,17 @@
       ]
     },
     {
-      "name": "Live-Deploy",
+      "name": "Live-App-Deploy",
       "type": "PowerShell",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/live-deploy.ps1",
+      "script": "${workspaceFolder}/scripts/live-app-deploy.ps1",
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "Dev-Deploy",
+      "name": "Dev-App-Deploy",
       "type": "PowerShell",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/dev-deploy.ps1",
+      "script": "${workspaceFolder}/scripts/dev-app-deploy.ps1",
       "cwd": "${workspaceFolder}"
     }
   ],
