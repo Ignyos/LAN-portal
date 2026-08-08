@@ -329,6 +329,13 @@ else {
     Write-Warning "Inno Setup compiler (iscc.exe) not found. Zip package was created; skipping .exe installer build."
 }
 
+$installerArtifacts = Get-ChildItem -Path $installerOut -Filter "Ignyos-LanPortal-Dev-*.exe" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+foreach ($installerArtifact in $installerArtifacts) {
+    $hash = Get-FileHash -Path $installerArtifact.FullName -Algorithm SHA256
+    "$($hash.Hash)  $($installerArtifact.Name)" | Set-Content -Path (Join-Path $installerOut "$($installerArtifact.Name).sha256") -Encoding ascii
+    Write-Host "Created installer checksum: $($installerArtifact.FullName).sha256"
+}
+
 if (Test-Path $packageOut) {
     Get-ChildItem -Path $packageOut -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 }
