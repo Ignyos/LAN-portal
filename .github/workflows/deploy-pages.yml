@@ -52,11 +52,6 @@ jobs:
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
           mkdir -p "$repo_dir/docs"
           cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
-          cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/"
-          if [ -f "$GITHUB_WORKSPACE/CNAME" ]; then
-            cp "$GITHUB_WORKSPACE/CNAME" "$repo_dir/CNAME"
-            cp "$GITHUB_WORKSPACE/CNAME" "$repo_dir/docs/CNAME"
-          fi
 
           git add --all
           if git diff --cached --quiet; then
@@ -103,11 +98,6 @@ jobs:
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
           mkdir -p "$repo_dir/docs"
           cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
-          cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/"
-          if [ -f "$GITHUB_WORKSPACE/CNAME" ]; then
-            cp "$GITHUB_WORKSPACE/CNAME" "$repo_dir/CNAME"
-            cp "$GITHUB_WORKSPACE/CNAME" "$repo_dir/docs/CNAME"
-          fi
 
           git add --all
           if git diff --cached --quiet; then
