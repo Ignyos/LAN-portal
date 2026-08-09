@@ -63,11 +63,7 @@
       "type": "PowerShell",
       "request": "launch",
       "script": "${workspaceFolder}/scripts/deploy-docs.ps1",
-      "cwd": "${workspaceFolder}",
-      "args": [
-        "-Target",
-        "both"
-      ]
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Live-App-Deploy",
