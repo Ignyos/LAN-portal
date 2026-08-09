@@ -1,16 +1,20 @@
-param()
+param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [object[]]$RemainingArgs
+)
 
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$workflowPath = Join-Path $repoRoot '.github/workflows/publish-dev.yml'
+$publishScript = Join-Path $repoRoot 'scripts/publish-dev.ps1'
 
-if (-not (Test-Path $workflowPath)) {
-    throw "Workflow file not found: $workflowPath"
+if (-not (Test-Path $publishScript)) {
+    throw "Publish script not found: $publishScript"
 }
 
-Write-Host "Dev-Deploy is configured to trigger the dev release workflow."
-Write-Host "Workflow: $workflowPath"
+Write-Host "Launching Dev-App-Deploy entry point..."
+Write-Host "Publish script: $publishScript"
 Write-Host ""
-Write-Host "This action builds the dev release payload and updates the dev repo manifest only."
-Write-Host "It does not publish back to the production repo."
+
+& $publishScript @RemainingArgs
+exit $LASTEXITCODE

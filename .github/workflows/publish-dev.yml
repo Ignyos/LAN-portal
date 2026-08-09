@@ -1,9 +1,6 @@
 name: Dev-Deploy
 
 on:
-  push:
-    branches:
-      - dev
   workflow_dispatch:
     inputs:
       include_host:
@@ -114,6 +111,10 @@ jobs:
           Copy-Item -Path $installerFile.FullName -Destination (Join-Path $releaseDir $installerFile.Name) -Force
           Copy-Item -Path $hashFile -Destination (Join-Path $releaseDir "$($installerFile.Name).sha256") -Force
 
+          $zipName = "Ignyos-LanPortal-QA-$version.zip"
+          $zipPath = Join-Path $releaseDir $zipName
+          Compress-Archive -Path (Join-Path $releaseDir $installerFile.Name), (Join-Path $releaseDir "$($installerFile.Name).sha256") -DestinationPath $zipPath -CompressionLevel Optimal
+
           $coreParts = $version -split '\.'
           $minSupportedVersion = if ($coreParts.Length -ge 3) { "$($coreParts[0]).$($coreParts[1]).$($coreParts[2])" } else { $version }
           $publishedAt = (Get-Date).ToUniversalTime().ToString('o')
@@ -141,6 +142,52 @@ jobs:
             artifacts/dev-installer/package/*
             artifacts/dev-installer/installer/*
           if-no-files-found: error
+
+      - name: Update docs release history for dev lane
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $versionProjectPath = Join-Path $env:GITHUB_WORKSPACE "Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj"
+          $projectXml = Get-Content -Path $versionProjectPath -Raw
+          $versionMatch = [regex]::Match($projectXml, '<Version>\s*(?<version>[^<\s]+)\s*</Version>')
+          if (-not $versionMatch.Success) {
+            throw "Could not resolve the application version from $versionProjectPath"
+          }
+
+          $version = $versionMatch.Groups['version'].Value.Trim()
+          $releaseRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts/dev-installer"
+          $installerDir = Join-Path $releaseRoot "installer"
+          $installerFile = Get-ChildItem -Path $installerDir -Filter "Ignyos-LanPortal-Dev-$version.exe" -File | Select-Object -First 1
+          if ($null -eq $installerFile) {
+            throw "Expected installer not found for version $version"
+          }
+
+          $checksumFile = Join-Path $installerDir "$($installerFile.Name).sha256"
+          if (-not (Test-Path $checksumFile)) {
+            throw "Expected checksum file not found: $checksumFile"
+          }
+
+          $zipName = "Ignyos-LanPortal-QA-$version.zip"
+          $historyPath = Join-Path $env:GITHUB_WORKSPACE "docs/releases/history.json"
+          $history = @()
+          if (Test-Path $historyPath) {
+            $history = Get-Content -Path $historyPath -Raw | ConvertFrom-Json
+          }
+
+          $historyEntry = [ordered]@{
+            version = $version
+            lane = 'dev'
+            installerUrl = "https://lanportal-dev.ignyos.com/releases/$version/$($installerFile.Name)"
+            checksumUrl = "https://lanportal-dev.ignyos.com/releases/$version/$($installerFile.Name).sha256"
+            zipUrl = "https://lanportal-dev.ignyos.com/releases/$version/$zipName"
+            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+          }
+
+          $existing = @($history | Where-Object { $_.version -ne $version -or $_.lane -ne 'dev' })
+          $existing += [PSCustomObject]$historyEntry
+          $existing | Sort-Object { $_.version } | ConvertTo-Json -Depth 6 | Set-Content -Path $historyPath -Encoding utf8
+
+          Write-Host "Updated docs release history at $historyPath"
 
       - name: Publish dev artifacts to LAN-portal-dev repo
         if: ${{ env.DEV_PAGES_TOKEN != '' && env.DEV_PAGES_REPO != '' }}

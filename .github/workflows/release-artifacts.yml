@@ -1,9 +1,7 @@
 name: Live-Deploy
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -182,6 +180,10 @@ jobs:
           $hash = Get-FileHash -Path $installer.FullName -Algorithm SHA256
           "$($hash.Hash)  $($installer.Name)" | Set-Content -Path (Join-Path $installer.DirectoryName "$($installer.Name).sha256")
 
+          $zipName = "Ignyos-LanPortal-$version.zip"
+          $zipPath = Join-Path $installer.DirectoryName $zipName
+          Compress-Archive -Path $installer.FullName, (Join-Path $installer.DirectoryName "$($installer.Name).sha256") -DestinationPath $zipPath -CompressionLevel Optimal
+
       - name: Generate update manifest (Stage 4)
         if: startsWith(github.ref, 'refs/tags/')
         id: update_manifest
@@ -244,6 +246,53 @@ jobs:
 
           "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "manifest_file=$manifestFileName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Update docs release history for live lane
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $version = $env:GITHUB_REF_NAME
+          if ($version.StartsWith('v')) {
+            $version = $version.Substring(1)
+          }
+
+          $packageRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/package"
+          $installerName = "Ignyos-LanPortal-$version.exe"
+          $installerPath = Join-Path $packageRoot $installerName
+          $checksumPath = Join-Path $packageRoot "$installerName.sha256"
+          $zipName = "Ignyos-LanPortal-$version.zip"
+          $zipPath = Join-Path $packageRoot $zipName
+
+          if (-not (Test-Path $installerPath)) {
+            throw "Installer not found at $installerPath"
+          }
+
+          if (-not (Test-Path $checksumPath)) {
+            throw "Checksum file not found at $checksumPath"
+          }
+
+          $historyPath = Join-Path $env:GITHUB_WORKSPACE "docs/releases/history.json"
+          $history = @()
+          if (Test-Path $historyPath) {
+            $history = Get-Content -Path $historyPath -Raw | ConvertFrom-Json
+          }
+
+          $historyEntry = [ordered]@{
+            version = $version
+            lane = 'production'
+            installerUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$installerName"
+            checksumUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$installerName.sha256"
+            zipUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$zipName"
+            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+          }
+
+          $existing = @($history | Where-Object { $_.version -ne $version -or $_.lane -ne 'production' })
+          $existing += [PSCustomObject]$historyEntry
+          $existing | Sort-Object { $_.version } | ConvertTo-Json -Depth 6 | Set-Content -Path $historyPath -Encoding utf8
+
+          Write-Host "Updated docs release history at $historyPath"
 
       - name: Publish update manifest into docs/updates
         if: startsWith(github.ref, 'refs/tags/')

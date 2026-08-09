@@ -1,0 +1,10 @@
+[
+  {
+    "version": "0.2.0.262182240",
+    "lane": "production",
+    "installerUrl": "https://github.com/Ignyos/LAN-portal/releases/download/v0.2.0.262182240/Ignyos-LanPortal-Installer-0.2.0.262182240.exe",
+    "checksumUrl": "https://github.com/Ignyos/LAN-portal/releases/download/v0.2.0.262182240/Ignyos-LanPortal-Installer-0.2.0.262182240.exe.sha256",
+    "zipUrl": "https://github.com/Ignyos/LAN-portal/releases/download/v0.2.0.262182240/Ignyos-LanPortal-Installer-0.2.0.262182240.zip",
+    "publishedAt": "2026-08-09T00:00:00Z"
+  }
+]

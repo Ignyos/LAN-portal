@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAN Portal Previous Releases</title>
+  <meta name="description" content="Previous LAN Portal installer releases and checksums.">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="bg-shape bg-shape-a" aria-hidden="true"></div>
+  <div class="bg-shape bg-shape-b" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand-row">
+      <p class="kicker">Ignyos</p>
+      <h1>LAN Portal</h1>
+    </div>
+    <p class="tagline">Previous release history and checksums.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel reveal">
+      <h2>Previous Releases</h2>
+      <p id="history-status">Loading release history...</p>
+      <div id="history-list" class="download-card"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a href="../index.html" class="footer-link">Back to downloads</a>
+  </footer>
+
+  <script>
+    (function () {
+      const statusEl = document.getElementById('history-status');
+      const listEl = document.getElementById('history-list');
+
+      function isProductionRelease(entry) {
+        if (!entry || !entry.version) {
+          return false;
+        }
+        const parts = entry.version.split('.');
+        return parts.length >= 4 && parts[3] === '0';
+      }
+
+      async function loadHistory() {
+        try {
+          const response = await fetch('./history.json', { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
+          }
+
+          const history = await response.json();
+          const releases = (history || []).filter(isProductionRelease).sort((a, b) => {
+            const av = a.version || '';
+            const bv = b.version || '';
+            return bv.localeCompare(av, undefined, { numeric: true, sensitivity: 'base' });
+          });
+
+          if (!releases.length) {
+            statusEl.textContent = 'No production releases are available yet.';
+            return;
+          }
+
+          const fragments = releases.map((entry) => {
+            const publishedAt = entry.publishedAt ? new Date(entry.publishedAt).toLocaleString() : 'unknown';
+            return `
+              <article class="download-card">
+                <h3>${entry.version}</h3>
+                <p class="mono small">Published: ${publishedAt}</p>
+                <p><a href="${entry.installerUrl}" target="_blank" rel="noopener">Installer</a></p>
+                <p><a href="${entry.checksumUrl}" target="_blank" rel="noopener">Checksum (.sha256)</a></p>
+                ${entry.zipUrl ? `<p><a href="${entry.zipUrl}" target="_blank" rel="noopener">Zip package</a></p>` : ''}
+              </article>
+            `;
+          });
+
+          listEl.innerHTML = fragments.join('');
+          statusEl.textContent = 'Production releases';
+        } catch (error) {
+          statusEl.textContent = 'Release history unavailable: ' + error.message;
+        }
+      }
+
+      loadHistory();
+    })();
+  </script>
+</body>
+</html>

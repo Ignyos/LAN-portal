@@ -258,8 +258,15 @@ $releaseNotesDir = Split-Path -Parent $releaseNotesFullPath
 if (-not (Test-Path $releaseNotesDir)) {
     New-Item -ItemType Directory -Path $releaseNotesDir -Force | Out-Null
 }
-Set-Content -Path $releaseNotesFullPath -Value ""
-Write-Log "Cleared release notes file at $ReleaseNotesPath"
+
+$existingReleaseNotesContent = ""
+if (Test-Path $releaseNotesFullPath) {
+    $existingReleaseNotesContent = Get-Content -Path $releaseNotesFullPath -Raw
+}
+
+$releaseNotesDraftPath = Join-Path $releaseWorkRoot "release-notes-draft-$runStamp.md"
+Set-Content -Path $releaseNotesDraftPath -Value ""
+Write-Log "Prepared draft release-notes file at $releaseNotesDraftPath"
 
 $styleGuideFullPath = Resolve-RelativePath -RelativePath $ReleaseNotesStyleGuidePath
 if (-not (Test-Path $styleGuideFullPath)) {
@@ -276,16 +283,18 @@ Inputs:
 - Release version: $targetVersion
 - Release tag: $tagName
 - Baseline: $baselineDescription
+- Draft output path: $releaseNotesDraftPath
 
 Instructions:
 1. Read the style guide first and follow it exactly.
 2. Review the full diff and summary files.
-3. Write release notes for this release only (no historical carryover).
-4. Output must be saved to: $ReleaseNotesPath
-5. Replace all existing content in that file.
+3. Write release notes for this release only.
+4. Output must be saved to: $releaseNotesDraftPath
+5. Replace all existing content in that draft file.
 6. Keep entries factual and based only on the provided diff.
 7. Include a concise risk/impact callout section.
 8. If uncertain about a change, label it clearly as "Needs verification".
+9. Do not include historical release notes in the draft output.
 "@
 
 Set-Content -Path $promptPath -Value $promptText
@@ -302,7 +311,7 @@ catch {
 Write-Host ""
 Write-Host "Next Step:" -ForegroundColor Yellow
 Write-Host "1) Paste the clipboard prompt into your AI console."
-Write-Host "2) Wait for AI to write release notes to $ReleaseNotesPath."
+Write-Host "2) Wait for AI to write the current release notes to $releaseNotesDraftPath."
 Write-Host ""
 
 if ($DryRun) {
@@ -325,19 +334,29 @@ else {
     }
 }
 
-if (-not (Test-Path $releaseNotesFullPath)) {
-    Exit-WithError -Code $ExitCodes.ReleaseNotesFailed -Message "Release notes file does not exist: $ReleaseNotesPath"
+if (-not (Test-Path $releaseNotesDraftPath)) {
+    Exit-WithError -Code $ExitCodes.ReleaseNotesFailed -Message "Release notes draft file does not exist: $releaseNotesDraftPath"
 }
 
-$releaseNotesContent = Get-Content -Path $releaseNotesFullPath -Raw
-if ([string]::IsNullOrWhiteSpace($releaseNotesContent)) {
-    Exit-WithError -Code $ExitCodes.ReleaseNotesFailed -Message "Release notes file is empty: $ReleaseNotesPath"
+$releaseNotesDraftContent = Get-Content -Path $releaseNotesDraftPath -Raw
+if ([string]::IsNullOrWhiteSpace($releaseNotesDraftContent)) {
+    Exit-WithError -Code $ExitCodes.ReleaseNotesFailed -Message "Release notes draft file is empty: $releaseNotesDraftPath"
 }
+
+$combinedReleaseNotesContent = if ([string]::IsNullOrWhiteSpace($existingReleaseNotesContent)) {
+    $releaseNotesDraftContent.Trim()
+}
+else {
+    ($releaseNotesDraftContent.TrimEnd() + "`n`n---`n`n" + $existingReleaseNotesContent.TrimStart())
+}
+
+Set-Content -Path $releaseNotesFullPath -Value $combinedReleaseNotesContent
+Write-Log "Appended current release notes to $ReleaseNotesPath while preserving prior journal history."
 
 Write-Host ""
 Write-Host "Release Notes Preview:" -ForegroundColor Yellow
 Write-Host "--------------------------------------------------"
-Get-Content -Path $releaseNotesFullPath
+Write-Host $combinedReleaseNotesContent
 Write-Host "--------------------------------------------------"
 Write-Host ""
 

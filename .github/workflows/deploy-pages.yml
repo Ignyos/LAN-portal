@@ -1,14 +1,6 @@
 name: Deploy-pages
 
 on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - 'docs/**'
-      - 'CNAME'
-      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
     inputs:
       target:

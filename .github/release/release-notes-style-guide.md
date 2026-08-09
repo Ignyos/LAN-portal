@@ -52,6 +52,7 @@ Examples:
 
 ## Output Rules
 
-- Output must replace all content in `.github/release/release-notes.md`.
+- Output must be written to the draft release-notes file for the current release.
 - Output must describe only the current release.
-- Do not include historical release notes.
+- The publishing script will prepend the current release above the existing historical journal in `.github/release/release-notes.md`.
+- Do not include historical release notes in the draft output.

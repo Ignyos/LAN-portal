@@ -22,7 +22,7 @@ $target = switch ($branchName) {
     }
 }
 
-Write-Host "Deploy-pages is configured to publish the static Pages content from docs/ to the target repository."
+Write-Host "Docs-Deploy entry point is configured to publish the static Pages content from docs/ to the target repository."
 Write-Host "Current branch: $branchName"
 Write-Host "Resolved target: $target"
 Write-Host "Workflow: $workflowPath"
