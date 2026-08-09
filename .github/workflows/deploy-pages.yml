@@ -12,21 +12,20 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Which Pages target to publish (prod, dev, or both)'
+        description: 'Which Pages target to publish (dev or prod)'
         required: true
         default: 'dev'
         type: choice
         options:
           - dev
           - prod
-          - both
 
 permissions:
   contents: write
 
 jobs:
   deploy-dev-pages:
-    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'dev' || github.event.inputs.target == 'both')) || (github.event_name != 'workflow_dispatch' && github.ref_name == 'dev')
+    if: (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'dev') || (github.event_name != 'workflow_dispatch' && github.ref_name == 'dev')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -73,7 +72,7 @@ jobs:
           git push origin HEAD:main --force
 
   deploy-prod-pages:
-    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'prod' || github.event.inputs.target == 'both')) || (github.event_name != 'workflow_dispatch' && github.ref_name == 'main')
+    if: (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'prod') || (github.event_name != 'workflow_dispatch' && github.ref_name == 'main')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
