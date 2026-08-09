@@ -83,7 +83,14 @@ Release notes and release automation are intentionally stored under `.github` so
 Stage 6 naming decision:
 
 - Canonical operator lane names are `Build`, `Publish-dev`, and `Publish-live`.
+- During transition, current command names remain valid until script/workflow refactor phases complete.
+
+Current-to-canonical mapping:
+
+- Current Run/Debug `Publish` -> canonical `Publish-live`
+- Current Run/Debug `Publish Dry Run` -> canonical `Publish-dev`
 - `scripts/publish-live.ps1` is the canonical implementation engine.
+- `scripts/publish-release.ps1` remains as a compatibility alias during transition.
 
 ### Release Files
 
@@ -92,6 +99,7 @@ Stage 6 naming decision:
 - Publish-live script: `scripts/publish-live.ps1`
 - Publish-dev script: `scripts/publish-dev.ps1`
 - Underlying implementation engine: `scripts/publish-live.ps1`
+- Compatibility alias: `scripts/publish-release.ps1`
 
 Canonical release notes source of truth for LAN Portal is always `.github/release/*`.
 Files under `DevOps_CICD_EXAMPLE` are template references only.
@@ -118,11 +126,23 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-dev.ps1
 
 ### What Publish Does
 
-1. Verifies current branch matches the target publish branch (defaults to the current branch unless `-MainBranch` is provided).
+`Publish-dev`:
+
+1. Verifies branch is `dev`.
 2. Verifies working tree is clean.
-3. Verifies local branch head matches `origin/<target-branch>`.
+3. Verifies local `dev` matches `origin/dev`.
 4. Reads current version from `Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj` (`<Version>` is the source of truth).
-5. Prompts for publish version (defaults to current patch + 1).
+5. Suggests a dev version using the current core version plus a non-zero build component.
+6. Allows a dev-only version override before confirmation.
+7. Skips the release-notes gate and publishes a dev commit directly.
+
+`Publish-live`:
+
+1. Verifies branch is `main`.
+2. Verifies working tree is clean.
+3. Verifies local `main` matches `origin/main`.
+4. Reads current version from `Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj` (`<Version>` is the source of truth).
+5. Requires a release version that ends in `.0` for the production lane.
 6. Creates diff artifacts from the latest release tag (or root commit if no tag exists).
 7. Clears `.github/release/release-notes.md`.
 8. Generates an AI prompt and copies it to clipboard.
@@ -135,5 +155,5 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-dev.ps1
 To execute all pre-publish checks and artifact generation without commit/tag/push:
 
 ```powershell
-./scripts/publish-dev.ps1
+./scripts/publish-release.ps1 -DryRun
 ```

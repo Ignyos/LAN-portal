@@ -2,13 +2,13 @@ param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$Version,
-    [string]$DevUpdateBaseUrl = "https://ignyos.github.io/LAN-Portal-dev",
-    [string]$DevUpdateChannel = "test"
+    [string]$DevUpdateBaseUrl = "https://lanportal-dev.ignyos.com"
 )
 
 $ErrorActionPreference = "Stop"
 
-$versionStamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddHHmm")
+$utcNow = (Get-Date).ToUniversalTime()
+$versionStamp = "{0:00}{1:000}{2:00}{3:00}" -f ($utcNow.Year % 100), $utcNow.DayOfYear, $utcNow.Hour, $utcNow.Minute
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $versionProjectPath = Join-Path $repoRoot "Ignyos.LanPortal.Host\Ignyos.LanPortal.Host.csproj"
@@ -23,7 +23,7 @@ if (Test-Path $versionProjectPath) {
     }
 }
 
-$defaultVersion = "$defaultVersionCore-dev.$versionStamp"
+$defaultVersion = "$defaultVersionCore.$versionStamp"
 $artifactsRoot = Join-Path $repoRoot "artifacts\dev-installer"
 $stagingRoot = Join-Path $artifactsRoot "staging"
 $appRoot = Join-Path $stagingRoot "app"
@@ -137,25 +137,31 @@ function Get-SuggestedVersion {
     return Get-NextPatchVersion -CurrentVersion $latest.Raw
 }
 
-function Get-UniqueVersionFromUser {
+function Get-UniqueVersion {
     param(
         [string]$InitialVersion,
         [string]$InstallerDirectory
     )
 
     $candidateVersion = $InitialVersion
+    $attempt = 0
 
     while ($true) {
         if (-not (Test-VersionAlreadyExists -CandidateVersion $candidateVersion -InstallerDirectory $InstallerDirectory)) {
             return $candidateVersion
         }
 
-        $enteredVersion = Read-Host "Version '$candidateVersion' already exists. Enter a different installer version"
-        if ([string]::IsNullOrWhiteSpace($enteredVersion)) {
-            continue
+        $attempt += 1
+        if ($attempt -gt 50) {
+            throw "Unable to find a unique installer version starting from '$InitialVersion'."
         }
 
-        $candidateVersion = $enteredVersion.Trim()
+        if ($candidateVersion -match '^(?<prefix>.*\.)(?<last>\d+)$') {
+            $candidateVersion = "$($Matches.prefix)$([int64]$Matches.last + 1)"
+        }
+        else {
+            $candidateVersion = "$InitialVersion.$attempt"
+        }
     }
 }
 
@@ -183,8 +189,7 @@ function Resolve-InnoCompiler {
 function Set-ApiUpdateChannelConfiguration {
     param(
         [string]$ApiOutputDirectory,
-        [string]$BaseUrl,
-        [string]$Channel
+        [string]$DevBaseUrl
     )
 
     function Set-JsonPropertyValue {
@@ -224,8 +229,8 @@ function Set-ApiUpdateChannelConfiguration {
         }
 
         $updateChannel = $config.UpdateChannel
-        Set-JsonPropertyValue -Target $updateChannel -PropertyName "BaseUrl" -PropertyValue $BaseUrl
-        Set-JsonPropertyValue -Target $updateChannel -PropertyName "Channel" -PropertyValue $Channel
+        Set-JsonPropertyValue -Target $updateChannel -PropertyName "ProductionBaseUrl" -PropertyValue "https://lanportal.ignyos.com"
+        Set-JsonPropertyValue -Target $updateChannel -PropertyName "DevBaseUrl" -PropertyValue $DevBaseUrl
 
         if ($null -eq $updateChannel.PSObject.Properties["ProductionManifestPath"] -or
             [string]::IsNullOrWhiteSpace([string]$updateChannel.ProductionManifestPath)) {
@@ -253,17 +258,12 @@ Get-ChildItem -Path $packageOut -Force -ErrorAction SilentlyContinue | Remove-It
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $suggestedVersion = Get-SuggestedVersion -InstallerDirectory $installerOut -FallbackVersion $defaultVersion
-    $enteredVersion = Read-Host "Enter installer version [$suggestedVersion]"
-    $candidateVersion = if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $suggestedVersion } else { $enteredVersion.Trim() }
-    $Version = Get-UniqueVersionFromUser -InitialVersion $candidateVersion -InstallerDirectory $installerOut
+    $Version = Get-UniqueVersion -InitialVersion $suggestedVersion -InstallerDirectory $installerOut
+    Write-Host "Using installer version: $Version"
 }
 elseif (Test-VersionAlreadyExists -CandidateVersion $Version -InstallerDirectory $installerOut) {
-    if ([Environment]::UserInteractive) {
-        $Version = Get-UniqueVersionFromUser -InitialVersion $Version -InstallerDirectory $installerOut
-    }
-    else {
-        throw "Version '$Version' already exists (installer). Please provide a new version."
-    }
+    $Version = Get-UniqueVersion -InitialVersion $Version -InstallerDirectory $installerOut
+    Write-Host "Requested version already exists; using next available: $Version"
 }
 
 if (Test-Path $stagingRoot) {
@@ -284,7 +284,7 @@ dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Api\Ignyos.LanPortal.Api.c
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -o $apiOut
 
-Set-ApiUpdateChannelConfiguration -ApiOutputDirectory $apiOut -BaseUrl $DevUpdateBaseUrl -Channel $DevUpdateChannel
+Set-ApiUpdateChannelConfiguration -ApiOutputDirectory $apiOut -DevBaseUrl $DevUpdateBaseUrl
 
 Write-Host "Publishing Web..."
 dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Web\Ignyos.LanPortal.Web.csproj") `
@@ -327,6 +327,13 @@ if ($null -ne $isccPath) {
 }
 else {
     Write-Warning "Inno Setup compiler (iscc.exe) not found. Zip package was created; skipping .exe installer build."
+}
+
+$installerArtifacts = Get-ChildItem -Path $installerOut -Filter "Ignyos-LanPortal-Dev-*.exe" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+foreach ($installerArtifact in $installerArtifacts) {
+    $hash = Get-FileHash -Path $installerArtifact.FullName -Algorithm SHA256
+    "$($hash.Hash)  $($installerArtifact.Name)" | Set-Content -Path (Join-Path $installerOut "$($installerArtifact.Name).sha256") -Encoding ascii
+    Write-Host "Created installer checksum: $($installerArtifact.FullName).sha256"
 }
 
 if (Test-Path $packageOut) {

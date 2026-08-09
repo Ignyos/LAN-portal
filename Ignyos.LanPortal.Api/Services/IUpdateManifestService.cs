@@ -2,7 +2,7 @@ namespace Ignyos.LanPortal.Api.Services;
 
 public interface IUpdateManifestService
 {
-    Task<UpdateManifestFetchResult> GetLatestManifestAsync(bool forceRefresh, CancellationToken cancellationToken);
+    Task<UpdateManifestFetchResult> GetLatestManifestAsync(bool forceRefresh, bool isDeveloperInstaller, CancellationToken cancellationToken);
 }
 
 public sealed record UpdateManifestDocument(

@@ -1,4 +1,4 @@
-name: Publish-live
+name: Live-Deploy
 
 on:
   push:
@@ -17,7 +17,10 @@ jobs:
       CONFIGURATION: Release
       INCLUDE_HOST: 'false'
       PAGES_BASE_URL: https://lanportal.ignyos.com
+      DEV_PAGES_BASE_URL: https://lanportal-dev.ignyos.com
       PAGES_SOURCE_BRANCH: main
+      DEV_PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
+      DEV_PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
 
     steps:
       - name: Checkout
@@ -99,7 +102,6 @@ jobs:
 
           $version = $hostVersion
 
-          $channel = if ($version -match '-test(\.|$)') { 'test' } else { 'production' }
           $apiProductionSettingsPath = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/staging/app/api/appsettings.Production.json"
           if (Test-Path $apiProductionSettingsPath) {
             $config = Get-Content -Path $apiProductionSettingsPath -Raw | ConvertFrom-Json
@@ -126,8 +128,8 @@ jobs:
               }
             }
 
-            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "BaseUrl" -PropertyValue $env:PAGES_BASE_URL
-            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "Channel" -PropertyValue $channel
+            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "ProductionBaseUrl" -PropertyValue $env:PAGES_BASE_URL
+            Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "DevBaseUrl" -PropertyValue $env:DEV_PAGES_BASE_URL
 
             if ($null -eq $config.UpdateChannel.PSObject.Properties["ProductionManifestPath"] -or [string]::IsNullOrWhiteSpace([string]$config.UpdateChannel.ProductionManifestPath)) {
               Set-JsonPropertyValue -Target $config.UpdateChannel -PropertyName "ProductionManifestPath" -PropertyValue '/updates/manifest.json'
@@ -317,6 +319,74 @@ jobs:
           } | ConvertTo-Json -Depth 10)
 
           Write-Host "Published update manifests to $defaultBranch via commit $($newCommit.sha)"
+
+      - name: Mirror live release payload to dev Pages repo
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          DEV_PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
+          DEV_PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if ([string]::IsNullOrWhiteSpace($env:DEV_PAGES_TOKEN) -or [string]::IsNullOrWhiteSpace($env:DEV_PAGES_REPO)) {
+            Write-Host "DEV_PAGES_TOKEN or DEV_PAGES_REPO is not configured; skipping dev mirror for live release payload."
+            exit 0
+          }
+
+          $version = $env:GITHUB_REF_NAME
+          if ($version.StartsWith('v')) {
+            $version = $version.Substring(1)
+          }
+
+          $packageRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/package"
+          $updatesSourceDir = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/pages/updates"
+          if (-not (Test-Path $packageRoot)) {
+            throw "Installer package directory not found: $packageRoot"
+          }
+
+          if (-not (Test-Path $updatesSourceDir)) {
+            throw "Updates source directory not found: $updatesSourceDir"
+          }
+
+          $repoDir = Join-Path $env:RUNNER_TEMP "lanportal-dev-live-site"
+          if (Test-Path $repoDir) {
+            Remove-Item -Recurse -Force $repoDir
+          }
+
+          New-Item -ItemType Directory -Path $repoDir -Force | Out-Null
+          $repoUrl = "https://x-access-token:$($env:DEV_PAGES_TOKEN)@github.com/$($env:DEV_PAGES_REPO).git"
+          git clone --depth 1 --branch main $repoUrl $repoDir
+
+          Push-Location $repoDir
+          try {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+
+            New-Item -ItemType Directory -Path (Join-Path $repoDir "docs") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $repoDir "docs/updates") -Force | Out-Null
+            $releaseTargetRoot = Join-Path $repoDir "docs/releases/$version"
+            New-Item -ItemType Directory -Path $releaseTargetRoot -Force | Out-Null
+
+            Get-ChildItem -Path $updatesSourceDir -Filter "*.json" -File | Copy-Item -Destination (Join-Path $repoDir "docs/updates") -Force
+            Get-ChildItem -Path $packageRoot -File | Where-Object { $_.Name -like "*.exe" -or $_.Name -like "*.sha256" } | Copy-Item -Destination $releaseTargetRoot -Force
+
+            git add --all
+            $changes = git status --porcelain
+            if ([string]::IsNullOrWhiteSpace($changes)) {
+              Write-Host "No live release changes to mirror to the dev repo."
+              exit 0
+            }
+
+            git commit -m "deploy: ${{ github.repository }}@${{ github.sha }}"
+            git fetch origin main
+            git push origin HEAD:main --force
+          }
+          finally {
+            Pop-Location
+          }
 
       - name: Package release artifacts
         shell: pwsh

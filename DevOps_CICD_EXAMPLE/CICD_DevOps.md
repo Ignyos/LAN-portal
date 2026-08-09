@@ -4,7 +4,12 @@
 > Operational source-of-truth for this repository remains under `.github/` and root `README.md`.
 
 ## Purpose
-Use this pattern for static-site style repositories that publish from a docs folder, keep a fast dev publish path, and run a controlled release flow with timestamp tags and structured release notes.
+Use this pattern as a reusable reference for two related deployment models:
+
+1. Static-site style repositories that publish from a docs folder.
+2. Compiled application repositories that publish installer artifacts, update manifests, and Pages content from separate lanes.
+
+The current LAN Portal work is the second model: a compiled application with two repositories, a production lane and a dev lane, plus separate deployment responsibilities for Docs, Live application releases, and Dev application releases.
 
 ## Repository Pattern
 Expected key files and folders:
@@ -17,7 +22,9 @@ Expected key files and folders:
 - release/
 
 ## Run And Debug Pattern
-Provide exactly three Run and Debug options:
+Provide a small set of Run and Debug options that map to the deployment model clearly.
+
+For the static-site variant:
 1. Build
   - Runs Build.ps1.
   - Performs local tasks only.
@@ -28,6 +35,17 @@ Provide exactly three Run and Debug options:
 3. Publish-dev
   - Runs Publish-dev.ps1.
   - Executes the dev/test publish workflow.
+
+For the compiled-application variant:
+1. Docs-Deploy
+  - Publishes the root docs folder into the target Pages repositories.
+  - Used for splash page and docs updates only.
+2. Live-App-Deploy
+  - Builds and publishes the production release payload and manifest.
+  - Mirrors the live release to the dev repo when appropriate.
+3. Dev-App-Deploy
+  - Builds and publishes the dev-only payload and manifest.
+  - Targets the dev repo only.
 
 ## Developer Scenarios
 Use these common cases to keep the workflow UX obvious:
@@ -57,6 +75,14 @@ Rules:
 - Keep branch/tag conventions aligned across repos for traceability.
 
 ## Workflow Summary
+### Common Pattern
+The reusable pattern is:
+1. Separate docs deployment from application deployment.
+2. Keep a production lane and a dev lane.
+3. Use one workflow for Pages/docs publishing.
+4. Use one workflow for production application publishing.
+5. Use one workflow for dev application publishing.
+
 ### 1) Build Validation
 Script: Build.ps1
 - Validates the deployment source exists (docs folder).
@@ -145,15 +171,22 @@ For this pattern to work from the main repo, configure:
 
 Required secrets in the main repo:
 - DEV_PAGES_TOKEN
-  - Personal access token used by Publish-dev.yml to push docs output into the dev-lane repository.
+  - Personal access token used by the dev deployment workflow to push docs output into the dev-lane repository.
   - Recommended token scope: repository write access to the target dev-lane repo.
 - DEV_PAGES_REPO
   - Target repository in owner/name format.
   - Example: your-org/your-project-dev
+- PROD_PAGES_TOKEN
+  - Personal access token used by the production Pages deployment workflow to push docs output into the production Pages repo.
+  - Recommended token scope: repository write access to the target Pages repo.
+- PROD_PAGES_REPO
+  - Target production Pages repository in owner/name format.
+  - Example: your-org/your-project
 
 Related workflow behavior:
-- Publish-dev.yml uses DEV_PAGES_TOKEN and DEV_PAGES_REPO when running peaceiris/actions-gh-pages.
-- Publish-live.yml does not currently require custom repository secrets for release creation.
+- The docs deployment workflow uses the Pages secrets to publish the root docs folder into the target Pages repositories.
+- The live app deployment workflow builds the production release payload and updates the live manifest.
+- The dev app deployment workflow builds the dev payload and updates the dev manifest in the dev repo only.
 - For PAT creation steps, see [GITHUB_PAT_SETUP.md](GITHUB_PAT_SETUP.md).
 
 Validation steps after setup:
@@ -212,19 +245,21 @@ Typical local commands:
   - ./Publish-live.ps1 -NoPush
 
 ## Adoption Checklist For Another Project
-1. Copy this file and the three scripts.
+1. Copy this file and the deployment workflow pattern, then choose which variant you need:
+   - static-site variant
+   - compiled-application variant
 2. Set up two repos (main and dev lane) or equivalent two-lane workflow.
 3. Create docs/CNAME in each repo with unique subdomains.
 4. Set your deployment source folder (docs or equivalent).
 5. Set required dev and release branches.
-6. Confirm asset cache-busting targets (css/js and service worker strategy).
+6. Confirm asset cache-busting targets (css/js and service worker strategy) if the project has a web frontend.
 7. Add or adapt release notes style guide.
 8. Wire branch and tag triggers in CI platform.
-9. Configure main repo Actions secrets (DEV_PAGES_TOKEN and DEV_PAGES_REPO).
+9. Configure main repo Actions secrets for the Pages deployment and app deployment workflows.
 10. Add CI checks that validate CNAME presence and expected domain values.
-11. Test with:
-  - Publish-live.ps1 -WhatIfMode
-  - Publish-dev.ps1 -NoPush
+11. Test with the relevant variant flow:
+   - static-site variant: Publish-live.ps1 -WhatIfMode and Publish-dev.ps1 -NoPush
+   - compiled-app variant: Docs-Deploy, Live-App-Deploy, and Dev-App-Deploy
 12. Perform first real release from main.
 
 ## Customization Points

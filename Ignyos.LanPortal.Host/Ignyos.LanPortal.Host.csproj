@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,7 +6,8 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.1.0</Version>
+    <Version>0.2.0.10</Version>
+    <InformationalVersion>0.2.0.10</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,3 +19,14 @@
   </ItemGroup>
 
 </Project>
+
+
+
+
+
+
+
+
+
+
+

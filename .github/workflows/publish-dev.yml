@@ -1,6 +1,9 @@
-name: Publish-dev
+name: Dev-Deploy
 
 on:
+  push:
+    branches:
+      - dev
   workflow_dispatch:
     inputs:
       include_host:
@@ -13,7 +16,7 @@ on:
           - 'true'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   publish-dev-artifacts:
@@ -23,6 +26,8 @@ jobs:
       DOTNET_VERSION: '9.0.x'
       CONFIGURATION: Release
       INCLUDE_HOST: ${{ inputs.include_host }}
+      DEV_PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
+      DEV_PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
 
     steps:
       - name: Checkout
@@ -70,60 +75,127 @@ jobs:
         run: |
           Set-Content -Path (Join-Path $env:GITHUB_WORKSPACE "artifacts/release/host/installer-flavor.txt") -Value "dev"
 
-      - name: Package release artifacts
+      - name: Build dev installer payload
         shell: pwsh
         run: |
-          $tag = "manual-$env:GITHUB_RUN_NUMBER"
-
-          $releaseRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts\\release"
-          $packageRoot = Join-Path $releaseRoot "package"
-          $apiDir = Join-Path $releaseRoot "api"
-          $webDir = Join-Path $releaseRoot "web"
-          $hostDir = Join-Path $releaseRoot "host"
-
-          New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
-
-          $apiZip = "Ignyos-LanPortal-Api-$tag.zip"
-          $webZip = "Ignyos-LanPortal-Web-$tag.zip"
-          $hostZip = "Ignyos-LanPortal-Host-$tag.zip"
-
-          $apiZipPath = Join-Path $packageRoot $apiZip
-          $webZipPath = Join-Path $packageRoot $webZip
-          $hostZipPath = Join-Path $packageRoot $hostZip
-
-          Compress-Archive -Path (Join-Path $apiDir "*") -DestinationPath $apiZipPath -CompressionLevel Optimal
-          Compress-Archive -Path (Join-Path $webDir "*") -DestinationPath $webZipPath -CompressionLevel Optimal
-          if (Test-Path $hostDir) {
-            Compress-Archive -Path (Join-Path $hostDir "*") -DestinationPath $hostZipPath -CompressionLevel Optimal
+          $versionProjectPath = Join-Path $env:GITHUB_WORKSPACE "Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj"
+          $projectXml = Get-Content -Path $versionProjectPath -Raw
+          $versionMatch = [regex]::Match($projectXml, '<Version>\s*(?<version>[^<\s]+)\s*</Version>')
+          if (-not $versionMatch.Success) {
+            throw "Could not resolve the application version from $versionProjectPath"
           }
 
-          $apiHash = Get-FileHash -Path $apiZipPath -Algorithm SHA256
-          $webHash = Get-FileHash -Path $webZipPath -Algorithm SHA256
+          $version = $versionMatch.Groups['version'].Value.Trim()
+          Write-Host "Building dev installer payload for version $version"
 
-          "$($apiHash.Hash)  $apiZip" | Set-Content -Path (Join-Path $packageRoot "$apiZip.sha256")
-          "$($webHash.Hash)  $webZip" | Set-Content -Path (Join-Path $packageRoot "$webZip.sha256")
+          ./scripts/build-dev-installer.ps1 -Configuration Release -Runtime win-x64 -Version $version
 
-          $manifest = @(
-            [PSCustomObject]@{ name = $apiZip; sha256 = $apiHash.Hash },
-            [PSCustomObject]@{ name = $webZip; sha256 = $webHash.Hash }
-          )
+          $installerRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts/dev-installer"
+          $installerDir = Join-Path $installerRoot "installer"
+          $sitePublishRoot = Join-Path $installerRoot "site-publish"
 
-          if (Test-Path $hostZipPath) {
-            $hostHash = Get-FileHash -Path $hostZipPath -Algorithm SHA256
-            "$($hostHash.Hash)  $hostZip" | Set-Content -Path (Join-Path $packageRoot "$hostZip.sha256")
-            $manifest += [PSCustomObject]@{ name = $hostZip; sha256 = $hostHash.Hash }
+          New-Item -ItemType Directory -Path (Join-Path $sitePublishRoot "updates") -Force | Out-Null
+
+          $installerFile = Get-ChildItem -Path $installerDir -Filter "Ignyos-LanPortal-Dev-$version.exe" -File | Select-Object -First 1
+          if ($null -eq $installerFile) {
+            throw "Expected installer not found for version $version in $installerDir"
           }
 
-          [PSCustomObject]@{
-            generatedAt = (Get-Date).ToUniversalTime().ToString('o')
-            refName = $env:GITHUB_REF_NAME
-            runId = $env:GITHUB_RUN_ID
-            artifacts = $manifest
-          } | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $packageRoot "release-artifacts-manifest.json")
+          $hashFile = Join-Path $installerDir "$($installerFile.Name).sha256"
+          if (-not (Test-Path $hashFile)) {
+            throw "Expected checksum file not found: $hashFile"
+          }
+
+          $hashLine = (Get-Content -Path $hashFile | Select-Object -First 1).Trim()
+          $sha256 = ($hashLine -split '\s+')[0]
+
+          $releaseDir = Join-Path $sitePublishRoot "releases/$version"
+          New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+          Copy-Item -Path $installerFile.FullName -Destination (Join-Path $releaseDir $installerFile.Name) -Force
+          Copy-Item -Path $hashFile -Destination (Join-Path $releaseDir "$($installerFile.Name).sha256") -Force
+
+          $coreParts = $version -split '\.'
+          $minSupportedVersion = if ($coreParts.Length -ge 3) { "$($coreParts[0]).$($coreParts[1]).$($coreParts[2])" } else { $version }
+          $publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+          $downloadUrl = "https://lanportal-dev.ignyos.com/releases/$version/$($installerFile.Name)"
+
+          $manifest = [ordered]@{
+            version = $version
+            url = $downloadUrl
+            sha256 = $sha256
+            publishedAt = $publishedAt
+            minSupportedVersion = $minSupportedVersion
+          }
+
+          foreach ($manifestFileName in @('manifest-test.json', 'manifest.json')) {
+            $manifest | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $sitePublishRoot "updates/$manifestFileName") -Encoding utf8
+          }
+
+          Write-Host "Prepared Pages publish root at $sitePublishRoot"
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: publish-dev-artifacts-${{ github.run_number }}
-          path: artifacts/release/package/*
+          name: publish-dev-artifacts-${{ github.run_number }}-${{ github.ref_name }}
+          path: |
+            artifacts/dev-installer/package/*
+            artifacts/dev-installer/installer/*
           if-no-files-found: error
+
+      - name: Publish dev artifacts to LAN-portal-dev repo
+        if: ${{ env.DEV_PAGES_TOKEN != '' && env.DEV_PAGES_REPO != '' }}
+        shell: pwsh
+        env:
+          DEV_PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
+          DEV_PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
+        run: |
+          $publishDir = Join-Path $env:GITHUB_WORKSPACE "artifacts/dev-installer/site-publish"
+          if (-not (Test-Path $publishDir)) {
+            throw "Publish directory not found: $publishDir"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:DEV_PAGES_TOKEN) -or [string]::IsNullOrWhiteSpace($env:DEV_PAGES_REPO)) {
+            Write-Host "DEV_PAGES_TOKEN or DEV_PAGES_REPO is not configured; skipping external deployment to the dev repository."
+            exit 0
+          }
+
+          $repoDir = Join-Path $env:RUNNER_TEMP "lanportal-dev-site"
+          if (Test-Path $repoDir) {
+            Remove-Item -Recurse -Force $repoDir
+          }
+
+          New-Item -ItemType Directory -Path $repoDir -Force | Out-Null
+          $repoUrl = "https://x-access-token:$($env:DEV_PAGES_TOKEN)@github.com/$($env:DEV_PAGES_REPO).git"
+
+          git clone --depth 1 --branch main $repoUrl $repoDir
+
+          Push-Location $repoDir
+          try {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+
+            New-Item -ItemType Directory -Path (Join-Path $repoDir "docs") -Force | Out-Null
+            Get-ChildItem -Path $publishDir -Force | Copy-Item -Destination (Join-Path $repoDir "docs") -Recurse -Force
+
+            git add --all
+            $changes = git status --porcelain
+            if ([string]::IsNullOrWhiteSpace($changes)) {
+              Write-Host "No changes to publish."
+              exit 0
+            }
+
+            git commit -m "deploy: ${{ github.repository }}@${{ github.sha }}"
+            git fetch origin main
+            git push origin HEAD:main --force
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Warn when dev publish target is not configured
+        if: ${{ env.DEV_PAGES_TOKEN == '' || env.DEV_PAGES_REPO == '' }}
+        shell: pwsh
+        run: |
+          Write-Host "DEV_PAGES_TOKEN or DEV_PAGES_REPO is not configured; skipping external deployment to the dev repository."

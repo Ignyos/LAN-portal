@@ -4,7 +4,9 @@ public sealed class UpdateChannelOptions
 {
     public const string SectionName = "UpdateChannel";
 
-    public string BaseUrl { get; set; } = "https://lanportal.ignyos.com";
+    public string ProductionBaseUrl { get; set; } = "https://lanportal.ignyos.com";
+
+    public string DevBaseUrl { get; set; } = "https://lanportal-dev.ignyos.com";
 
     public string Channel { get; set; } = "production";
 

@@ -3,19 +3,39 @@
   const yearLine = document.getElementById("year-line");
 
   if (yearLine) {
-    yearLine.textContent = "Pages shell initialized " + year;
+    yearLine.textContent = "";
   }
 
-  async function wireManifestDownload(options) {
-    const statusEl = document.getElementById(options.statusId);
-    const linkEl = document.getElementById(options.linkId);
+  function getManifestPath() {
+    const host = window.location.hostname || "";
+    const isDevHost = host.indexOf("dev") !== -1 || host.indexOf("test") !== -1 || host.indexOf("localhost") !== -1;
+    return isDevHost ? "./updates/manifest-test.json" : "./updates/manifest.json";
+  }
+
+  function formatVersionLabel(version) {
+    if (!version) {
+      return "latest build";
+    }
+
+    if (/\d+\.\d+\.\d+\.\d+$/.test(version)) {
+      return version;
+    }
+
+    return version;
+  }
+
+  async function wireSingleDownload() {
+    const statusEl = document.getElementById("download-status");
+    const linkEl = document.getElementById("download-link");
+    const releaseNotesEl = document.getElementById("release-notes-link");
 
     if (!statusEl || !linkEl) {
       return;
     }
 
     try {
-      const response = await fetch(options.manifestPath, { cache: "no-store" });
+      const manifestPath = getManifestPath();
+      const response = await fetch(manifestPath, { cache: "no-store" });
       if (!response.ok) {
         throw new Error("HTTP " + response.status);
       }
@@ -34,33 +54,25 @@
           ? publishedAt.toLocaleString()
           : "unknown publish time";
 
-      statusEl.textContent = "Latest " + options.channelLabel + " build: " + version + " (" + publishedText + ")";
-      linkEl.textContent = "Download " + version;
+      statusEl.textContent = "Latest build: " + formatVersionLabel(version) + " (" + publishedText + ")";
+      linkEl.textContent = "Download " + formatVersionLabel(version);
       linkEl.href = downloadUrl;
       linkEl.target = "_blank";
       linkEl.rel = "noopener";
       linkEl.classList.remove("disabled");
       linkEl.removeAttribute("aria-disabled");
+
+      if (releaseNotesEl) {
+        releaseNotesEl.textContent = "Release notes";
+      }
     } catch (error) {
-      statusEl.textContent = "Manifest unavailable: " + error.message;
-      linkEl.textContent = "Manifest unavailable";
+      statusEl.textContent = "Download unavailable: " + error.message;
+      linkEl.textContent = "Download unavailable";
       linkEl.href = "#";
       linkEl.classList.add("disabled");
       linkEl.setAttribute("aria-disabled", "true");
     }
   }
 
-  wireManifestDownload({
-    statusId: "prod-status",
-    linkId: "prod-download",
-    manifestPath: "./updates/manifest.json",
-    channelLabel: "production"
-  });
-
-  wireManifestDownload({
-    statusId: "test-status",
-    linkId: "test-download",
-    manifestPath: "./updates/manifest-test.json",
-    channelLabel: "test"
-  });
+  wireSingleDownload();
 })();

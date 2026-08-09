@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Ignyos.LanPortal.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using NuGet.Versioning;
@@ -44,7 +45,8 @@ public sealed class LocalUpdateController(IUpdateManifestService updateManifestS
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
-        var fetchResult = await updateManifestService.GetLatestManifestAsync(forceRefresh, cancellationToken);
+        var isDeveloperInstaller = IsDeveloperVersionByFourthNode(currentVersion);
+        var fetchResult = await updateManifestService.GetLatestManifestAsync(forceRefresh, isDeveloperInstaller, cancellationToken);
 
         var isTestChannel = string.Equals(fetchResult.Channel, "test", StringComparison.OrdinalIgnoreCase);
         var manifest = fetchResult.Manifest;
@@ -92,6 +94,23 @@ public sealed class LocalUpdateController(IUpdateManifestService updateManifestS
 
         version = new NuGetVersion(0, 0, 0);
         return false;
+    }
+
+    private static bool IsDeveloperVersionByFourthNode(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(version, "^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var buildNode = match.Groups["build"].Value;
+        return !string.Equals(buildNode, "0", StringComparison.Ordinal);
     }
 
     private static bool IsLocalRequest(HttpContext httpContext)

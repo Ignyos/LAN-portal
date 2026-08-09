@@ -1,5 +1,21 @@
 # CI/CD Roadmap
 
+## Active Direction (Session Handoff)
+
+When a new session asks "What is the next task to work on?", use this order:
+
+1. Read `.github/runbooks/publish-lanes-vision-handoff.md` first.
+2. Continue the unchecked items in that handoff file.
+3. Treat that handoff as the current lane contract unless explicitly changed.
+
+Current implementation focus:
+
+- Publish-dev lane: `dev` branch only, no release-notes gate, version `n.n.n.(r+1)` default with `r > 0`, dev destination outputs.
+- Publish-live lane: `main` branch only, release-notes gate required, version `n.n.n.0` only, production destination outputs.
+- Keep assembly `<Version>` as source of truth using four-node versions (`n.n.n.0` live, `n.n.n.r` dev).
+- Use LAN-portal-dev only for developer releases.
+- Use the build node to choose update source/download behavior and the displayed version style in the app.
+
 ## Stage 1: Continuous Integration (Current)
 
 - Build solution on pull requests and pushes to main.

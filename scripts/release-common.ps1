@@ -27,7 +27,29 @@ function Invoke-ReleaseGit {
 function Test-ReleaseSemVer {
     param([string]$Value)
 
-    return $Value -match '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
+    $match = [regex]::Match($Value, '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:\.(?<revision>0|[1-9]\d*))?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$')
+    if (-not $match.Success) {
+        return $false
+    }
+
+    $numericComponents = @(
+        $match.Groups['major'].Value,
+        $match.Groups['minor'].Value,
+        $match.Groups['patch'].Value
+    )
+
+    if ($match.Groups['revision'].Success) {
+        $numericComponents += $match.Groups['revision'].Value
+    }
+
+    foreach ($component in $numericComponents) {
+        $parsedComponent = 0
+        if (-not [int]::TryParse($component, [ref]$parsedComponent)) {
+            return $false
+        }
+    }
+
+    return $true
 }
 
 function Get-NextReleasePatchVersion {
@@ -41,7 +63,30 @@ function Get-NextReleasePatchVersion {
     $minor = [int]$Matches.minor
     $patch = [int]$Matches.patch
 
-    return "$major.$minor.$($patch + 1)"
+    return "$major.$minor.$($patch + 1).0"
+}
+
+function Get-DevSuggestedVersion {
+    param([string]$CurrentVersion)
+
+    $match = [regex]::Match($CurrentVersion, '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:\.(?<build>0|[1-9]\d*))?$')
+    if (-not $match.Success) {
+        throw "Current version '$CurrentVersion' is not valid for dev version suggestion."
+    }
+
+    $major = [int]$match.Groups['major'].Value
+    $minor = [int]$match.Groups['minor'].Value
+    $patch = [int]$match.Groups['patch'].Value
+
+    if ($match.Groups['build'].Success) {
+        $build = [int]$match.Groups['build'].Value
+        $build += 1
+    }
+    else {
+        $build = 1
+    }
+
+    return "$major.$minor.$patch.$build"
 }
 
 function Resolve-ReleasePath {
