@@ -38,10 +38,22 @@ if ([string]::IsNullOrWhiteSpace($repoSlug)) {
     }
 }
 
-if (Get-Command gh -ErrorAction SilentlyContinue) {
+$ghCommand = $null
+$ghCandidates = @(
+    (Get-Command gh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+    "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe",
+    "$env:ProgramFiles\GitHub CLI\gh.exe",
+    "$env:ProgramFiles(x86)\GitHub CLI\gh.exe"
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+if ($ghCandidates -and $ghCandidates.Count -gt 0) {
+    $ghCommand = $ghCandidates[0]
+}
+
+if ($ghCommand) {
     Write-Host "Triggering GitHub Actions workflow for target '$Target'..."
     $ghArgs = @('workflow', 'run', '.github/workflows/deploy-pages.yml', '--repo', $repoSlug, '--ref', $refName, '-f', "target=$Target")
-    & gh @ghArgs
+    & $ghCommand @ghArgs
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Remote workflow dispatch started successfully."
