@@ -54,6 +54,7 @@ jobs:
             find "$repo_dir/docs" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
           fi
           cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
+          printf 'lanportal-dev.ignyos.com\n' > "$repo_dir/docs/CNAME"
 
           git add --all
           if git diff --cached --quiet; then
@@ -102,6 +103,7 @@ jobs:
             find "$repo_dir/docs" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
           fi
           cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
+          printf 'lanportal.ignyos.com\n' > "$repo_dir/docs/CNAME"
 
           git add --all
           if git diff --cached --quiet; then

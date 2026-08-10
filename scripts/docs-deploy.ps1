@@ -43,10 +43,11 @@ $ghCandidates = @(
     (Get-Command gh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
     "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe",
     "$env:ProgramFiles\GitHub CLI\gh.exe",
-    "$env:ProgramFiles(x86)\GitHub CLI\gh.exe"
+    "${env:ProgramFiles(x86)}\GitHub CLI\gh.exe"
 ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+$ghCandidates = @($ghCandidates)
 
-if ($ghCandidates -and $ghCandidates.Count -gt 0) {
+if ($ghCandidates.Count -gt 0) {
     $ghCommand = $ghCandidates[0]
 }
 
