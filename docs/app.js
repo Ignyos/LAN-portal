@@ -12,16 +12,28 @@
     return isDevHost ? "./updates/manifest-test.json" : "./updates/manifest.json";
   }
 
-  function formatVersionLabel(version) {
+  function isDevHost() {
+    const host = window.location.hostname || "";
+    return host.indexOf("dev") !== -1 || host.indexOf("test") !== -1 || host.indexOf("localhost") !== -1;
+  }
+
+  function formatVersionLabel(version, devHost) {
     if (!version) {
-      return "latest build";
+      return devHost ? "latest version" : "latest version";
     }
 
-    if (/\d+\.\d+\.\d+\.\d+$/.test(version)) {
-      return version;
+    const normalized = String(version).trim();
+    const match = normalized.match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$/);
+    if (!match) {
+      return normalized;
     }
 
-    return version;
+    const [, major, minor, patch, build] = match;
+    if (devHost) {
+      return `${major}.${minor}.${patch}`;
+    }
+
+    return `${major}.${minor}.${patch}.0`;
   }
 
   async function wireSingleDownload() {
@@ -43,6 +55,7 @@
 
       const manifest = await response.json();
       const version = manifest.version || "unknown";
+      const devHost = isDevHost();
       const downloadUrl = manifest.url;
       const checksumUrl = manifest.checksumUrl || (manifest.url ? manifest.url + ".sha256" : "");
 
@@ -56,8 +69,8 @@
           ? publishedAt.toLocaleString()
           : "unknown publish time";
 
-      statusEl.textContent = "Latest build: " + formatVersionLabel(version) + " (" + publishedText + ")";
-      linkEl.textContent = "Download " + formatVersionLabel(version);
+      statusEl.textContent = "Latest version: " + formatVersionLabel(version, devHost) + " (" + publishedText + ")";
+      linkEl.textContent = "Download " + formatVersionLabel(version, devHost);
       linkEl.href = downloadUrl;
       linkEl.target = "_blank";
       linkEl.rel = "noopener";

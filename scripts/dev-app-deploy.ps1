@@ -1,6 +1,7 @@
 param(
     [ValidateSet('false', 'true')]
     [string]$IncludeHost = 'false',
+    [string]$Version,
     [Parameter(ValueFromRemainingArguments = $true)]
     [object[]]$RemainingArgs
 )

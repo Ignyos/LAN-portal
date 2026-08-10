@@ -1,4 +1,5 @@
 param(
+    [string]$Version,
     [Parameter(ValueFromRemainingArguments = $true)]
     [object[]]$RemainingArgs
 )

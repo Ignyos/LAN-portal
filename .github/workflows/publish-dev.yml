@@ -11,6 +11,11 @@ on:
         options:
           - 'false'
           - 'true'
+      version:
+        description: 'Version for the dev publish lane. Leave blank to use the current project version.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
@@ -23,6 +28,7 @@ jobs:
       DOTNET_VERSION: '9.0.x'
       CONFIGURATION: Release
       INCLUDE_HOST: ${{ inputs.include_host }}
+      INPUT_VERSION: ${{ inputs.version }}
       DEV_PAGES_TOKEN: ${{ secrets.DEV_PAGES_TOKEN }}
       DEV_PAGES_REPO: ${{ secrets.DEV_PAGES_REPO }}
 
@@ -72,9 +78,14 @@ jobs:
         run: |
           Set-Content -Path (Join-Path $env:GITHUB_WORKSPACE "artifacts/release/host/installer-flavor.txt") -Value "dev"
 
-      - name: Build dev installer payload
+      - name: Resolve publish version
         shell: pwsh
         run: |
+          $requestedVersion = [string]::Empty
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_VERSION)) {
+            $requestedVersion = $env:INPUT_VERSION.Trim()
+          }
+
           $versionProjectPath = Join-Path $env:GITHUB_WORKSPACE "Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj"
           $projectXml = Get-Content -Path $versionProjectPath -Raw
           $versionMatch = [regex]::Match($projectXml, '<Version>\s*(?<version>[^<\s]+)\s*</Version>')
@@ -82,7 +93,15 @@ jobs:
             throw "Could not resolve the application version from $versionProjectPath"
           }
 
-          $version = $versionMatch.Groups['version'].Value.Trim()
+          $defaultVersion = $versionMatch.Groups['version'].Value.Trim()
+          $version = if ([string]::IsNullOrWhiteSpace($requestedVersion)) { $defaultVersion } else { $requestedVersion }
+          "resolved_version=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Using publish version $version"
+
+      - name: Build dev installer payload
+        shell: pwsh
+        run: |
+          $version = $env:resolved_version
           Write-Host "Building dev installer payload for version $version"
 
           ./scripts/build-dev-installer.ps1 -Configuration Release -Runtime win-x64 -Version $version
@@ -147,14 +166,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $versionProjectPath = Join-Path $env:GITHUB_WORKSPACE "Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj"
-          $projectXml = Get-Content -Path $versionProjectPath -Raw
-          $versionMatch = [regex]::Match($projectXml, '<Version>\s*(?<version>[^<\s]+)\s*</Version>')
-          if (-not $versionMatch.Success) {
-            throw "Could not resolve the application version from $versionProjectPath"
-          }
-
-          $version = $versionMatch.Groups['version'].Value.Trim()
+          $version = $env:resolved_version
           $releaseRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts/dev-installer"
           $installerDir = Join-Path $releaseRoot "installer"
           $installerFile = Get-ChildItem -Path $installerDir -Filter "Ignyos-LanPortal-Dev-$version.exe" -File | Select-Object -First 1

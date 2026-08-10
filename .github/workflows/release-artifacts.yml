@@ -2,6 +2,12 @@ name: Live-Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version for the live publish lane. Leave blank to use the Git ref/tag value.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
@@ -14,6 +20,7 @@ jobs:
       DOTNET_VERSION: '9.0.x'
       CONFIGURATION: Release
       INCLUDE_HOST: 'false'
+      INPUT_VERSION: ${{ inputs.version }}
       PAGES_BASE_URL: https://lanportal.ignyos.com
       DEV_PAGES_BASE_URL: https://lanportal-dev.ignyos.com
       PAGES_SOURCE_BRANCH: main
@@ -23,6 +30,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve release version
+        shell: pwsh
+        run: |
+          $requestedVersion = [string]::Empty
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_VERSION)) {
+            $requestedVersion = $env:INPUT_VERSION.Trim()
+          }
+
+          if ([string]::IsNullOrWhiteSpace($requestedVersion)) {
+            $requestedVersion = $env:GITHUB_REF_NAME
+            if ($requestedVersion.StartsWith('v')) {
+              $requestedVersion = $requestedVersion.Substring(1)
+            }
+          }
+
+          $env:GITHUB_REF_NAME = $requestedVersion
+          $env:GITHUB_REF = "refs/tags/$requestedVersion"
+          "GITHUB_REF_NAME=$requestedVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GITHUB_REF=refs/tags/$requestedVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Using release version $requestedVersion"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
