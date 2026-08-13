@@ -13,6 +13,29 @@ public sealed class FileApiClient(
     NavigationManager navigationManager,
     IConfiguration configuration)
 {
+    public async Task<FolderListResponseDto> ListFolderAsync(string? currentPath, CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessTokenAsync(cancellationToken);
+
+        var uri = string.IsNullOrWhiteSpace(currentPath)
+            ? "api/files/folder"
+            : $"api/files/folder?currentPath={Uri.EscapeDataString(currentPath)}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        ApplyBearerToken(request);
+
+        using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<FolderListResponseDto>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Folder list response was empty.");
+    }
+
     public async Task<IReadOnlyList<FileEntryDto>> ListFilesAsync(CancellationToken cancellationToken = default)
     {
         await EnsureAccessTokenAsync(cancellationToken);
@@ -36,6 +59,7 @@ public sealed class FileApiClient(
     public async Task<UploadResultDto> UploadAsync(
         IBrowserFile file,
         long maxFileSizeBytes,
+        string? currentPath = null,
         CancellationToken cancellationToken = default)
     {
         await using var fileStream = file.OpenReadStream(maxFileSizeBytes, cancellationToken);
@@ -44,6 +68,7 @@ public sealed class FileApiClient(
 
         using var content = new MultipartFormDataContent();
         content.Add(new StreamContent(fileStream), "file", file.Name);
+        content.Add(new StringContent(currentPath ?? string.Empty), "currentPath");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/files/upload")
         {

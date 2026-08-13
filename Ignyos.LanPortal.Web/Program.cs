@@ -9,6 +9,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddScoped<AuthSession>();
+builder.Services.AddScoped<FileEventsClient>();
 
 builder.Services.AddHttpClient<FileApiClient>(client =>
 {

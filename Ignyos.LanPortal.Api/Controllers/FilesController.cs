@@ -8,7 +8,7 @@ namespace Ignyos.LanPortal.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public sealed class FilesController(IAppSettingsStore settingsStore) : ControllerBase
+public sealed class FilesController(IAppSettingsStore settingsStore, IFileEventPublisher fileEventPublisher) : ControllerBase
 {
     private static readonly EnumerationOptions StorageEnumerationOptions = new()
     {
@@ -231,8 +231,26 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
 
         Directory.CreateDirectory(targetPath);
 
+        var createdFolderPath = StoragePathResolver.ToRelativePath(rootPath!, targetPath);
+        PublishEvent(new FileChangeEventDto(
+            SchemaVersion: "1",
+            EventId: Guid.NewGuid().ToString("N"),
+            EventType: FileEventTypes.Created,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            ScopePath: StoragePathResolver.ToRelativePath(rootPath!, currentFolderPath),
+            CorrelationId: GetCorrelationId(),
+            BatchId: null,
+            FromPath: null,
+            ToPath: createdFolderPath,
+            Item: new FileChangeItemDto(
+                Path: createdFolderPath,
+                Name: folderName,
+                IsFolder: true,
+                SizeBytes: null,
+                LastModifiedUtc: Directory.GetLastWriteTimeUtc(targetPath))));
+
         return Ok(new FileNodeDto(
-            Path: StoragePathResolver.ToRelativePath(rootPath!, targetPath),
+            Path: createdFolderPath,
             Name: folderName,
             IsFolder: true,
             SizeBytes: null,
@@ -286,8 +304,26 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
         if (sourceExistsAsDirectory)
         {
             Directory.Move(fullSourcePath, fullTargetPath);
+            var renamedPath = StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath);
+            PublishEvent(new FileChangeEventDto(
+                SchemaVersion: "1",
+                EventId: Guid.NewGuid().ToString("N"),
+                EventType: FileEventTypes.Renamed,
+                OccurredAtUtc: DateTimeOffset.UtcNow,
+                ScopePath: StoragePathResolver.ToRelativePath(rootPath!, parentDirectory),
+                CorrelationId: GetCorrelationId(),
+                BatchId: null,
+                FromPath: request.Path,
+                ToPath: renamedPath,
+                Item: new FileChangeItemDto(
+                    Path: renamedPath,
+                    Name: newName,
+                    IsFolder: true,
+                    SizeBytes: null,
+                    LastModifiedUtc: Directory.GetLastWriteTimeUtc(fullTargetPath))));
+
             return Ok(new FileNodeDto(
-                Path: StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath),
+                Path: renamedPath,
                 Name: newName,
                 IsFolder: true,
                 SizeBytes: null,
@@ -296,8 +332,26 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
 
         System.IO.File.Move(fullSourcePath, fullTargetPath);
         var fileInfo = new FileInfo(fullTargetPath);
+        var renamedFilePath = StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath);
+        PublishEvent(new FileChangeEventDto(
+            SchemaVersion: "1",
+            EventId: Guid.NewGuid().ToString("N"),
+            EventType: FileEventTypes.Renamed,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            ScopePath: StoragePathResolver.ToRelativePath(rootPath!, parentDirectory),
+            CorrelationId: GetCorrelationId(),
+            BatchId: null,
+            FromPath: request.Path,
+            ToPath: renamedFilePath,
+            Item: new FileChangeItemDto(
+                Path: renamedFilePath,
+                Name: fileInfo.Name,
+                IsFolder: false,
+                SizeBytes: fileInfo.Length,
+                LastModifiedUtc: fileInfo.LastWriteTimeUtc)));
+
         return Ok(new FileNodeDto(
-            Path: StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath),
+            Path: renamedFilePath,
             Name: fileInfo.Name,
             IsFolder: false,
             SizeBytes: fileInfo.Length,
@@ -360,8 +414,26 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
                 }
 
                 Directory.Move(fullSourcePath, fullTargetPath);
+                var movedFolderPath = StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath);
+                PublishEvent(new FileChangeEventDto(
+                    SchemaVersion: "1",
+                    EventId: Guid.NewGuid().ToString("N"),
+                    EventType: FileEventTypes.Moved,
+                    OccurredAtUtc: DateTimeOffset.UtcNow,
+                    ScopePath: StoragePathResolver.ToRelativePath(rootPath!, fullDestinationPath),
+                    CorrelationId: GetCorrelationId(),
+                    BatchId: null,
+                    FromPath: sourcePath,
+                    ToPath: movedFolderPath,
+                    Item: new FileChangeItemDto(
+                        Path: movedFolderPath,
+                        Name: itemName,
+                        IsFolder: true,
+                        SizeBytes: null,
+                        LastModifiedUtc: Directory.GetLastWriteTimeUtc(fullTargetPath))));
+
                 movedItems.Add(new FileNodeDto(
-                    Path: StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath),
+                    Path: movedFolderPath,
                     Name: itemName,
                     IsFolder: true,
                     SizeBytes: null,
@@ -371,8 +443,26 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
             {
                 System.IO.File.Move(fullSourcePath, fullTargetPath);
                 var movedFileInfo = new FileInfo(fullTargetPath);
+                var movedFilePath = StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath);
+                PublishEvent(new FileChangeEventDto(
+                    SchemaVersion: "1",
+                    EventId: Guid.NewGuid().ToString("N"),
+                    EventType: FileEventTypes.Moved,
+                    OccurredAtUtc: DateTimeOffset.UtcNow,
+                    ScopePath: StoragePathResolver.ToRelativePath(rootPath!, fullDestinationPath),
+                    CorrelationId: GetCorrelationId(),
+                    BatchId: null,
+                    FromPath: sourcePath,
+                    ToPath: movedFilePath,
+                    Item: new FileChangeItemDto(
+                        Path: movedFilePath,
+                        Name: movedFileInfo.Name,
+                        IsFolder: false,
+                        SizeBytes: movedFileInfo.Length,
+                        LastModifiedUtc: movedFileInfo.LastWriteTimeUtc)));
+
                 movedItems.Add(new FileNodeDto(
-                    Path: StoragePathResolver.ToRelativePath(rootPath!, fullTargetPath),
+                    Path: movedFilePath,
                     Name: movedFileInfo.Name,
                     IsFolder: false,
                     SizeBytes: movedFileInfo.Length,
@@ -409,14 +499,49 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
                 return BadRequest($"Invalid path: '{sourcePath}'.");
             }
 
+            var normalizedPath = StoragePathResolver.ToRelativePath(rootPath!, fullSourcePath);
             if (Directory.Exists(fullSourcePath))
             {
+                PublishEvent(new FileChangeEventDto(
+                    SchemaVersion: "1",
+                    EventId: Guid.NewGuid().ToString("N"),
+                    EventType: FileEventTypes.Deleted,
+                    OccurredAtUtc: DateTimeOffset.UtcNow,
+                    ScopePath: FileEventsGroupName.ParentOfPath(normalizedPath) ?? string.Empty,
+                    CorrelationId: GetCorrelationId(),
+                    BatchId: null,
+                    FromPath: normalizedPath,
+                    ToPath: null,
+                    Item: new FileChangeItemDto(
+                        Path: normalizedPath,
+                        Name: Path.GetFileName(fullSourcePath),
+                        IsFolder: true,
+                        SizeBytes: null,
+                        LastModifiedUtc: null)));
+
                 Directory.Delete(fullSourcePath, recursive: true);
                 continue;
             }
 
             if (System.IO.File.Exists(fullSourcePath))
             {
+                PublishEvent(new FileChangeEventDto(
+                    SchemaVersion: "1",
+                    EventId: Guid.NewGuid().ToString("N"),
+                    EventType: FileEventTypes.Deleted,
+                    OccurredAtUtc: DateTimeOffset.UtcNow,
+                    ScopePath: FileEventsGroupName.ParentOfPath(normalizedPath) ?? string.Empty,
+                    CorrelationId: GetCorrelationId(),
+                    BatchId: null,
+                    FromPath: normalizedPath,
+                    ToPath: null,
+                    Item: new FileChangeItemDto(
+                        Path: normalizedPath,
+                        Name: Path.GetFileName(fullSourcePath),
+                        IsFolder: false,
+                        SizeBytes: null,
+                        LastModifiedUtc: null)));
+
                 System.IO.File.Delete(fullSourcePath);
                 continue;
             }
@@ -477,6 +602,23 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
 
         var writtenFile = new FileInfo(targetPath);
         var relativePath = StoragePathResolver.ToRelativePath(rootPath, targetPath);
+        PublishEvent(new FileChangeEventDto(
+            SchemaVersion: "1",
+            EventId: Guid.NewGuid().ToString("N"),
+            EventType: FileEventTypes.Created,
+            OccurredAtUtc: DateTimeOffset.UtcNow,
+            ScopePath: StoragePathResolver.ToRelativePath(rootPath, fullUploadFolderPath),
+            CorrelationId: GetCorrelationId(),
+            BatchId: null,
+            FromPath: null,
+            ToPath: relativePath,
+            Item: new FileChangeItemDto(
+                Path: relativePath,
+                Name: writtenFile.Name,
+                IsFolder: false,
+                SizeBytes: writtenFile.Length,
+                LastModifiedUtc: writtenFile.LastWriteTimeUtc)));
+
         return Ok(new UploadResultDto(relativePath, writtenFile.Length, writtenFile.LastWriteTimeUtc));
     }
 
@@ -536,5 +678,21 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
             + Path.DirectorySeparatorChar;
 
         return destinationFullPath.StartsWith(sourceFullPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string? GetCorrelationId()
+    {
+        if (Request.Headers.TryGetValue("X-Correlation-ID", out var explicitValue))
+        {
+            var value = explicitValue.ToString().Trim();
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        return null;
+    }
+
+    private void PublishEvent(FileChangeEventDto fileEvent)
+    {
+        _ = fileEventPublisher.PublishAsync(fileEvent);
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using System.IdentityModel.Tokens.Jwt;
 
 using Ignyos.LanPortal.Api;
+using Ignyos.LanPortal.Api.Hubs;
 using Ignyos.LanPortal.Api.Services;
 
 // CRITICAL: Disable automatic claim type mapping to URI forms.
@@ -25,11 +26,13 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = 10L * 1024L * 1024L * 1024L;
 });
 builder.Services.AddHttpClient();
+builder.Services.AddSignalR();
 builder.Services.AddSingleton<IValueProtector, DpapiValueProtector>();
 builder.Services.AddSingleton<IAppSettingsStore, SqliteAppSettingsStore>();
 builder.Services.AddSingleton<IDeviceLoginStore, InMemoryDeviceLoginStore>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IUpdateManifestService, UpdateManifestService>();
+builder.Services.AddSingleton<IFileEventPublisher, SignalRFileEventPublisher>();
 
 JwtDatabaseConfig jwtConfig;
 var bootstrapSection = builder.Configuration.GetSection(BootstrapOptions.SectionName).Get<BootstrapOptions>() ?? new BootstrapOptions();
@@ -55,7 +58,8 @@ builder.Services
                 var accessToken = context.Request.Query["access_token"].ToString();
                 var path = context.HttpContext.Request.Path;
 
-                if (!string.IsNullOrWhiteSpace(accessToken) && path.StartsWithSegments("/api/files/download"))
+                if (!string.IsNullOrWhiteSpace(accessToken) &&
+                    (path.StartsWithSegments("/api/files/download") || path.StartsWithSegments("/hubs/files")))
                 {
                     context.Token = accessToken;
                 }
@@ -111,5 +115,6 @@ if (useHttpsRedirection)
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<FileEventsHub>("/hubs/files");
 
 app.Run();

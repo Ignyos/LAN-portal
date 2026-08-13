@@ -25,9 +25,9 @@ Scope guardrails:
 - [x] Create folder + rename + delete + single-file download.
 
 4. Add real-time baseline and optimistic reconciliation:
-- [ ] WebSocket/SignalR transport with scoped path subscriptions.
-- [ ] Created/updated/deleted events with correlationId support.
-- [ ] Client reconciliation for affected-folder refresh only.
+- [x] WebSocket/SignalR transport with scoped path subscriptions.
+- [x] Created/updated/deleted events with correlationId support.
+- [x] Client reconciliation for affected-folder refresh only.
 
 5. Add remaining milestone-1 actions:
 - [ ] Move (including multi-select support).
@@ -41,7 +41,7 @@ Scope guardrails:
 Suggested first PR slices:
 - PR1: Contracts + permission model + path normalization utilities. (Completed)
 - PR2: Files API baseline endpoints (list/tree/search/create/rename/delete/download) with authorization. (Completed)
-- PR3: Real-time transport + event contract + minimal client reconciliation.
+- PR3: Real-time transport + event contract + minimal client reconciliation. (Baseline completed)
 - PR4: Move + upload/drag-drop + multi-select action constraints.
 - PR5: Performance instrumentation + integration tests + exit-criteria hardening.
 
@@ -130,19 +130,19 @@ Suggested first PR slices:
 ## 4. Real-Time Event Pipeline
 
 ### 4.1 Transport
-- [ ] Implement WebSocket/SignalR channel for file-change notifications.
-- [ ] Add path-scope subscription support (subscribe/unsubscribe by relevant paths).
-- [ ] Ensure reconnect behavior restores active subscriptions.
+- [x] Implement WebSocket/SignalR channel for file-change notifications.
+- [x] Add path-scope subscription support (subscribe/unsubscribe by relevant paths).
+- [x] Ensure reconnect behavior restores active subscriptions.
 
 ### 4.2 Event Publication
-- [ ] Publish created/updated/deleted/renamed/moved/batch events from server.
-- [ ] Include correlationId when event is tied to a client-initiated action.
+- [x] Publish created/updated/deleted/renamed/moved/batch events from server.
+- [x] Include correlationId when event is tied to a client-initiated action.
 - [ ] Ensure event ordering guarantees are documented (or lack thereof is explicit).
 
 ### 4.3 Reconciliation Behavior
 - [ ] Define optimistic action state machine on client (pending, confirmed, conflicted, reverted).
-- [ ] Reconcile incoming events using correlationId where available.
-- [ ] Refresh only affected folders/nodes, avoid full explorer refresh by default.
+- [x] Reconcile incoming events using correlationId where available.
+- [x] Refresh only affected folders/nodes, avoid full explorer refresh by default.
 
 ## 5. Web UI: Explorer Experience
 

@@ -29,6 +29,16 @@ public static class PermissionClaimTypes
     public const string Permission = "perm";
 }
 
+public static class FileEventTypes
+{
+    public const string Created = "created";
+    public const string Updated = "updated";
+    public const string Deleted = "deleted";
+    public const string Renamed = "renamed";
+    public const string Moved = "moved";
+    public const string Batch = "batch";
+}
+
 public sealed record FileEntryDto(
     string RelativePath,
     long SizeBytes,

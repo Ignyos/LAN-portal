@@ -5,7 +5,9 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject NavigationManager Navigation
 @inject FileApiClient FileApiClient
+@inject FileEventsClient FileEventsClient
 @inject AuthSession AuthSession
+@implements IAsyncDisposable
 
 <PageTitle>Files</PageTitle>
 
@@ -59,7 +61,7 @@ else
             <p class="text-danger">@errorMessage</p>
         }
 
-        @if (files.Count == 0)
+        @if (folderItems.Count == 0)
         {
             <p><em>No files found in storage.</em></p>
         }
@@ -88,7 +90,7 @@ else
                             </tr>
                         }
 
-                        @foreach (var entry in explorerEntries)
+                        @foreach (var entry in folderItems)
                         {
                             <tr>
                                 <td>@entry.Name</td>
@@ -117,17 +119,18 @@ else
 @code {
     private const long MaxUploadSizeBytes = 10L * 1024L * 1024L * 1024L;
 
-    private readonly List<FileEntryDto> files = [];
-    private readonly List<ExplorerEntry> explorerEntries = [];
+    private readonly List<FileNodeDto> folderItems = [];
 
     private string currentFolderPath = string.Empty;
 
     private bool isBusy;
     private string? statusMessage;
     private string? errorMessage;
+    private bool hasPendingEventRefresh;
 
     protected override Task OnInitializedAsync()
     {
+        FileEventsClient.FileChanged += OnFileChanged;
         return Task.CompletedTask;
     }
 
@@ -149,7 +152,9 @@ else
         }
 
         await AuthSession.RememberPathAsync("/files");
-        await LoadFilesAsync();
+        await FileEventsClient.StartAsync();
+        await LoadCurrentFolderAsync();
+        await SyncSubscriptionsAsync();
         StateHasChanged();
     }
 
@@ -167,9 +172,9 @@ else
 
         try
         {
-            var result = await FileApiClient.UploadAsync(selectedFile, MaxUploadSizeBytes);
+            var result = await FileApiClient.UploadAsync(selectedFile, MaxUploadSizeBytes, currentFolderPath);
             statusMessage = $"Uploaded {result.RelativePath} ({result.SizeBytes} bytes).";
-            await LoadFilesAsync();
+            await LoadCurrentFolderAsync();
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -187,15 +192,21 @@ else
 
     private async Task LoadFilesAsync()
     {
+        await LoadCurrentFolderAsync();
+    }
+
+    private async Task LoadCurrentFolderAsync()
+    {
         isBusy = true;
         errorMessage = null;
 
         try
         {
-            var fetchedFiles = await FileApiClient.ListFilesAsync();
-            files.Clear();
-            files.AddRange(fetchedFiles);
-            RebuildExplorerEntries();
+            var response = await FileApiClient.ListFolderAsync(currentFolderPath);
+            currentFolderPath = NormalizePath(response.CurrentPath);
+            folderItems.Clear();
+            folderItems.AddRange(response.Items);
+            await SyncSubscriptionsAsync();
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -219,97 +230,50 @@ else
         errorMessage = message;
     }
 
-    private void RebuildExplorerEntries()
+    private async Task SyncSubscriptionsAsync()
     {
-        explorerEntries.Clear();
-
-        var normalizedFiles = files
-            .Select(file => new NormalizedFile(file, NormalizePath(file.RelativePath)))
-            .Where(file => !string.IsNullOrWhiteSpace(file.Path))
-            .ToList();
-
-        var folderMap = BuildFolderMap(normalizedFiles);
-
-        var folderEntries = folderMap
-            .Where(folder => IsDirectChildFolder(folder.Key, currentFolderPath))
-            .Select(folder => new ExplorerEntry(
-                Name: GetLastSegment(folder.Key),
-                Path: folder.Key,
-                IsFolder: true,
-                SizeBytes: null,
-                LastModifiedUtc: folder.Value))
-            .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
-
-        var fileEntries = normalizedFiles
-            .Where(file => IsDirectChildFile(file.Path, currentFolderPath))
-            .Select(file => new ExplorerEntry(
-                Name: GetLastSegment(file.Path),
-                Path: file.Path,
-                IsFolder: false,
-                SizeBytes: file.Source.SizeBytes,
-                LastModifiedUtc: file.Source.LastModifiedUtc))
-            .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase);
-
-        explorerEntries.AddRange(folderEntries);
-        explorerEntries.AddRange(fileEntries);
+        await FileEventsClient.SetSubscriptionsAsync([currentFolderPath]);
     }
 
-    private static Dictionary<string, DateTimeOffset> BuildFolderMap(IEnumerable<NormalizedFile> normalizedFiles)
+    private void OnFileChanged(FileChangeEventDto change)
     {
-        var folderMap = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var file in normalizedFiles)
+        if (!IsEventRelevant(change, currentFolderPath))
         {
-            var parts = file.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length <= 1)
-            {
-                continue;
-            }
-
-            var running = string.Empty;
-            for (var i = 0; i < parts.Length - 1; i++)
-            {
-                running = string.IsNullOrWhiteSpace(running)
-                    ? parts[i]
-                    : $"{running}/{parts[i]}";
-
-                if (!folderMap.TryGetValue(running, out var existing) || file.Source.LastModifiedUtc > existing)
-                {
-                    folderMap[running] = file.Source.LastModifiedUtc;
-                }
-            }
+            return;
         }
 
-        return folderMap;
+        hasPendingEventRefresh = true;
+        _ = InvokeAsync(RefreshFromEventAsync);
     }
 
-    private static bool IsDirectChildFolder(string folderPath, string currentPath)
+    private async Task RefreshFromEventAsync()
     {
-        var prefix = string.IsNullOrWhiteSpace(currentPath) ? string.Empty : currentPath + "/";
-        if (!folderPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        if (isBusy || !hasPendingEventRefresh)
         {
-            return false;
+            return;
         }
 
-        var remainder = folderPath[prefix.Length..];
-        return remainder.Length > 0 && !remainder.Contains('/');
+        hasPendingEventRefresh = false;
+        statusMessage = "Folder updated.";
+        await LoadCurrentFolderAsync();
+        StateHasChanged();
     }
 
-    private static bool IsDirectChildFile(string filePath, string currentPath)
+    private static bool IsEventRelevant(FileChangeEventDto change, string currentPath)
     {
-        var prefix = string.IsNullOrWhiteSpace(currentPath) ? string.Empty : currentPath + "/";
-        if (!filePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
+        var normalizedCurrentPath = NormalizePath(currentPath);
+        var normalizedScopePath = NormalizePath(change.ScopePath);
 
-        var remainder = filePath[prefix.Length..];
-        return remainder.Length > 0 && !remainder.Contains('/');
+        return string.Equals(normalizedCurrentPath, normalizedScopePath, StringComparison.OrdinalIgnoreCase) ||
+            normalizedCurrentPath.StartsWith(normalizedScopePath + "/", StringComparison.OrdinalIgnoreCase) ||
+            normalizedScopePath.StartsWith(normalizedCurrentPath + "/", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string NormalizePath(string path)
+    private static string NormalizePath(string? path)
     {
-        return path.Replace('\\', '/').Trim('/');
+        return string.IsNullOrWhiteSpace(path)
+            ? string.Empty
+            : path.Replace('\\', '/').Trim('/');
     }
 
     private static string GetLastSegment(string path)
@@ -333,18 +297,17 @@ else
         }
     }
 
-    private Task NavigateToFolder(string path)
+    private async Task NavigateToFolder(string path)
     {
         currentFolderPath = NormalizePath(path);
-        RebuildExplorerEntries();
-        return Task.CompletedTask;
+        await LoadCurrentFolderAsync();
     }
 
-    private Task NavigateUp()
+    private async Task NavigateUp()
     {
         if (string.IsNullOrWhiteSpace(currentFolderPath))
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var parts = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -352,18 +315,14 @@ else
             ? string.Empty
             : string.Join('/', parts.Take(parts.Length - 1));
 
-        RebuildExplorerEntries();
-        return Task.CompletedTask;
+        await LoadCurrentFolderAsync();
     }
 
-    private sealed record ExplorerEntry(
-        string Name,
-        string Path,
-        bool IsFolder,
-        long? SizeBytes,
-        DateTimeOffset? LastModifiedUtc);
-
-    private sealed record NormalizedFile(FileEntryDto Source, string Path);
+    public async ValueTask DisposeAsync()
+    {
+        FileEventsClient.FileChanged -= OnFileChanged;
+        await FileEventsClient.DisposeAsync();
+    }
 
     private sealed record BreadcrumbItem(string Name, string Path, bool IsCurrent);
 
