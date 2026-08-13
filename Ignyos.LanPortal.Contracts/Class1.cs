@@ -1,5 +1,34 @@
 ﻿namespace Ignyos.LanPortal.Contracts;
 
+public static class PermissionKeys
+{
+    public const string Read = "file:read";
+    public const string Add = "file:add";
+    public const string Rename = "file:rename";
+    public const string Move = "file:move";
+    public const string Delete = "file:delete";
+    public const string Upload = "file:upload";
+    public const string Download = "file:download";
+    public const string Search = "file:search";
+
+    public static readonly IReadOnlyList<string> All =
+    [
+        Read,
+        Add,
+        Rename,
+        Move,
+        Delete,
+        Upload,
+        Download,
+        Search
+    ];
+}
+
+public static class PermissionClaimTypes
+{
+    public const string Permission = "perm";
+}
+
 public sealed record FileEntryDto(
     string RelativePath,
     long SizeBytes,
@@ -9,6 +38,69 @@ public sealed record UploadResultDto(
     string RelativePath,
     long SizeBytes,
     DateTimeOffset LastModifiedUtc);
+
+public sealed record FileNodeDto(
+    string Path,
+    string Name,
+    bool IsFolder,
+    long? SizeBytes,
+    DateTimeOffset? LastModifiedUtc);
+
+public sealed record FolderListRequestDto(string CurrentPath);
+
+public sealed record FolderListResponseDto(
+    string CurrentPath,
+    IReadOnlyList<FileNodeDto> Items);
+
+public sealed record TreeNodeChildrenRequestDto(string ParentPath);
+
+public sealed record TreeNodeChildrenResponseDto(
+    string ParentPath,
+    IReadOnlyList<FileNodeDto> Children);
+
+public sealed record FileSearchRequestDto(
+    string Query,
+    string? SearchRootPath,
+    int? MaxResults);
+
+public sealed record FileSearchResponseDto(
+    string Query,
+    IReadOnlyList<FileNodeDto> Items);
+
+public sealed record CreateFolderRequestDto(string CurrentPath, string Name);
+
+public sealed record RenameItemRequestDto(string Path, string NewName);
+
+public sealed record MoveItemsRequestDto(
+    IReadOnlyList<string> Paths,
+    string DestinationPath);
+
+public sealed record DeleteItemsRequestDto(IReadOnlyList<string> Paths);
+
+public sealed record ConflictResponseDto(
+    string Code,
+    string Message,
+    string? Path,
+    string? CorrelationId);
+
+public sealed record FileChangeItemDto(
+    string Path,
+    string Name,
+    bool IsFolder,
+    long? SizeBytes,
+    DateTimeOffset? LastModifiedUtc);
+
+public sealed record FileChangeEventDto(
+    string SchemaVersion,
+    string EventId,
+    string EventType,
+    DateTimeOffset OccurredAtUtc,
+    string ScopePath,
+    string? CorrelationId,
+    string? BatchId,
+    string? FromPath,
+    string? ToPath,
+    FileChangeItemDto? Item);
 
 public sealed record DeviceLoginStartRequestDto(
     string UserName,
@@ -87,6 +179,7 @@ public sealed record UpdateSessionRolesResponseDto(
 public sealed record WhoAmIResponseDto(
     string UserName,
     List<string> Roles,
+    List<string> Permissions,
     string? Jti,
     bool IsAuthenticated,
     List<WhoAmIClaimDto>? AllClaims);

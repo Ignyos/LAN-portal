@@ -25,13 +25,13 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
             return StatusCode(StatusCodes.Status503ServiceUnavailable, "Storage root path is not configured. Run local setup on Machine A.");
         }
 
-        var rootPath = EnsureStorageRoot(configuredStoragePath);
+        var rootPath = StoragePathResolver.EnsureStorageRoot(configuredStoragePath);
 
         var files = Directory.EnumerateFiles(rootPath, "*", StorageEnumerationOptions)
             .Select(path =>
             {
                 var info = new FileInfo(path);
-                var relativePath = Path.GetRelativePath(rootPath, path).Replace('\\', '/');
+                var relativePath = StoragePathResolver.ToRelativePath(rootPath, path);
                 return new FileEntryDto(relativePath, info.Length, info.LastWriteTimeUtc);
             })
             .OrderBy(entry => entry.RelativePath)
@@ -57,7 +57,7 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
             return StatusCode(StatusCodes.Status503ServiceUnavailable, "Storage root path is not configured. Run local setup on Machine A.");
         }
 
-        var rootPath = EnsureStorageRoot(configuredStoragePath);
+        var rootPath = StoragePathResolver.EnsureStorageRoot(configuredStoragePath);
         var originalFileName = Path.GetFileName(file.FileName);
 
         if (string.IsNullOrWhiteSpace(originalFileName))
@@ -65,7 +65,7 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
             return BadRequest("Invalid file name.");
         }
 
-        var targetPath = GetUniquePath(rootPath, originalFileName);
+        var targetPath = StoragePathResolver.GetUniquePath(rootPath, originalFileName);
 
         await using (var destination = System.IO.File.Create(targetPath))
         {
@@ -73,7 +73,7 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
         }
 
         var writtenFile = new FileInfo(targetPath);
-        var relativePath = Path.GetRelativePath(rootPath, targetPath).Replace('\\', '/');
+        var relativePath = StoragePathResolver.ToRelativePath(rootPath, targetPath);
         return Ok(new UploadResultDto(relativePath, writtenFile.Length, writtenFile.LastWriteTimeUtc));
     }
 
@@ -86,10 +86,10 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
             return StatusCode(StatusCodes.Status503ServiceUnavailable, "Storage root path is not configured. Run local setup on Machine A.");
         }
 
-        var rootPath = EnsureStorageRoot(configuredStoragePath);
-        var fullPath = ResolveSafePath(rootPath, relativePath);
+        var rootPath = StoragePathResolver.EnsureStorageRoot(configuredStoragePath);
+        var resolved = StoragePathResolver.TryResolvePathUnderRoot(rootPath, relativePath, out var fullPath);
 
-        if (fullPath is null)
+        if (!resolved || fullPath is null)
         {
             return BadRequest("Invalid file path.");
         }
@@ -100,51 +100,5 @@ public sealed class FilesController(IAppSettingsStore settingsStore) : Controlle
         }
 
         return PhysicalFile(fullPath, "application/octet-stream", Path.GetFileName(fullPath), enableRangeProcessing: true);
-    }
-
-    private static string EnsureStorageRoot(string? configuredRootPath)
-    {
-        var rootPath = string.IsNullOrWhiteSpace(configuredRootPath)
-            ? Path.Combine(AppContext.BaseDirectory, "storage")
-            : configuredRootPath;
-
-        rootPath = Path.GetFullPath(rootPath);
-        Directory.CreateDirectory(rootPath);
-        return rootPath;
-    }
-
-    private static string GetUniquePath(string rootPath, string fileName)
-    {
-        var baseName = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-        var candidate = Path.Combine(rootPath, fileName);
-        var counter = 1;
-
-        while (System.IO.File.Exists(candidate))
-        {
-            candidate = Path.Combine(rootPath, $"{baseName}-{counter}{extension}");
-            counter++;
-        }
-
-        return candidate;
-    }
-
-    private static string? ResolveSafePath(string rootPath, string relativePath)
-    {
-        if (string.IsNullOrWhiteSpace(relativePath))
-        {
-            return null;
-        }
-
-        var combined = Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        var fullPath = Path.GetFullPath(combined);
-        var relativeFromRoot = Path.GetRelativePath(rootPath, fullPath);
-
-        if (relativeFromRoot.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relativeFromRoot))
-        {
-            return null;
-        }
-
-        return fullPath;
     }
 }

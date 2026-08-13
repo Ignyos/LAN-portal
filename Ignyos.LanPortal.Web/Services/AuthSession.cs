@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Ignyos.LanPortal.Contracts;
 using Microsoft.JSInterop;
 
 namespace Ignyos.LanPortal.Web.Services;
@@ -7,11 +8,13 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
 {
     private const string DefaultAuthenticatedPath = "/files";
     private const string RoleClaimUri = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+    private const string PermissionClaimUri = "http://schemas.microsoft.com/ws/2008/06/identity/claims/permission";
     private const string UniqueNameClaim = "unique_name";
     private const string SubjectClaim = "sub";
     private const string JtiClaim = "jti";
 
     private readonly List<string> roles = [];
+    private readonly List<string> permissions = [];
 
     public string? AccessToken { get; private set; }
 
@@ -30,6 +33,8 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
     public string? SessionJti { get; private set; }
 
     public IReadOnlyList<string> Roles => roles;
+
+    public IReadOnlyList<string> Permissions => permissions;
 
     public bool IsLoaded { get; private set; }
 
@@ -124,6 +129,7 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         LastVisitedPath = null;
         IsLoaded = true;
         roles.Clear();
+        permissions.Clear();
         UserName = null;
         DeviceName = null;
         SessionJti = null;
@@ -180,6 +186,16 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         return roles.Any(candidate => string.Equals(candidate, role, StringComparison.OrdinalIgnoreCase));
     }
 
+    public bool HasPermission(string permission)
+    {
+        if (string.IsNullOrWhiteSpace(permission))
+        {
+            return false;
+        }
+
+        return permissions.Any(candidate => string.Equals(candidate, permission, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string NormalizePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -204,6 +220,7 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
     private void HydrateIdentityFromAccessToken(string? accessToken)
     {
         roles.Clear();
+        permissions.Clear();
         UserName = null;
         DeviceName = null;
         SessionJti = null;
@@ -216,6 +233,8 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
 
         AddRoles(payload.RootElement, "role", roles);
         AddRoles(payload.RootElement, RoleClaimUri, roles);
+        AddRoles(payload.RootElement, PermissionClaimTypes.Permission, permissions);
+        AddRoles(payload.RootElement, PermissionClaimUri, permissions);
         UserName = ExtractFirstClaimValue(payload.RootElement, UniqueNameClaim, SubjectClaim);
         DeviceName = ExtractFirstClaimValue(payload.RootElement, "device_name");
         SessionJti = ExtractFirstClaimValue(payload.RootElement, JtiClaim);
@@ -227,6 +246,14 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
 
         roles.Clear();
         roles.AddRange(dedupedRoles);
+
+        var dedupedPermissions = permissions
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        permissions.Clear();
+        permissions.AddRange(dedupedPermissions);
     }
 
     private static JsonDocument? ParseAccessTokenPayload(string? accessToken)

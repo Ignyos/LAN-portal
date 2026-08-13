@@ -17,20 +17,20 @@ public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLogi
         // With JwtSecurityTokenHandler.DefaultMapInboundClaims = false,
         // claims should be preserved in their original form ("role" not URI).
         var roles = User.FindAll("role").Select(c => c.Value).ToList();
+        var permissions = User.FindAll(PermissionClaimTypes.Permission).Select(c => c.Value).ToList();
 
         var userName = User.FindFirst(JwtRegisteredClaimNames.UniqueName)?.Value;
         var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         var jti = User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
         var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
 
-        return Ok(new
-        {
-            userName = userName ?? sub ?? "unknown",
-            roles,
-            jti,
-            isAuthenticated,
-            allClaims = User.Claims.Select(c => new { c.Type, c.Value }).ToList()
-        });
+        return Ok(new WhoAmIResponseDto(
+            UserName: userName ?? sub ?? "unknown",
+            Roles: roles,
+            Permissions: permissions,
+            Jti: jti,
+            IsAuthenticated: isAuthenticated,
+            AllClaims: User.Claims.Select(c => new WhoAmIClaimDto(c.Type, c.Value)).ToList()));
     }
 
     [HttpGet("approvals/pending")]

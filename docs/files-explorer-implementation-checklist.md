@@ -11,8 +11,8 @@ Scope guardrails:
 ## Immediate Next Steps (Execution Order)
 
 1. Stabilize contracts first (no UI churn yet):
-- [ ] Finalize permission keys, repeated permission claims, and contract DTOs.
-- [ ] Finalize event envelope and event type payload schema.
+- [x] Finalize permission keys, repeated permission claims, and contract DTOs.
+- [x] Finalize event envelope and event type payload schema.
 
 2. Ship backend safety and enforcement baseline:
 - [ ] Implement strict path normalization and shared-root boundary enforcement for all Files endpoints.
@@ -39,7 +39,7 @@ Scope guardrails:
 - [ ] Manual validation against milestone exit criteria.
 
 Suggested first PR slices:
-- PR1: Contracts + permission model + path normalization utilities.
+- PR1: Contracts + permission model + path normalization utilities. (Completed)
 - PR2: Files API baseline endpoints (list/tree/search/create/rename/delete/download) with authorization.
 - PR3: Real-time transport + event contract + minimal client reconciliation.
 - PR4: Move + upload/drag-drop + multi-select action constraints.
@@ -55,7 +55,7 @@ Suggested first PR slices:
 ## 1. Contracts And Models
 
 ### 1.1 Permission Model Contract
-- [ ] Define permission key namespace and initial keys:
+- [x] Define permission key namespace and initial keys:
   - file:read
   - file:add
   - file:rename
@@ -63,29 +63,29 @@ Suggested first PR slices:
   - file:delete
   - file:upload
   - file:download
-- [ ] Define claim format as repeated permission claims, not CSV.
+- [x] Define claim format as repeated permission claims, not CSV.
 - [ ] Keep coarse roles and fine-grained permissions as separate concepts in model types.
 - [ ] Define response shapes so UI can hide/disable actions based on grants.
 
 ### 1.2 API DTOs
-- [ ] Define/extend DTOs for:
+- [x] Define/extend DTOs for:
   - folder listing by current path
   - lazy tree-node loading
   - explicit search request/response
   - create folder, rename, move, delete, upload, download
-- [ ] Normalize all paths as shared-root-relative values.
+- [x] Normalize all paths as shared-root-relative values.
 - [ ] Include conflict/error DTO shape for optimistic concurrency reconciliation.
 
 ### 1.3 Event Contract DTOs
-- [ ] Define file event envelope fields:
+- [x] Define file event envelope fields:
   - eventId
   - eventType
   - occurredAtUtc
   - scopePath
   - correlationId (optional)
   - batchId (optional)
-- [ ] Define event payload variants for created, updated, deleted, renamed, moved, batch.
-- [ ] Define schema version field for forward compatibility.
+- [x] Define event payload variants for created, updated, deleted, renamed, moved, batch.
+- [x] Define schema version field for forward compatibility.
 
 ## 2. API Endpoints And Authorization
 

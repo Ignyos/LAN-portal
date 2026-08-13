@@ -1,13 +1,19 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Ignyos.LanPortal.Contracts;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Ignyos.LanPortal.Api.Services;
 
 public sealed class JwtTokenService(IAppSettingsStore settingsStore) : IJwtTokenService
 {
-    public (string AccessToken, DateTimeOffset ExpiresAtUtc, string Jti) CreateAccessToken(string userName, IEnumerable<string> roles, int accessTokenMinutes, string deviceName)
+    public (string AccessToken, DateTimeOffset ExpiresAtUtc, string Jti) CreateAccessToken(
+        string userName,
+        IEnumerable<string> roles,
+        int accessTokenMinutes,
+        string deviceName,
+        IEnumerable<string>? permissions = null)
     {
         var options = settingsStore.GetJwtConfig();
 
@@ -35,11 +41,27 @@ public sealed class JwtTokenService(IAppSettingsStore settingsStore) : IJwtToken
             new(JwtRegisteredClaimNames.Jti, jti)
         };
 
-        foreach (var role in roles.Distinct(StringComparer.OrdinalIgnoreCase))
+        var normalizedRoles = roles
+            .Where(static role => !string.IsNullOrWhiteSpace(role))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        foreach (var role in normalizedRoles)
         {
             // Use the short "role" claim name so the client can extract it via
             // a plain JsonDocument lookup without relying on ClaimTypes URI mapping.
             claims.Add(new Claim("role", role));
+        }
+
+        var effectivePermissions = (permissions ?? GetDefaultPermissions(normalizedRoles))
+            .Where(static permission => !string.IsNullOrWhiteSpace(permission))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        foreach (var permission in effectivePermissions)
+        {
+            // Emit permissions as repeated short-name claims (perm=...) instead of CSV.
+            claims.Add(new Claim(PermissionClaimTypes.Permission, permission));
         }
 
         var token = new JwtSecurityToken(
@@ -51,5 +73,42 @@ public sealed class JwtTokenService(IAppSettingsStore settingsStore) : IJwtToken
             signingCredentials: credentials);
 
         return (new JwtSecurityTokenHandler().WriteToken(token), expires, jti);
+    }
+
+    private static IEnumerable<string> GetDefaultPermissions(IEnumerable<string> roles)
+    {
+        // Current baseline keeps role model and permission model distinct while
+        // issuing an effective-permission snapshot in the token.
+        var hasUserLikeRole = false;
+
+        foreach (var role in roles)
+        {
+            if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                return PermissionKeys.All;
+            }
+
+            if (string.Equals(role, "User", StringComparison.OrdinalIgnoreCase))
+            {
+                hasUserLikeRole = true;
+            }
+        }
+
+        if (hasUserLikeRole)
+        {
+            return
+            [
+                PermissionKeys.Read,
+                PermissionKeys.Add,
+                PermissionKeys.Rename,
+                PermissionKeys.Move,
+                PermissionKeys.Delete,
+                PermissionKeys.Upload,
+                PermissionKeys.Download,
+                PermissionKeys.Search
+            ];
+        }
+
+        return [PermissionKeys.Read];
     }
 }
