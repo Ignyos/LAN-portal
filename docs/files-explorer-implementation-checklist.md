@@ -6,6 +6,44 @@ Scope guardrails:
 - End-user Files experience only.
 - Windows + NTFS host target for milestone 1.
 - No hard lock requirement in milestone 1; use optimistic concurrency and conflict handling.
+- Defer host-side UI refactor until milestone-1 Files functionality is implemented and validated.
+
+## Immediate Next Steps (Execution Order)
+
+1. Stabilize contracts first (no UI churn yet):
+- [ ] Finalize permission keys, repeated permission claims, and contract DTOs.
+- [ ] Finalize event envelope and event type payload schema.
+
+2. Ship backend safety and enforcement baseline:
+- [ ] Implement strict path normalization and shared-root boundary enforcement for all Files endpoints.
+- [ ] Implement server-side permission enforcement mapping for each action.
+
+3. Deliver a thin vertical slice end-to-end:
+- [ ] Folder listing by current path.
+- [ ] Tree lazy loading.
+- [ ] Explicit search request.
+- [ ] Create folder + rename + delete + single-file download.
+
+4. Add real-time baseline and optimistic reconciliation:
+- [ ] WebSocket/SignalR transport with scoped path subscriptions.
+- [ ] Created/updated/deleted events with correlationId support.
+- [ ] Client reconciliation for affected-folder refresh only.
+
+5. Add remaining milestone-1 actions:
+- [ ] Move (including multi-select support).
+- [ ] Upload + drag/drop upload.
+
+6. Close milestone quality gates:
+- [ ] Performance baseline for list/search and event latency.
+- [ ] Integration tests for action set, permissions, events, and path safety.
+- [ ] Manual validation against milestone exit criteria.
+
+Suggested first PR slices:
+- PR1: Contracts + permission model + path normalization utilities.
+- PR2: Files API baseline endpoints (list/tree/search/create/rename/delete/download) with authorization.
+- PR3: Real-time transport + event contract + minimal client reconciliation.
+- PR4: Move + upload/drag-drop + multi-select action constraints.
+- PR5: Performance instrumentation + integration tests + exit-criteria hardening.
 
 ## 0. Delivery Setup
 
