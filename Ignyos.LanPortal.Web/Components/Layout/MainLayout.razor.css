@@ -1,52 +1,72 @@
 .page {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-
-main {
-    flex: 1;
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 19rem 1fr;
+    background: radial-gradient(circle at 10% 20%, #fff7e8 0%, #f5efe3 45%, #ece2cd 100%);
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    border-right: 1px solid var(--line);
+    background: linear-gradient(165deg, #fff9ed 0%, #f9f2e2 100%);
+    box-shadow: 0 0 0 1px rgba(17, 34, 45, 0.02), 8px 0 20px rgba(17, 34, 45, 0.05);
 }
 
-@media (min-width: 641px) {
+.main-shell {
+    min-width: 0;
+}
+
+.content {
+    max-width: 70rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 2.5rem;
+}
+
+@media (max-width: 900px) {
     .page {
-        flex-direction: row;
+        grid-template-columns: 1fr;
     }
 
     .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: sticky;
-        top: 0;
+        position: relative;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+        box-shadow: none;
     }
 
-    article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
+    .content {
+        padding: 1.25rem 1rem 2rem;
     }
 }
 
 #blazor-error-ui {
     color-scheme: light only;
-    background: lightyellow;
+    background: #fff4dd;
+    color: #7f2800;
+    border-top: 1px solid #e4bd85;
     bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 -2px 8px rgba(17, 34, 45, 0.14);
     box-sizing: border-box;
     display: none;
     left: 0;
-    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    padding: 0.7rem 1.25rem;
     position: fixed;
     width: 100%;
     z-index: 1000;
 }
 
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
+#blazor-error-ui .reload {
+    color: inherit;
+    font-weight: 700;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.8rem;
+    top: 0.45rem;
+}

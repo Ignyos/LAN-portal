@@ -1,0 +1,135 @@
+@page "/account"
+@rendermode InteractiveServer
+@inject Ignyos.LanPortal.Web.Services.AuthSession AuthSession
+@inject Ignyos.LanPortal.Web.Services.AuthApiClient AuthApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Account</PageTitle>
+
+<section class="view-header">
+    <h1>Account</h1>
+    <p>View the signed-in identity for this device and manage your session.</p>
+</section>
+
+@if (!AuthSession.IsLoaded)
+{
+    <p>Loading session...</p>
+}
+else if (!AuthSession.HasActiveSession)
+{
+    <section class="panel reveal">
+        <h2>Not Signed In</h2>
+        <p>You are currently logged out.</p>
+        <div class="actions-row">
+            <a class="btn btn-primary" href="/login">Log In</a>
+        </div>
+    </section>
+}
+else
+{
+    <section class="panel reveal account-grid">
+        <div class="account-row">
+            <span class="account-label">User Name</span>
+            <span class="account-value">@DisplayOrUnknown(AuthSession.UserName)</span>
+        </div>
+        <div class="account-row">
+            <span class="account-label">Device</span>
+            <span class="account-value">@DisplayOrUnknown(AuthSession.DeviceName)</span>
+        </div>
+        <div class="account-row">
+            <span class="account-label">Roles</span>
+            <span class="account-value">@(AuthSession.Roles.Count == 0 ? "None" : string.Join(", ", AuthSession.Roles))</span>
+        </div>
+        <div class="account-row">
+            <span class="account-label">Session Expires (Local)</span>
+            <span class="account-value">@GetSessionExpiryDisplay()</span>
+        </div>
+
+        <div class="actions-row account-actions">
+            <button class="btn btn-danger" @onclick="LogoutAsync" disabled="@isBusy">Log Out</button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <p class="text-success">@statusMessage</p>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <p class="text-danger">@errorMessage</p>
+        }
+    </section>
+}
+
+@code {
+    private bool isBusy;
+    private string? statusMessage;
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (AuthSession.HasActiveSession)
+        {
+            await AuthSession.RememberPathAsync("/account");
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task LogoutAsync()
+    {
+        isBusy = true;
+        statusMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            var token = AuthSession.AccessToken;
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                await AuthApiClient.LogoutAsync(token);
+            }
+
+            await AuthSession.ClearAsync();
+            statusMessage = "Signed out.";
+            Navigation.NavigateTo("/login", forceLoad: false);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private static string DisplayOrUnknown(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "unknown" : value;
+
+    private string GetSessionExpiryDisplay()
+    {
+        if (!string.IsNullOrWhiteSpace(AuthSession.RefreshToken) && AuthSession.RefreshTokenExpiresAtUtc is null)
+        {
+            return "Never";
+        }
+
+        if (AuthSession.RefreshTokenExpiresAtUtc is DateTimeOffset sessionExpiresUtc)
+        {
+            return sessionExpiresUtc.ToLocalTime().ToString("f");
+        }
+
+        if (AuthSession.AccessTokenExpiresAtUtc is DateTimeOffset accessExpiresUtc)
+        {
+            return accessExpiresUtc.ToLocalTime().ToString("f");
+        }
+
+        return "n/a";
+    }
+}

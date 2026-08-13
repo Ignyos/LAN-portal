@@ -2,53 +2,62 @@
 @inject Ignyos.LanPortal.Web.Services.AuthSession AuthSession
 @implements IDisposable
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">@networkName</a>
+<div class="nav-root">
+    <div class="brand-shell">
+        <div class="brand-title-wrap">
+            <a class="brand-title" href="">@networkName</a>
+            <p class="brand-subtitle">LAN Portal</p>
+        </div>
     </div>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+    <input type="checkbox" title="Navigation menu" class="nav-toggle" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="login">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Login
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="files">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Files
-            </NavLink>
-        </div>
-
-        @if (showAdminLink)
-        {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin">
-                    <span class="bi bi-shield-lock" aria-hidden="true"></span> Admin
+    <div class="nav-shell" onclick="document.querySelector('.nav-toggle')?.click()">
+        <nav class="nav-stack">
+            <div class="nav-item">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    Home
                 </NavLink>
             </div>
-        }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="logout">
-                <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
-            </NavLink>
-        </div>
-    </nav>
+            @if (hasActiveSession)
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="files">
+                        Files
+                    </NavLink>
+                </div>
+
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="account">
+                        Account
+                    </NavLink>
+                </div>
+            }
+            else
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="login">
+                        Login
+                    </NavLink>
+                </div>
+            }
+
+            @if (showAdminLink)
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="admin">
+                        Admin
+                    </NavLink>
+                </div>
+            }
+        </nav>
+    </div>
 </div>
 
 @code {
     private string networkName = "My Home";
+    private bool hasActiveSession;
     private bool showAdminLink;
 
     protected override async Task OnInitializedAsync()
@@ -56,19 +65,25 @@
         networkName = await PortalConfigClient.GetNetworkNameAsync();
         AuthSession.SessionStateChanged += OnSessionStateChanged;
         await AuthSession.InitializeAsync();
-        showAdminLink = AuthSession.HasActiveSession;
+        SyncSessionState();
     }
 
     protected override async Task OnParametersSetAsync()
     {
         await AuthSession.InitializeAsync();
-        showAdminLink = AuthSession.HasActiveSession;
+        SyncSessionState();
     }
 
     private void OnSessionStateChanged()
     {
-        showAdminLink = AuthSession.HasActiveSession;
+        SyncSessionState();
         InvokeAsync(StateHasChanged);
+    }
+
+    private void SyncSessionState()
+    {
+        hasActiveSession = AuthSession.HasActiveSession;
+        showAdminLink = hasActiveSession && AuthSession.HasRole("Admin");
     }
 
     public void Dispose()

@@ -7,6 +7,9 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
 {
     private const string DefaultAuthenticatedPath = "/files";
     private const string RoleClaimUri = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+    private const string UniqueNameClaim = "unique_name";
+    private const string SubjectClaim = "sub";
+    private const string JtiClaim = "jti";
 
     private readonly List<string> roles = [];
 
@@ -19,6 +22,12 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
     public DateTimeOffset? RefreshTokenExpiresAtUtc { get; private set; }
 
     public string? LastVisitedPath { get; private set; }
+
+    public string? UserName { get; private set; }
+
+    public string? DeviceName { get; private set; }
+
+    public string? SessionJti { get; private set; }
 
     public IReadOnlyList<string> Roles => roles;
 
@@ -38,8 +47,7 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
     public bool CanRefresh =>
         IsLoaded &&
         !string.IsNullOrWhiteSpace(RefreshToken) &&
-        RefreshTokenExpiresAtUtc is not null &&
-        RefreshTokenExpiresAtUtc > DateTimeOffset.UtcNow;
+        (RefreshTokenExpiresAtUtc is null || RefreshTokenExpiresAtUtc > DateTimeOffset.UtcNow);
 
     public async Task InitializeAsync()
     {
@@ -60,8 +68,7 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
                 AccessTokenExpiresAtUtc = snapshot?.AccessTokenExpiresAtUtc;
                 RefreshToken = snapshot?.RefreshToken;
                 RefreshTokenExpiresAtUtc = snapshot?.RefreshTokenExpiresAtUtc;
-                roles.Clear();
-                roles.AddRange(ExtractRoles(snapshot?.AccessToken));
+                HydrateIdentityFromAccessToken(snapshot?.AccessToken);
             }
         }
         catch (JSException)
@@ -81,15 +88,14 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         string accessToken,
         DateTimeOffset accessTokenExpiresAtUtc,
         string refreshToken,
-        DateTimeOffset refreshTokenExpiresAtUtc)
+        DateTimeOffset? refreshTokenExpiresAtUtc)
     {
         AccessToken = accessToken;
         AccessTokenExpiresAtUtc = accessTokenExpiresAtUtc;
         RefreshToken = refreshToken;
         RefreshTokenExpiresAtUtc = refreshTokenExpiresAtUtc;
         IsLoaded = true;
-        roles.Clear();
-        roles.AddRange(ExtractRoles(accessToken));
+        HydrateIdentityFromAccessToken(accessToken);
 
         var snapshot = new AuthSnapshot(accessToken, accessTokenExpiresAtUtc, refreshToken, refreshTokenExpiresAtUtc);
         await jsRuntime.InvokeVoidAsync("lanPortalAuth.set", JsonSerializer.Serialize(snapshot));
@@ -101,12 +107,12 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         var refreshToken = RefreshToken;
         var refreshExpiresAtUtc = RefreshTokenExpiresAtUtc;
 
-        if (string.IsNullOrWhiteSpace(refreshToken) || refreshExpiresAtUtc is null)
+        if (string.IsNullOrWhiteSpace(refreshToken))
         {
             throw new InvalidOperationException("Cannot update access token without an active refresh token.");
         }
 
-        return SetTokensAsync(accessToken, expiresAtUtc, refreshToken, refreshExpiresAtUtc.Value);
+        return SetTokensAsync(accessToken, expiresAtUtc, refreshToken, refreshExpiresAtUtc);
     }
 
     public async Task ClearAsync()
@@ -118,6 +124,9 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         LastVisitedPath = null;
         IsLoaded = true;
         roles.Clear();
+        UserName = null;
+        DeviceName = null;
+        SessionJti = null;
 
         try
         {
@@ -192,36 +201,55 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         return trimmed;
     }
 
-    private static IEnumerable<string> ExtractRoles(string? accessToken)
+    private void HydrateIdentityFromAccessToken(string? accessToken)
+    {
+        roles.Clear();
+        UserName = null;
+        DeviceName = null;
+        SessionJti = null;
+
+        using var payload = ParseAccessTokenPayload(accessToken);
+        if (payload is null)
+        {
+            return;
+        }
+
+        AddRoles(payload.RootElement, "role", roles);
+        AddRoles(payload.RootElement, RoleClaimUri, roles);
+        UserName = ExtractFirstClaimValue(payload.RootElement, UniqueNameClaim, SubjectClaim);
+        DeviceName = ExtractFirstClaimValue(payload.RootElement, "device_name");
+        SessionJti = ExtractFirstClaimValue(payload.RootElement, JtiClaim);
+
+        var dedupedRoles = roles
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        roles.Clear();
+        roles.AddRange(dedupedRoles);
+    }
+
+    private static JsonDocument? ParseAccessTokenPayload(string? accessToken)
     {
         if (string.IsNullOrWhiteSpace(accessToken))
         {
-            return [];
+            return null;
         }
 
         var segments = accessToken.Split('.');
         if (segments.Length < 2)
         {
-            return [];
+            return null;
         }
 
         try
         {
             var payloadBytes = DecodeBase64Url(segments[1]);
-            using var payload = JsonDocument.Parse(payloadBytes);
-
-            var results = new List<string>();
-            AddRoles(payload.RootElement, "role", results);
-            AddRoles(payload.RootElement, RoleClaimUri, results);
-
-            return results
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            return JsonDocument.Parse(payloadBytes);
         }
         catch
         {
-            return [];
+            return null;
         }
     }
 
@@ -252,6 +280,28 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         }
     }
 
+    private static string? ExtractFirstClaimValue(JsonElement root, params string[] claimNames)
+    {
+        foreach (var claimName in claimNames)
+        {
+            if (!root.TryGetProperty(claimName, out var claimElement))
+            {
+                continue;
+            }
+
+            if (claimElement.ValueKind == JsonValueKind.String)
+            {
+                var value = claimElement.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static byte[] DecodeBase64Url(string input)
     {
         var base64 = input
@@ -271,5 +321,5 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
         string AccessToken,
         DateTimeOffset AccessTokenExpiresAtUtc,
         string RefreshToken,
-        DateTimeOffset RefreshTokenExpiresAtUtc);
+        DateTimeOffset? RefreshTokenExpiresAtUtc);
 }

@@ -8,10 +8,10 @@ namespace Ignyos.LanPortal.Api.Controllers;
 
 [ApiController]
 [Route("api/admin")]
+[Authorize(Roles = "Admin")]
 public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLoginStore loginStore) : ControllerBase
 {
     [HttpGet("whoami")]
-    [AllowAnonymous]
     public IActionResult WhoAmI()
     {
         // With JwtSecurityTokenHandler.DefaultMapInboundClaims = false,
@@ -33,7 +33,6 @@ public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLogi
         });
     }
 
-    [Authorize(Roles = "Admin")]
     [HttpGet("approvals/pending")]
     public ActionResult<IReadOnlyList<PendingLoginRequestDto>> PendingApprovals()
     {
@@ -54,7 +53,7 @@ public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLogi
         }
 
         const int maxTokenMinutes = 87600 * 60;
-        if (request.TokenMinutes is < 5 or > maxTokenMinutes)
+        if (request.TokenMinutes is not null && (request.TokenMinutes is < 5 or > maxTokenMinutes))
         {
             return BadRequest($"TokenMinutes must be between 5 and {maxTokenMinutes}.");
         }

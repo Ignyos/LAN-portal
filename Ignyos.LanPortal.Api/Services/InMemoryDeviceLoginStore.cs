@@ -121,7 +121,7 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
         }
     }
 
-    public bool Approve(Guid requestId, string userName, string roles, int tokenMinutes)
+    public bool Approve(Guid requestId, string userName, string roles, int? tokenMinutes)
     {
         PruneExpired();
 
@@ -193,7 +193,7 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
         string accessToken,
         DateTimeOffset accessTokenExpiresAtUtc,
         string refreshToken,
-        DateTimeOffset refreshTokenExpiresAtUtc)
+        DateTimeOffset? refreshTokenExpiresAtUtc)
     {
         if (!_requests.TryGetValue(requestId, out var request))
         {
@@ -297,7 +297,7 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
 
         public string[] ApprovedRoles { get; set; } = [];
 
-        public int ApprovedTokenMinutes { get; set; }
+        public int? ApprovedTokenMinutes { get; set; }
 
         public string? DenyReason { get; set; }
 

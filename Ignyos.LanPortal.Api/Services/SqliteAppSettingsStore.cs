@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS AccessSessions (
     DeviceName TEXT NOT NULL,
     Roles TEXT NOT NULL,
     IssuedAtUtc TEXT NOT NULL,
-    ExpiresAtUtc TEXT NOT NULL,
+    ExpiresAtUtc TEXT NULL,
     RevokedAtUtc TEXT NULL,
     RevokedReason TEXT NULL,
     LastSeenAtUtc TEXT NOT NULL
@@ -75,12 +75,14 @@ CREATE INDEX IF NOT EXISTS IX_AccessSessions_DeviceName ON AccessSessions(Device
 CREATE TABLE IF NOT EXISTS SessionRefreshTokens (
     SessionId TEXT NOT NULL PRIMARY KEY,
     RefreshTokenHash TEXT NOT NULL UNIQUE,
-    ExpiresAtUtc TEXT NOT NULL
+    ExpiresAtUtc TEXT NULL
 );
 CREATE INDEX IF NOT EXISTS IX_SessionRefreshTokens_RefreshTokenHash ON SessionRefreshTokens(RefreshTokenHash);
 """;
                 command.ExecuteNonQuery();
             }
+
+            EnsureNullableSessionExpirySchema(connection);
 
             using (var command = connection.CreateCommand())
             {
@@ -190,14 +192,14 @@ ON CONFLICT(SessionId) DO UPDATE SET
         command.Parameters.AddWithValue("$deviceName", record.DeviceName);
         command.Parameters.AddWithValue("$roles", record.Roles);
         command.Parameters.AddWithValue("$issuedAtUtc", record.IssuedAtUtc.ToString("O"));
-        command.Parameters.AddWithValue("$expiresAtUtc", record.ExpiresAtUtc.ToString("O"));
+        command.Parameters.AddWithValue("$expiresAtUtc", record.ExpiresAtUtc?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$revokedAtUtc", record.RevokedAtUtc?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$revokedReason", record.RevokedReason ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$lastSeenAtUtc", record.LastSeenAtUtc.ToString("O"));
         command.ExecuteNonQuery();
     }
 
-    public void UpsertRefreshToken(Guid sessionId, string refreshTokenHash, DateTimeOffset refreshTokenExpiresAtUtc)
+    public void UpsertRefreshToken(Guid sessionId, string refreshTokenHash, DateTimeOffset? refreshTokenExpiresAtUtc)
     {
         Initialize();
 
@@ -218,7 +220,7 @@ ON CONFLICT(SessionId) DO UPDATE SET
 """;
         command.Parameters.AddWithValue("$sessionId", sessionId.ToString("D"));
         command.Parameters.AddWithValue("$refreshTokenHash", refreshTokenHash);
-        command.Parameters.AddWithValue("$expiresAtUtc", refreshTokenExpiresAtUtc.ToString("O"));
+        command.Parameters.AddWithValue("$expiresAtUtc", refreshTokenExpiresAtUtc?.ToString("O") ?? (object)DBNull.Value);
         command.ExecuteNonQuery();
     }
 
@@ -238,9 +240,9 @@ SELECT s.SessionId, s.Jti, s.UserName, s.DeviceName, s.Roles, s.IssuedAtUtc, s.E
 FROM AccessSessions s
 INNER JOIN SessionRefreshTokens r ON r.SessionId = s.SessionId
 WHERE r.RefreshTokenHash = $refreshTokenHash
-  AND r.ExpiresAtUtc > $now
+    AND (r.ExpiresAtUtc IS NULL OR r.ExpiresAtUtc > $now)
   AND s.RevokedAtUtc IS NULL
-  AND s.ExpiresAtUtc > $now
+    AND (s.ExpiresAtUtc IS NULL OR s.ExpiresAtUtc > $now)
 LIMIT 1;
 """;
         command.Parameters.AddWithValue("$refreshTokenHash", refreshTokenHash);
@@ -273,13 +275,13 @@ SET Jti = $newJti,
     LastSeenAtUtc = $lastSeenAtUtc
 WHERE SessionId = $sessionId
   AND RevokedAtUtc IS NULL
-  AND ExpiresAtUtc > $now
+    AND (ExpiresAtUtc IS NULL OR ExpiresAtUtc > $now)
   AND EXISTS (
       SELECT 1
       FROM SessionRefreshTokens r
       WHERE r.SessionId = AccessSessions.SessionId
         AND r.RefreshTokenHash = $refreshTokenHash
-        AND r.ExpiresAtUtc > $now
+                AND (r.ExpiresAtUtc IS NULL OR r.ExpiresAtUtc > $now)
   );
 """;
         command.Parameters.AddWithValue("$newJti", newJti);
@@ -316,7 +318,7 @@ SELECT UserName, DeviceName, Roles
 FROM AccessSessions
 WHERE SessionId = $sessionId
   AND RevokedAtUtc IS NULL
-  AND ExpiresAtUtc > $now
+    AND (ExpiresAtUtc IS NULL OR ExpiresAtUtc > $now)
 LIMIT 1;
 """;
             readCommand.Parameters.AddWithValue("$sessionId", sessionId.ToString("D"));
@@ -354,7 +356,7 @@ SET Roles = $roles,
     LastSeenAtUtc = $lastSeenAtUtc
 WHERE SessionId = $sessionId
   AND RevokedAtUtc IS NULL
-  AND ExpiresAtUtc > $now;
+    AND (ExpiresAtUtc IS NULL OR ExpiresAtUtc > $now);
 """;
             updateCommand.Parameters.AddWithValue("$roles", normalizedNew);
             updateCommand.Parameters.AddWithValue("$jti", newJti);
@@ -472,10 +474,10 @@ WHERE Jti = $jti;
             return false;
         }
 
-        var expiresAtUtc = DateTimeOffset.Parse(reader.GetString(5));
+        var expiresAtUtc = reader.IsDBNull(5) ? (DateTimeOffset?)null : DateTimeOffset.Parse(reader.GetString(5));
         var revokedAtUtc = reader.IsDBNull(6) ? (DateTimeOffset?)null : DateTimeOffset.Parse(reader.GetString(6));
 
-        if (revokedAtUtc is not null || expiresAtUtc <= DateTimeOffset.UtcNow)
+        if (revokedAtUtc is not null || (expiresAtUtc is not null && expiresAtUtc <= DateTimeOffset.UtcNow))
         {
             return false;
         }
@@ -506,7 +508,7 @@ WHERE Jti = $jti;
 SELECT SessionId, Jti, UserName, DeviceName, Roles, IssuedAtUtc, ExpiresAtUtc, RevokedAtUtc, RevokedReason, LastSeenAtUtc
 FROM AccessSessions
 WHERE RevokedAtUtc IS NULL
-  AND ExpiresAtUtc > $now
+    AND (ExpiresAtUtc IS NULL OR ExpiresAtUtc > $now)
 ORDER BY IssuedAtUtc DESC
 LIMIT $maxCount;
 """;
@@ -603,7 +605,7 @@ WHERE SessionId = $sessionId
         using var connection = CreateOpenConnection();
         using var command = connection.CreateCommand();
 
-        var where = new List<string> { "RevokedAtUtc IS NULL", "ExpiresAtUtc > $now" };
+        var where = new List<string> { "RevokedAtUtc IS NULL", "(ExpiresAtUtc IS NULL OR ExpiresAtUtc > $now)" };
         command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
         command.Parameters.AddWithValue("$revokedAtUtc", DateTimeOffset.UtcNow.ToString("O"));
         command.Parameters.AddWithValue("$reason", reason);
@@ -628,6 +630,75 @@ WHERE {string.Join(" AND ", where)};
 """;
 
         return command.ExecuteNonQuery();
+    }
+
+    private static void EnsureNullableSessionExpirySchema(SqliteConnection connection)
+    {
+        if (ColumnIsRequired(connection, "AccessSessions", "ExpiresAtUtc"))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+CREATE TABLE AccessSessions_v2 (
+    SessionId TEXT NOT NULL PRIMARY KEY,
+    Jti TEXT NOT NULL UNIQUE,
+    UserName TEXT NOT NULL,
+    DeviceName TEXT NOT NULL,
+    Roles TEXT NOT NULL,
+    IssuedAtUtc TEXT NOT NULL,
+    ExpiresAtUtc TEXT NULL,
+    RevokedAtUtc TEXT NULL,
+    RevokedReason TEXT NULL,
+    LastSeenAtUtc TEXT NOT NULL
+);
+INSERT INTO AccessSessions_v2 (SessionId, Jti, UserName, DeviceName, Roles, IssuedAtUtc, ExpiresAtUtc, RevokedAtUtc, RevokedReason, LastSeenAtUtc)
+SELECT SessionId, Jti, UserName, DeviceName, Roles, IssuedAtUtc, ExpiresAtUtc, RevokedAtUtc, RevokedReason, LastSeenAtUtc
+FROM AccessSessions;
+DROP TABLE AccessSessions;
+ALTER TABLE AccessSessions_v2 RENAME TO AccessSessions;
+CREATE INDEX IF NOT EXISTS IX_AccessSessions_UserName ON AccessSessions(UserName);
+CREATE INDEX IF NOT EXISTS IX_AccessSessions_DeviceName ON AccessSessions(DeviceName);
+""";
+            command.ExecuteNonQuery();
+        }
+
+        if (ColumnIsRequired(connection, "SessionRefreshTokens", "ExpiresAtUtc"))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+CREATE TABLE SessionRefreshTokens_v2 (
+    SessionId TEXT NOT NULL PRIMARY KEY,
+    RefreshTokenHash TEXT NOT NULL UNIQUE,
+    ExpiresAtUtc TEXT NULL
+);
+INSERT INTO SessionRefreshTokens_v2 (SessionId, RefreshTokenHash, ExpiresAtUtc)
+SELECT SessionId, RefreshTokenHash, ExpiresAtUtc
+FROM SessionRefreshTokens;
+DROP TABLE SessionRefreshTokens;
+ALTER TABLE SessionRefreshTokens_v2 RENAME TO SessionRefreshTokens;
+CREATE INDEX IF NOT EXISTS IX_SessionRefreshTokens_RefreshTokenHash ON SessionRefreshTokens(RefreshTokenHash);
+""";
+            command.ExecuteNonQuery();
+        }
+    }
+
+    private static bool ColumnIsRequired(SqliteConnection connection, string tableName, string columnName)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({tableName});";
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var name = reader.GetString(1);
+            if (!string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return reader.GetInt32(3) == 1;
+        }
+
+        return false;
     }
 
     private string GetRequiredValue(string key)
@@ -787,7 +858,7 @@ VALUES ($key, $value, $isSensitive, $updatedAtUtc);
             reader.GetString(3),
             reader.GetString(4),
             DateTimeOffset.Parse(reader.GetString(5)),
-            DateTimeOffset.Parse(reader.GetString(6)),
+            reader.IsDBNull(6) ? (DateTimeOffset?)null : DateTimeOffset.Parse(reader.GetString(6)),
             reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7)),
             reader.IsDBNull(8) ? null : reader.GetString(8),
             DateTimeOffset.Parse(reader.GetString(9)));

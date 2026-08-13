@@ -83,7 +83,7 @@ public sealed class LocalApprovalController(IDeviceLoginStore loginStore) : Cont
         }
 
         const int maxTokenMinutes = 87600 * 60;
-        if (request.TokenMinutes is < 5 or > maxTokenMinutes)
+        if (request.TokenMinutes is not null && (request.TokenMinutes is < 5 or > maxTokenMinutes))
         {
             return BadRequest($"TokenMinutes must be between 5 and {maxTokenMinutes}.");
         }

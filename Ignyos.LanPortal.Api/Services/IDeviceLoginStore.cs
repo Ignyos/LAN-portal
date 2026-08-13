@@ -14,7 +14,7 @@ public interface IDeviceLoginStore
 
     DeviceLoginPollSnapshot Poll(Guid requestId, string userCode);
 
-    bool Approve(Guid requestId, string userName, string roles, int tokenMinutes);
+    bool Approve(Guid requestId, string userName, string roles, int? tokenMinutes);
 
     bool Deny(Guid requestId, string? reason);
 
@@ -23,7 +23,7 @@ public interface IDeviceLoginStore
         string accessToken,
         DateTimeOffset accessTokenExpiresAtUtc,
         string refreshToken,
-        DateTimeOffset refreshTokenExpiresAtUtc);
+        DateTimeOffset? refreshTokenExpiresAtUtc);
 
     IReadOnlyList<LoginDecisionDto> GetRecentDecisions(int maxCount = 25);
 

@@ -9,9 +9,10 @@
 
 <PageTitle>Admin</PageTitle>
 
-<h1>Admin</h1>
-
-<p>Manage pending login requests and active access sessions for users on this network.</p>
+<section class="view-header">
+    <h1>Admin</h1>
+    <p>Manage pending login requests and active user sessions for this network.</p>
+</section>
 
 @if (!AuthSession.IsLoaded)
 {
@@ -19,66 +20,37 @@
 }
 else if (!AuthSession.HasActiveSession)
 {
-    <p class="text-warning">Not authenticated. Please <a href="/login">log in</a>.</p>
-}
-else if (!string.IsNullOrWhiteSpace(diagnosticInfo))
-{
-    <div class="alert alert-info">
-        <strong>Diagnostic Info:</strong>
-        <div style="font-family: monospace; font-size: 0.9em; margin-top: 0.5rem;">
-            User: @diagnosticUserName<br/>
-            Roles: @string.Join(", ", diagnosticRoles)<br/>
-            JTI: @diagnosticJti<br/>
-            Authenticated: @diagnosticIsAuthenticated<br/>
-            @if (diagnosticAllClaims.Any())
-            {
-                <div style="margin-top: 0.5rem;">
-                    <strong>All Claims:</strong><br/>
-                    @foreach (var claim in diagnosticAllClaims)
-                    {
-                        <div>@claim.Type: @claim.Value</div>
-                    }
-                </div>
-            }
-        </div>
+    <div class="notice notice-warning">
+        Not authenticated. Please <a href="/login">log in</a>.
     </div>
 }
-else if (!string.IsNullOrWhiteSpace(errorMessage))
+else if (!AuthSession.HasRole("Admin"))
 {
-    <div class="alert alert-danger alert-dismissible">
-        @errorMessage
-        <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
-    </div>
+    <div class="notice notice-danger">You do not have permission to view this page.</div>
 }
 else
 {
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
-        <div class="alert alert-success alert-dismissible">
-            @statusMessage
-            <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
-        </div>
+        <div class="notice notice-success">@statusMessage</div>
     }
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger alert-dismissible">
-            @errorMessage
-            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
-        </div>
+        <div class="notice notice-danger">@errorMessage</div>
     }
 
-    <div class="card mb-3">
-        <div class="card-body">
-            <h2 class="h5 mb-3">Pending Login Requests</h2>
+    <section class="panel reveal" style="margin-top: 0.8rem;">
+        <h2>Pending Login Requests</h2>
 
-            @if (pendingRequests.Count == 0)
-            {
-                <p class="text-muted mb-0"><em>No pending requests.</em></p>
-            }
-            else
-            {
-                <table class="table table-sm mb-0">
+        @if (pendingRequests.Count == 0)
+        {
+            <p class="text-muted"><em>No pending requests.</em></p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
                     <thead>
                         <tr>
                             <th>Requested User</th>
@@ -98,35 +70,32 @@ else
                             <tr>
                                 <td>@req.RequestedUserName</td>
                                 <td>@req.DeviceName</td>
-                                <td class="text-muted small">@req.SourceIp</td>
+                                <td class="text-mono">@req.SourceIp</td>
                                 <td>@req.CreatedAtUtc.ToString("u")</td>
                                 <td>
-                                    <input class="form-control form-control-sm"
+                                    <input class="input"
                                            value="@draft.UserName"
                                            @oninput="(e) => draft.UserName = e.Value?.ToString() ?? string.Empty" />
                                 </td>
                                 <td>
-                                    <select class="form-select form-select-sm" multiple size="2"
-                                            @onchange="(args) => OnApprovalRoleChanged(req.RequestId, args)">
+                                    <select multiple size="2" @onchange="(args) => OnApprovalRoleChanged(req.RequestId, args)">
                                         <option value="User" selected='@draft.Roles.Contains("User")'>User</option>
                                         <option value="Admin" selected='@draft.Roles.Contains("Admin")'>Admin</option>
                                     </select>
-                                    <div class="text-muted" style="font-size:0.75rem;">Hold Ctrl/Cmd for multiple</div>
+                                    <div class="text-muted">Hold Ctrl/Cmd for multiple</div>
                                 </td>
                                 <td>
-                                    <select class="form-select form-select-sm"
-                                            value="@draft.ExpiryOption"
-                                            @onchange="(args) => OnExpiryChanged(req.RequestId, args)">
+                                    <select value="@draft.ExpiryOption" @onchange="(args) => OnExpiryChanged(req.RequestId, args)">
                                         <option value="60">1 hour</option>
                                         <option value="1440">1 day</option>
                                         <option value="10080">1 week</option>
-                                        <option value="87600">Never</option>
+                                        <option value="never">Never</option>
                                         <option value="custom">Custom</option>
                                     </select>
                                     @if (draft.ExpiryOption == "custom")
                                     {
-                                        <div class="mt-1">
-                                            <input class="form-control form-control-sm" type="number" min="1" max="87600"
+                                        <div class="field">
+                                            <input class="input" type="number" min="1" max="87600"
                                                    value="@draft.CustomHours"
                                                    @oninput="(e) => { if (int.TryParse(e.Value?.ToString(), out var h)) draft.CustomHours = h; }"
                                                    placeholder="hours" />
@@ -134,46 +103,49 @@ else
                                     }
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-primary me-1"
-                                            @onclick="() => ApproveAsync(req)"
-                                            disabled="@isBusy">Approve</button>
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            @onclick="() => DenyAsync(req)"
-                                            disabled="@isBusy">Deny</button>
+                                    <div class="actions-row" style="margin-top: 0;">
+                                        <button class="btn btn-primary"
+                                                @onclick="() => ApproveAsync(req)"
+                                                disabled="@isBusy">Approve</button>
+                                        <button class="btn btn-outline"
+                                                @onclick="() => DenyAsync(req)"
+                                                disabled="@isBusy">Deny</button>
+                                    </div>
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
-            }
-        </div>
-    </div>
-
-    <div class="card mb-3">
-        <div class="card-body">
-            <h2 class="h5">Logged In Users</h2>
-            <p class="text-muted">Revoke all sessions matching a user or device, or manage individual sessions below.</p>
-            <div class="row g-2 mb-2">
-                <div class="col-md-5">
-                    <label class="form-label" for="revokeUserName">User Name</label>
-                    <input id="revokeUserName" class="form-control" @bind="revokeUserName" />
-                </div>
-                <div class="col-md-5">
-                    <label class="form-label" for="revokeDeviceName">Device Name</label>
-                    <input id="revokeDeviceName" class="form-control" @bind="revokeDeviceName" />
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button class="btn btn-outline-danger w-100" @onclick="RevokeByFilterAsync" disabled="@isBusy">Revoke</button>
-                </div>
             </div>
+        }
+    </section>
 
-            @if (sessions.Count == 0)
-            {
-                <p class="text-muted mb-0"><em>No active sessions.</em></p>
-            }
-            else
-            {
-                <table class="table table-sm mb-0">
+    <section class="panel reveal" style="margin-top: 0.8rem;">
+        <h2>Manage Active Sessions</h2>
+        <p class="text-muted">Revoke all sessions matching a user or device, or update individual session roles.</p>
+
+        <div class="split" style="margin-top: 0.5rem;">
+            <div class="span-4">
+                <label for="revokeUserName">User Name</label>
+                <input id="revokeUserName" class="input" @bind="revokeUserName" />
+            </div>
+            <div class="span-4">
+                <label for="revokeDeviceName">Device Name</label>
+                <input id="revokeDeviceName" class="input" @bind="revokeDeviceName" />
+            </div>
+            <div class="span-4" style="display: flex; align-items: end;">
+                <button class="btn btn-danger-outline" style="width: 100%;" @onclick="RevokeByFilterAsync" disabled="@isBusy">Revoke By Filter</button>
+            </div>
+        </div>
+
+        @if (sessions.Count == 0)
+        {
+            <p class="text-muted"><em>No active sessions.</em></p>
+        }
+        else
+        {
+            <div class="table-wrap" style="margin-top: 0.8rem;">
+                <table>
                     <thead>
                         <tr>
                             <th>User</th>
@@ -193,48 +165,45 @@ else
                                     @session.UserName
                                     @if (session.IsCurrentSession)
                                     {
-                                        <span class="badge text-bg-secondary ms-2">You</span>
+                                        <span class="badge">You</span>
                                     }
                                 </td>
                                 <td>@session.DeviceName</td>
                                 <td>
-                                    <select class="form-select form-select-sm" multiple size="2"
-                                            @onchange="(args) => OnSessionRoleChanged(session.SessionId, args)">
+                                    <select multiple size="2" @onchange="(args) => OnSessionRoleChanged(session.SessionId, args)">
                                         <option value="User" selected='@IsSessionRoleSelected(session.SessionId, "User")'>User</option>
                                         <option value="Admin" selected='@IsSessionRoleSelected(session.SessionId, "Admin")'>Admin</option>
                                     </select>
-                                    <div class="text-muted" style="font-size:0.75rem;">Hold Ctrl/Cmd for multiple</div>
                                 </td>
                                 <td>@session.IssuedAtUtc.ToString("u")</td>
-                                <td>@session.ExpiresAtUtc.ToString("u")</td>
+                                <td>@GetSessionExpiryDisplay(session.ExpiresAtUtc)</td>
                                 <td>@session.LastSeenAtUtc.ToString("u")</td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1"
-                                            @onclick="() => UpdateRolesAsync(session)"
-                                            disabled="@isBusy">Save Roles</button>
-                                    <button class="btn btn-sm btn-danger"
-                                            @onclick="() => RevokeSessionAsync(session)"
-                                            disabled="@isBusy">Revoke</button>
+                                    <div class="actions-row" style="margin-top: 0;">
+                                        <button class="btn btn-outline"
+                                                @onclick="() => UpdateRolesAsync(session)"
+                                                disabled="@isBusy">Save Roles</button>
+                                        <button class="btn btn-danger"
+                                                @onclick="() => RevokeSessionAsync(session)"
+                                                disabled="@isBusy">Revoke</button>
+                                    </div>
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
-            }
-        </div>
-    </div>
+            </div>
+        }
+    </section>
 }
 
 @code {
-    // ── Pending approvals ──────────────────────────────────────────────────────
     private readonly List<PendingLoginRequestDto> pendingRequests = [];
     private readonly Dictionary<Guid, ApprovalDraft> approvalDrafts = [];
 
-    // ── Active sessions ────────────────────────────────────────────────────────
     private readonly List<AccessSessionDto> sessions = [];
     private readonly Dictionary<Guid, HashSet<string>> sessionRoleSelections = [];
 
-    // ── Shared ─────────────────────────────────────────────────────────────────
     private bool isBusy;
     private bool initialized;
     private string revokeUserName = string.Empty;
@@ -243,16 +212,6 @@ else
     private string? errorMessage;
     private Timer? pendingTimer;
     private Timer? sessionsTimer;
-    
-    // ── Diagnostic ─────────────────────────────────────────────────────────────
-    private string? diagnosticInfo;
-    private string diagnosticUserName = "unknown";
-    private List<string> diagnosticRoles = [];
-    private string? diagnosticJti;
-    private bool diagnosticIsAuthenticated;
-    private List<(string Type, string Value)> diagnosticAllClaims = [];
-
-    // ── Lifecycle ──────────────────────────────────────────────────────────────
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -266,27 +225,14 @@ else
 
         if (!AuthSession.HasActiveSession)
         {
+            var returnUrl = Uri.EscapeDataString("/admin");
+            Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
             return;
         }
 
-        // Try to get diagnostic info
-        try
+        if (!AuthSession.HasRole("Admin"))
         {
-            var whoAmI = await AdminApiClient.GetWhoAmIAsync();
-            diagnosticUserName = whoAmI.UserName;
-            diagnosticRoles = whoAmI.Roles;
-            diagnosticJti = whoAmI.Jti;
-            diagnosticIsAuthenticated = whoAmI.IsAuthenticated;
-            diagnosticAllClaims = whoAmI.AllClaims?.Select(c => (c.Type, c.Value)).ToList() ?? [];
-            
-            if (!whoAmI.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase))
-            {
-                diagnosticInfo = "Diagnostic info loaded - role check failed";
-            }
-        }
-        catch
-        {
-            // Ignore diagnostic errors
+            return;
         }
 
         initialized = true;
@@ -296,17 +242,25 @@ else
 
         pendingTimer = new Timer(async _ =>
         {
-            if (!initialized) return;
+            if (!initialized)
+            {
+                return;
+            }
+
             await PollPendingAsync();
             await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
 
         sessionsTimer = new Timer(async _ =>
         {
-            if (!initialized) return;
+            if (!initialized)
+            {
+                return;
+            }
+
             await PollSessionsAsync();
             await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
     }
 
     public void Dispose()
@@ -315,8 +269,6 @@ else
         pendingTimer?.Dispose();
         sessionsTimer?.Dispose();
     }
-
-    // ── Pending polling ────────────────────────────────────────────────────────
 
     private async Task PollPendingAsync()
     {
@@ -344,11 +296,8 @@ else
         }
         catch
         {
-            // Polling failures are non-fatal.
         }
     }
-
-    // ── Sessions polling ───────────────────────────────────────────────────────
 
     private async Task PollSessionsAsync()
     {
@@ -378,11 +327,8 @@ else
         }
         catch
         {
-            // Polling failures are non-fatal.
         }
     }
-
-    // ── Approval actions ───────────────────────────────────────────────────────
 
     private async Task ApproveAsync(PendingLoginRequestDto req)
     {
@@ -403,9 +349,12 @@ else
                 ? string.Join(',', draft.Roles.OrderBy(r => r))
                 : "User";
 
-            var tokenMinutes = draft.ExpiryOption == "custom"
-                ? Math.Max(5, Math.Min(87600 * 60, draft.CustomHours * 60))
-                : int.Parse(draft.ExpiryOption);
+            int? tokenMinutes = draft.ExpiryOption switch
+            {
+                "never" => null,
+                "custom" => Math.Max(5, Math.Min(87600 * 60, draft.CustomHours * 60)),
+                _ => int.Parse(draft.ExpiryOption)
+            };
 
             await AdminApiClient.ApproveLoginAsync(req.RequestId, new ApproveLoginRequestDto(
                 draft.UserName.Trim(), roles, tokenMinutes));
@@ -455,8 +404,6 @@ else
         }
     }
 
-    // ── Session actions ────────────────────────────────────────────────────────
-
     private async Task UpdateRolesAsync(AccessSessionDto session)
     {
         isBusy = true;
@@ -469,7 +416,7 @@ else
             var response = await AdminApiClient.UpdateSessionRolesAsync(
                 session.SessionId, selected, "Roles updated by admin user.");
 
-            statusMessage = $"Updated roles for {session.UserName} on {session.DeviceName} to {response.Roles}. Changes apply on next action.";
+            statusMessage = $"Updated roles for {session.UserName} on {session.DeviceName} to {response.Roles}.";
             await PollSessionsAsync();
         }
         catch (UnauthorizedAccessException ex)
@@ -559,12 +506,12 @@ else
         }
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
-
     private async Task HandleUnauthorizedAsync(string? message)
     {
-        errorMessage = message ?? "Access denied. You may not have the required role.";
-        await Task.CompletedTask;
+        errorMessage = message ?? "Access denied. Please log in again.";
+        await AuthSession.ClearAsync();
+        var returnUrl = Uri.EscapeDataString("/admin");
+        Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
     }
 
     private ApprovalDraft GetOrCreateDraft(PendingLoginRequestDto req)
@@ -577,6 +524,7 @@ else
             };
             approvalDrafts[req.RequestId] = draft;
         }
+
         return draft;
     }
 
@@ -628,6 +576,7 @@ else
         {
             return "User";
         }
+
         return string.Join(',', sel.OrderBy(r => r, StringComparer.OrdinalIgnoreCase));
     }
 
@@ -642,6 +591,9 @@ else
         role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" :
         string.Empty;
 
+    private static string GetSessionExpiryDisplay(DateTimeOffset? expiresAtUtc)
+        => expiresAtUtc?.ToString("u") ?? "Never";
+
     private sealed class ApprovalDraft
     {
         public string UserName { get; set; } = string.Empty;
@@ -650,167 +602,3 @@ else
         public int CustomHours { get; set; } = 24;
     }
 }
-
-        await AuthSession.InitializeAsync();
-        StateHasChanged();
-
-        if (!AuthSession.HasActiveSession)
-        {
-            var returnUrl = Uri.EscapeDataString("/admin");
-            Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
-            return;
-        }
-
-        if (!AuthSession.HasRole("Admin"))
-        {
-            return;
-        }
-
-        await AuthSession.RememberPathAsync("/admin");
-        await LoadSessionsAsync();
-        StateHasChanged();
-    }
-
-    private async Task LoadSessionsAsync()
-    {
-        isBusy = true;
-        statusMessage = null;
-        errorMessage = null;
-
-        try
-        {
-            sessions.Clear();
-            sessions.AddRange(await AdminApiClient.ListActiveSessionsAsync());
-            sessionRoleSelections.Clear();
-            foreach (var session in sessions)
-            {
-                sessionRoleSelections[session.SessionId] = ParseRoles(session.Roles);
-            }
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            await HandleUnauthorizedAsync(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isBusy = false;
-        }
-    }
-
-    private async Task UpdateRolesAsync(AccessSessionDto session)
-    {
-        isBusy = true;
-        statusMessage = null;
-        errorMessage = null;
-
-        try
-        {
-            var selected = GetSelectedRolesCsv(session.SessionId);
-            var response = await AdminApiClient.UpdateSessionRolesAsync(
-                session.SessionId,
-                selected,
-                "Roles updated by admin user.");
-
-            statusMessage = $"Updated roles for {session.UserName} on {session.DeviceName} to {response.Roles}. Changes apply on next action.";
-            await LoadSessionsAsync();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            await HandleUnauthorizedAsync(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isBusy = false;
-        }
-    }
-
-    private async Task RevokeSessionAsync(AccessSessionDto session)
-    {
-        isBusy = true;
-        statusMessage = null;
-        errorMessage = null;
-
-        try
-        {
-            var reason = session.IsCurrentSession
-                ? "Revoked by admin user (self-revocation)."
-                : "Revoked by admin user.";
-
-            await AdminApiClient.RevokeSessionAsync(session.SessionId, reason);
-
-            if (session.IsCurrentSession)
-            {
-                await AuthSession.ClearAsync();
-                Navigation.NavigateTo("/login", forceLoad: false);
-                return;
-            }
-
-            statusMessage = $"Revoked session for {session.UserName} on {session.DeviceName}.";
-            await LoadSessionsAsync();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            await HandleUnauthorizedAsync(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isBusy = false;
-        }
-    }
-
-    private async Task RevokeByFilterAsync()
-    {
-        if (string.IsNullOrWhiteSpace(revokeUserName) && string.IsNullOrWhiteSpace(revokeDeviceName))
-        {
-            errorMessage = "Provide User Name and/or Device Name.";
-            statusMessage = null;
-            return;
-        }
-
-        isBusy = true;
-        statusMessage = null;
-        errorMessage = null;
-
-        try
-        {
-            var revokedCount = await AdminApiClient.RevokeByFilterAsync(
-                revokeUserName,
-                revokeDeviceName,
-                "Revoked by admin user.");
-
-            statusMessage = $"Revoked {revokedCount} session(s).";
-            await LoadSessionsAsync();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            await HandleUnauthorizedAsync(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isBusy = false;
-        }
-    }
-
-    private async Task HandleUnauthorizedAsync(string? message)
-    {
-        await AuthSession.ClearAsync();
-        var returnUrl = Uri.EscapeDataString("/admin");
-        Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
-        errorMessage = message;
-    }

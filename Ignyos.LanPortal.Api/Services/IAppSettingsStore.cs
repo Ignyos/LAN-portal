@@ -14,7 +14,7 @@ public interface IAppSettingsStore
 
     void RecordIssuedAccessSession(AccessSessionRecord record);
 
-    void UpsertRefreshToken(Guid sessionId, string refreshTokenHash, DateTimeOffset refreshTokenExpiresAtUtc);
+    void UpsertRefreshToken(Guid sessionId, string refreshTokenHash, DateTimeOffset? refreshTokenExpiresAtUtc);
 
     AccessSessionRecord? GetActiveAccessSessionByRefreshTokenHash(string refreshTokenHash);
 
@@ -44,7 +44,7 @@ public sealed record AccessSessionRecord(
     string DeviceName,
     string Roles,
     DateTimeOffset IssuedAtUtc,
-    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
     DateTimeOffset? RevokedAtUtc,
     string? RevokedReason,
     DateTimeOffset LastSeenAtUtc);

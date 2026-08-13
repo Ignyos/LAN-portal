@@ -38,7 +38,7 @@ public sealed record RefreshTokenResponseDto(
     string AccessToken,
     DateTimeOffset AccessTokenExpiresAtUtc,
     string RefreshToken,
-    DateTimeOffset RefreshTokenExpiresAtUtc);
+    DateTimeOffset? RefreshTokenExpiresAtUtc);
 
 public sealed record PendingLoginRequestDto(
     Guid RequestId,
@@ -52,7 +52,7 @@ public sealed record PendingLoginRequestDto(
 public sealed record ApproveLoginRequestDto(
     string UserName,
     string Roles,
-    int TokenMinutes);
+    int? TokenMinutes);
 
 public sealed record DenyLoginRequestDto(string? Reason);
 
@@ -62,7 +62,7 @@ public sealed record AccessSessionDto(
     string DeviceName,
     string Roles,
     DateTimeOffset IssuedAtUtc,
-    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
     DateTimeOffset LastSeenAtUtc,
     bool IsCurrentSession);
 

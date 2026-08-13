@@ -237,7 +237,7 @@ async function loadPending() {
           <option value="60">1 hour</option>
           <option value="1440">1 day</option>
           <option value="10080">1 week</option>
-          <option value="87600">Never</option>
+          <option value="never">Never</option>
           <option value="custom">Custom</option>
         </select>
         <div id="custom-hours-wrap-${item.requestId}" style="display:none; margin-top:6px;">
@@ -294,7 +294,7 @@ async function loadActiveSessions() {
         <div class="muted" style="margin-top:4px;">Hold Ctrl (or Cmd on Mac) to select multiple roles.</div>
       </td>
       <td>${item.issuedAtUtc}</td>
-      <td>${item.expiresAtUtc}</td>
+      <td>${item.expiresAtUtc ?? 'Never'}</td>
       <td>${item.lastSeenAtUtc}</td>
       <td>
         <button onclick="updateSessionRoles('${item.sessionId}')">Save Roles</button>
@@ -393,6 +393,8 @@ async function approve(id) {
 
   if (expiryOption === 'custom') {
     tokenMinutes = Math.max(1, Math.min(87600, customHours)) * 60;
+  } else if (expiryOption === 'never') {
+    tokenMinutes = null;
   } else {
     tokenMinutes = Number(expiryOption);
   }

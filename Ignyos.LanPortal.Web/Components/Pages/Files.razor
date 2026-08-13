@@ -9,9 +9,10 @@
 
 <PageTitle>Files</PageTitle>
 
-<h1>File Explorer</h1>
-
-<p>Browse files and folders from Machine A storage.</p>
+<section class="view-header">
+    <h1>File Explorer</h1>
+    <p>Browse files and folders from Machine A storage.</p>
+</section>
 
 @if (!AuthSession.IsLoaded)
 {
@@ -23,95 +24,94 @@ else if (!AuthSession.HasActiveSession)
 }
 else
 {
-    <div class="mb-3 d-flex gap-2 align-items-center">
-        <InputFile OnChange="HandleUploadAsync" disabled="@isBusy" />
-        <button class="btn btn-secondary" @onclick="LoadFilesAsync" disabled="@isBusy">Refresh</button>
-    </div>
+    <section class="panel reveal stack">
+        <div class="actions-row">
+            <InputFile OnChange="HandleUploadAsync" disabled="@isBusy" />
+            <button class="btn btn-secondary" @onclick="LoadFilesAsync" disabled="@isBusy">Refresh</button>
+        </div>
 
-    <div class="mb-3">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-                <li class="breadcrumb-item">
-                    <a href="#" @onclick="() => NavigateToFolder(string.Empty)">Root</a>
-                </li>
+        <div>
+            <div class="breadcrumb-row">
+                <a href="#" @onclick="() => NavigateToFolder(string.Empty)">Root</a>
                 @foreach (var crumb in GetBreadcrumbs())
                 {
-                    if (crumb.IsCurrent)
+                    <span>/</span>
+                    @if (crumb.IsCurrent)
                     {
-                        <li class="breadcrumb-item active" aria-current="page">@crumb.Name</li>
+                        <span class="breadcrumb-current">@crumb.Name</span>
                     }
                     else
                     {
-                        <li class="breadcrumb-item">
-                            <a href="#" @onclick="() => NavigateToFolder(crumb.Path)">@crumb.Name</a>
-                        </li>
+                        <a href="#" @onclick="() => NavigateToFolder(crumb.Path)">@crumb.Name</a>
                     }
                 }
-            </ol>
-        </nav>
-        <div class="text-muted small">Current folder: @(string.IsNullOrWhiteSpace(currentFolderPath) ? "Root" : currentFolderPath)</div>
-    </div>
+            </div>
+            <div class="text-muted text-mono">Current folder: @(string.IsNullOrWhiteSpace(currentFolderPath) ? "Root" : currentFolderPath)</div>
+        </div>
 
-    @if (!string.IsNullOrWhiteSpace(statusMessage))
-    {
-        <p>@statusMessage</p>
-    }
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <p class="text-success">@statusMessage</p>
+        }
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
-    {
-        <p class="text-danger">@errorMessage</p>
-    }
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <p class="text-danger">@errorMessage</p>
+        }
 
-    @if (files.Count == 0)
-    {
-        <p><em>No files found in storage.</em></p>
-    }
-    else
-    {
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Size (bytes)</th>
-                    <th>Last Modified (UTC)</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (!string.IsNullOrWhiteSpace(currentFolderPath))
-                {
-                    <tr>
-                        <td><a href="#" @onclick="NavigateUp">..</a></td>
-                        <td>Folder</td>
-                        <td></td>
-                        <td></td>
-                        <td><a href="#" @onclick="NavigateUp">Open</a></td>
-                    </tr>
-                }
+        @if (files.Count == 0)
+        {
+            <p><em>No files found in storage.</em></p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Size (bytes)</th>
+                            <th>Last Modified (UTC)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!string.IsNullOrWhiteSpace(currentFolderPath))
+                        {
+                            <tr>
+                                <td><a href="#" @onclick="NavigateUp">..</a></td>
+                                <td>Folder</td>
+                                <td></td>
+                                <td></td>
+                                <td><a href="#" @onclick="NavigateUp">Open</a></td>
+                            </tr>
+                        }
 
-                @foreach (var entry in explorerEntries)
-                {
-                    <tr>
-                        <td>@entry.Name</td>
-                        <td>@(entry.IsFolder ? "Folder" : "File")</td>
-                        <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
-                        <td>@(entry.LastModifiedUtc?.ToString("u"))</td>
-                        <td>
-                            @if (entry.IsFolder)
-                            {
-                                <a href="#" @onclick="() => NavigateToFolder(entry.Path)">Open</a>
-                            }
-                            else
-                            {
-                                <a href="@FileApiClient.BuildDownloadUrl(entry.Path)">Download</a>
-                            }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
+                        @foreach (var entry in explorerEntries)
+                        {
+                            <tr>
+                                <td>@entry.Name</td>
+                                <td>@(entry.IsFolder ? "Folder" : "File")</td>
+                                <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
+                                <td>@(entry.LastModifiedUtc?.ToString("u"))</td>
+                                <td>
+                                    @if (entry.IsFolder)
+                                    {
+                                        <a href="#" @onclick="() => NavigateToFolder(entry.Path)">Open</a>
+                                    }
+                                    else
+                                    {
+                                        <a href="@FileApiClient.BuildDownloadUrl(entry.Path)">Download</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
 }
 
 @code {

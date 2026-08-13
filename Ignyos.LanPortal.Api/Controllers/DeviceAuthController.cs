@@ -53,8 +53,7 @@ public sealed class DeviceAuthController(
         {
             if (!string.IsNullOrWhiteSpace(snapshot.ExistingAccessToken) &&
                 snapshot.ExistingAccessTokenExpiresAtUtc is not null &&
-                !string.IsNullOrWhiteSpace(snapshot.ExistingRefreshToken) &&
-                snapshot.ExistingRefreshTokenExpiresAtUtc is not null)
+                !string.IsNullOrWhiteSpace(snapshot.ExistingRefreshToken))
             {
                 return Ok(new DeviceLoginPollResponseDto(
                     snapshot.Status,
@@ -67,13 +66,14 @@ public sealed class DeviceAuthController(
 
             var userName = snapshot.UserName ?? "approved-user";
             var roles = snapshot.Roles is { Length: > 0 } ? snapshot.Roles : ["User"];
-            var refreshTokenMinutes = snapshot.TokenMinutes is > 0 ? snapshot.TokenMinutes.Value : DefaultRefreshTokenMinutes;
-            var accessTokenMinutes = Math.Max(1, Math.Min(DefaultAccessTokenMinutes, refreshTokenMinutes));
+            var refreshTokenExpiresAtUtc = snapshot.TokenMinutes is > 0
+                ? DateTimeOffset.UtcNow.AddMinutes(snapshot.TokenMinutes.Value)
+                : (DateTimeOffset?)null;
+            var accessTokenMinutes = DefaultAccessTokenMinutes;
             var deviceName = string.IsNullOrWhiteSpace(snapshot.DeviceName) ? "unknown-device" : snapshot.DeviceName;
             var sessionId = Guid.NewGuid();
             var refreshToken = CreateRefreshToken();
             var refreshTokenHash = ComputeRefreshTokenHash(refreshToken);
-            var refreshTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(refreshTokenMinutes);
 
             var (accessToken, accessTokenExpiresAtUtc, jti) = jwtTokenService.CreateAccessToken(userName, roles, accessTokenMinutes, deviceName);
 
@@ -132,13 +132,14 @@ public sealed class DeviceAuthController(
             return Unauthorized();
         }
 
-        var remainingMinutes = (int)Math.Ceiling((session.ExpiresAtUtc - DateTimeOffset.UtcNow).TotalMinutes);
-        if (remainingMinutes <= 0)
+        if (session.ExpiresAtUtc is DateTimeOffset sessionExpiresAtUtc && sessionExpiresAtUtc <= DateTimeOffset.UtcNow)
         {
             return Unauthorized();
         }
 
-        var accessTokenMinutes = Math.Max(1, Math.Min(DefaultAccessTokenMinutes, remainingMinutes));
+        var accessTokenMinutes = session.ExpiresAtUtc is DateTimeOffset boundedExpiry
+            ? Math.Max(1, Math.Min(DefaultAccessTokenMinutes, (int)Math.Ceiling((boundedExpiry - DateTimeOffset.UtcNow).TotalMinutes)))
+            : DefaultAccessTokenMinutes;
         var roles = session.Roles
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
