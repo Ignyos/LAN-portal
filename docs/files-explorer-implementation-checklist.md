@@ -15,14 +15,14 @@ Scope guardrails:
 - [x] Finalize event envelope and event type payload schema.
 
 2. Ship backend safety and enforcement baseline:
-- [ ] Implement strict path normalization and shared-root boundary enforcement for all Files endpoints.
-- [ ] Implement server-side permission enforcement mapping for each action.
+- [x] Implement strict path normalization and shared-root boundary enforcement for all Files endpoints.
+- [x] Implement server-side permission enforcement mapping for each action.
 
 3. Deliver a thin vertical slice end-to-end:
-- [ ] Folder listing by current path.
-- [ ] Tree lazy loading.
-- [ ] Explicit search request.
-- [ ] Create folder + rename + delete + single-file download.
+- [x] Folder listing by current path.
+- [x] Tree lazy loading.
+- [x] Explicit search request.
+- [x] Create folder + rename + delete + single-file download.
 
 4. Add real-time baseline and optimistic reconciliation:
 - [ ] WebSocket/SignalR transport with scoped path subscriptions.
@@ -40,7 +40,7 @@ Scope guardrails:
 
 Suggested first PR slices:
 - PR1: Contracts + permission model + path normalization utilities. (Completed)
-- PR2: Files API baseline endpoints (list/tree/search/create/rename/delete/download) with authorization.
+- PR2: Files API baseline endpoints (list/tree/search/create/rename/delete/download) with authorization. (Completed)
 - PR3: Real-time transport + event contract + minimal client reconciliation.
 - PR4: Move + upload/drag-drop + multi-select action constraints.
 - PR5: Performance instrumentation + integration tests + exit-criteria hardening.
@@ -90,24 +90,24 @@ Suggested first PR slices:
 ## 2. API Endpoints And Authorization
 
 ### 2.1 Files API Surface
-- [ ] Implement/extend endpoint: list folder contents by current path.
-- [ ] Implement/extend endpoint: lazy load child nodes for folder tree.
-- [ ] Implement endpoint: explicit search.
-- [ ] Implement/extend endpoint: create folder.
-- [ ] Implement/extend endpoint: rename item.
-- [ ] Implement/extend endpoint: move item(s).
-- [ ] Implement/extend endpoint: delete item(s).
-- [ ] Implement/extend endpoint: upload to current folder.
-- [ ] Implement/extend endpoint: download single file.
+- [x] Implement/extend endpoint: list folder contents by current path.
+- [x] Implement/extend endpoint: lazy load child nodes for folder tree.
+- [x] Implement endpoint: explicit search.
+- [x] Implement/extend endpoint: create folder.
+- [x] Implement/extend endpoint: rename item.
+- [x] Implement/extend endpoint: move item(s).
+- [x] Implement/extend endpoint: delete item(s).
+- [x] Implement/extend endpoint: upload to current folder.
+- [x] Implement/extend endpoint: download single file.
 
 ### 2.2 Permission Enforcement
-- [ ] Enforce server-side permission checks for each action endpoint.
-- [ ] Ensure enforcement does not rely on UI state.
+- [x] Enforce server-side permission checks for each action endpoint.
+- [x] Ensure enforcement does not rely on UI state.
 - [ ] Ensure coarse roles can still exist while action checks use permissions.
 
 ### 2.3 Safety Controls
-- [ ] Enforce strict path traversal prevention on all path-bearing endpoints.
-- [ ] Enforce shared-root boundary guarantees across all read/write operations.
+- [x] Enforce strict path traversal prevention on all path-bearing endpoints.
+- [x] Enforce shared-root boundary guarantees across all read/write operations.
 - [ ] Add validation for invalid/ambiguous path inputs and return safe error responses.
 
 ## 3. Indexing And Change Detection

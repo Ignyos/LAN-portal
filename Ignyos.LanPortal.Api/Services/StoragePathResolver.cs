@@ -14,7 +14,23 @@ public static class StoragePathResolver
     }
 
     public static string ToRelativePath(string rootPath, string fullPath)
-        => Path.GetRelativePath(rootPath, fullPath).Replace('\\', '/');
+    {
+        var relative = Path.GetRelativePath(rootPath, fullPath).Replace('\\', '/');
+        return relative == "." ? string.Empty : relative;
+    }
+
+    public static bool TryResolveOptionalPathUnderRoot(string rootPath, string? relativePath, out string? fullPath)
+    {
+        fullPath = null;
+
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            fullPath = rootPath;
+            return true;
+        }
+
+        return TryResolvePathUnderRoot(rootPath, relativePath, out fullPath);
+    }
 
     public static string GetUniquePath(string rootPath, string fileName)
     {
