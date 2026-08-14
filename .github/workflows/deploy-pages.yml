@@ -49,11 +49,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          find "$repo_dir" -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
+
+          cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/"
+
           mkdir -p "$repo_dir/docs"
-          if [ -d "$repo_dir/docs" ]; then
-            find "$repo_dir/docs" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-          fi
           cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
+          printf 'lanportal-dev.ignyos.com\n' > "$repo_dir/CNAME"
           printf 'lanportal-dev.ignyos.com\n' > "$repo_dir/docs/CNAME"
 
           git add --all
@@ -98,11 +100,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          find "$repo_dir" -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
+
+          cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/"
+
           mkdir -p "$repo_dir/docs"
-          if [ -d "$repo_dir/docs" ]; then
-            find "$repo_dir/docs" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-          fi
           cp -R "$GITHUB_WORKSPACE/docs/." "$repo_dir/docs/"
+          printf 'lanportal.ignyos.com\n' > "$repo_dir/CNAME"
           printf 'lanportal.ignyos.com\n' > "$repo_dir/docs/CNAME"
 
           git add --all

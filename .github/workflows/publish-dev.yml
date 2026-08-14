@@ -12,9 +12,8 @@ on:
           - 'false'
           - 'true'
       version:
-        description: 'Version for the dev publish lane. Leave blank to use the current project version.'
-        required: false
-        default: ''
+        description: 'Version for dev publish lane (suggestion: current Host version with build +1).'
+        required: true
         type: string
 
 permissions:
@@ -112,10 +111,24 @@ jobs:
 
           New-Item -ItemType Directory -Path (Join-Path $sitePublishRoot "updates") -Force | Out-Null
 
-          $installerFile = Get-ChildItem -Path $installerDir -Filter "Ignyos-LanPortal-Dev-$version.exe" -File | Select-Object -First 1
+          $exactInstallerName = "Ignyos-LanPortal-Dev-$version.exe"
+          $installerFiles = Get-ChildItem -Path $installerDir -Filter "Ignyos-LanPortal-Dev-*.exe" -File | Sort-Object LastWriteTime -Descending
+          $installerFile = $installerFiles | Where-Object { $_.Name -eq $exactInstallerName } | Select-Object -First 1
+          if ($null -eq $installerFile) {
+            $installerFile = $installerFiles | Select-Object -First 1
+          }
+
           if ($null -eq $installerFile) {
             throw "Expected installer not found for version $version in $installerDir"
           }
+
+          $effectiveVersion = $version
+          if ($installerFile.BaseName -match '^Ignyos-LanPortal-Dev-(?<effectiveVersion>.+)$') {
+            $effectiveVersion = $Matches['effectiveVersion']
+          }
+
+          "effective_version=$effectiveVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Resolved effective publish version $effectiveVersion"
 
           $hashFile = Join-Path $installerDir "$($installerFile.Name).sha256"
           if (-not (Test-Path $hashFile)) {
@@ -125,22 +138,22 @@ jobs:
           $hashLine = (Get-Content -Path $hashFile | Select-Object -First 1).Trim()
           $sha256 = ($hashLine -split '\s+')[0]
 
-          $releaseDir = Join-Path $sitePublishRoot "releases/$version"
+          $releaseDir = Join-Path $sitePublishRoot "releases/$effectiveVersion"
           New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
           Copy-Item -Path $installerFile.FullName -Destination (Join-Path $releaseDir $installerFile.Name) -Force
           Copy-Item -Path $hashFile -Destination (Join-Path $releaseDir "$($installerFile.Name).sha256") -Force
 
-          $zipName = "Ignyos-LanPortal-QA-$version.zip"
+          $zipName = "Ignyos-LanPortal-QA-$effectiveVersion.zip"
           $zipPath = Join-Path $releaseDir $zipName
           Compress-Archive -Path (Join-Path $releaseDir $installerFile.Name), (Join-Path $releaseDir "$($installerFile.Name).sha256") -DestinationPath $zipPath -CompressionLevel Optimal
 
-          $coreParts = $version -split '\.'
-          $minSupportedVersion = if ($coreParts.Length -ge 3) { "$($coreParts[0]).$($coreParts[1]).$($coreParts[2])" } else { $version }
+          $coreParts = $effectiveVersion -split '\.'
+          $minSupportedVersion = if ($coreParts.Length -ge 3) { "$($coreParts[0]).$($coreParts[1]).$($coreParts[2])" } else { $effectiveVersion }
           $publishedAt = (Get-Date).ToUniversalTime().ToString('o')
-          $downloadUrl = "https://lanportal-dev.ignyos.com/releases/$version/$($installerFile.Name)"
+          $downloadUrl = "https://lanportal-dev.ignyos.com/releases/$effectiveVersion/$($installerFile.Name)"
 
           $manifest = [ordered]@{
-            version = $version
+            version = $effectiveVersion
             url = $downloadUrl
             sha256 = $sha256
             publishedAt = $publishedAt
@@ -166,7 +179,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = $env:resolved_version
+          $version = if ([string]::IsNullOrWhiteSpace($env:effective_version)) { $env:resolved_version } else { $env:effective_version }
           $releaseRoot = Join-Path $env:GITHUB_WORKSPACE "artifacts/dev-installer"
           $installerDir = Join-Path $releaseRoot "installer"
           $installerFile = Get-ChildItem -Path $installerDir -Filter "Ignyos-LanPortal-Dev-$version.exe" -File | Select-Object -First 1
@@ -233,10 +246,18 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+            # Keep the existing site shell (index/app assets) and update only release payload + manifests.
+            foreach ($targetRoot in @($repoDir, (Join-Path $repoDir "docs"))) {
+              New-Item -ItemType Directory -Path (Join-Path $targetRoot "releases") -Force | Out-Null
+              New-Item -ItemType Directory -Path (Join-Path $targetRoot "updates") -Force | Out-Null
 
-            New-Item -ItemType Directory -Path (Join-Path $repoDir "docs") -Force | Out-Null
-            Get-ChildItem -Path $publishDir -Force | Copy-Item -Destination (Join-Path $repoDir "docs") -Recurse -Force
+              Copy-Item -Path (Join-Path $publishDir "releases\*") -Destination (Join-Path $targetRoot "releases") -Recurse -Force
+              Copy-Item -Path (Join-Path $publishDir "updates\*") -Destination (Join-Path $targetRoot "updates") -Recurse -Force
+            }
+
+            if (Test-Path (Join-Path $repoDir "CNAME")) {
+              Copy-Item -Path (Join-Path $repoDir "CNAME") -Destination (Join-Path $repoDir "docs/CNAME") -Force
+            }
 
             git add --all
             $changes = git status --porcelain

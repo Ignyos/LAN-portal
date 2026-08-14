@@ -10,9 +10,49 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $workflowPath = Join-Path $repoRoot '.github/workflows/publish-dev.yml'
+$versionProjectPath = Join-Path $repoRoot 'Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj'
 
 if (-not (Test-Path $workflowPath)) {
     throw "Workflow file not found: $workflowPath"
+}
+
+if (-not (Test-Path $versionProjectPath)) {
+    throw "Version source file not found: $versionProjectPath"
+}
+
+function Get-CurrentVersion {
+    param([string]$ProjectPath)
+
+    $projectXml = Get-Content -Path $ProjectPath -Raw
+    $versionMatch = [regex]::Match($projectXml, '<Version>\s*(?<version>[^<\s]+)\s*</Version>')
+    if (-not $versionMatch.Success) {
+        throw "Could not resolve the application version from $ProjectPath"
+    }
+
+    return $versionMatch.Groups['version'].Value.Trim()
+}
+
+function Get-DevSuggestedVersion {
+    param([string]$CurrentVersion)
+
+    $match = [regex]::Match($CurrentVersion, '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:\.(?<build>\d+))?$')
+    if (-not $match.Success) {
+        throw "Current version '$CurrentVersion' is not in expected numeric format (major.minor.patch[.build])."
+    }
+
+    $major = [int]$match.Groups['major'].Value
+    $minor = [int]$match.Groups['minor'].Value
+    $patch = [int]$match.Groups['patch'].Value
+    $build = if ($match.Groups['build'].Success) { [int]$match.Groups['build'].Value } else { 0 }
+
+    return "$major.$minor.$patch.$($build + 1)"
+}
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $currentVersion = Get-CurrentVersion -ProjectPath $versionProjectPath
+    $suggestedVersion = Get-DevSuggestedVersion -CurrentVersion $currentVersion
+    $enteredVersion = Read-Host "Enter dev publish version [$suggestedVersion]"
+    $Version = if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $suggestedVersion } else { $enteredVersion.Trim() }
 }
 
 $branchName = git rev-parse --abbrev-ref HEAD 2>$null
@@ -45,7 +85,7 @@ if ($ghCandidates.Count -gt 0) {
 
 if ($ghCommand) {
     Write-Host "Triggering GitHub Actions workflow for the dev publish lane..."
-    $ghArgs = @('workflow', 'run', '.github/workflows/publish-dev.yml', '--repo', $repoSlug, '--ref', $branchName, '-f', "include_host=$IncludeHost")
+    $ghArgs = @('workflow', 'run', '.github/workflows/publish-dev.yml', '--repo', $repoSlug, '--ref', $branchName, '-f', "include_host=$IncludeHost", '-f', "version=$Version")
     & $ghCommand @ghArgs
 
     if ($LASTEXITCODE -eq 0) {
@@ -62,4 +102,4 @@ Write-Host "Workflow: $workflowPath"
 Write-Host ""
 Write-Host "If GitHub CLI is available and authenticated, the script will trigger the workflow automatically."
 Write-Host "Otherwise, please run the 'Dev-Deploy' workflow from the GitHub Actions UI for this repository."
-Write-Host "Set include_host='$IncludeHost' in the workflow inputs before starting the run."
+Write-Host "Set include_host='$IncludeHost' and version='$Version' in the workflow inputs before starting the run."

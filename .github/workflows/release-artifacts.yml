@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version for the live publish lane. Leave blank to use the Git ref/tag value.'
-        required: false
-        default: ''
+        description: 'Version for live publish lane (suggestion: current Host version with patch +1 and build .0).'
+        required: true
         type: string
 
 permissions:
