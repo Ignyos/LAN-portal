@@ -338,6 +338,42 @@ tr:last-child td {
     font-weight: 700;
 }
 
+.drop-zone {
+    position: relative;
+    min-width: 16rem;
+    border: 1px dashed #9eb5bf;
+    border-radius: 0.7rem;
+    background: rgba(255, 255, 255, 0.75);
+    color: #2e5060;
+    padding: 0.58rem 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    cursor: pointer;
+}
+
+.drop-zone.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.drop-zone.disabled input[type="file"] {
+    cursor: not-allowed;
+}
+
+.row-selected td {
+    background: rgba(10, 143, 143, 0.12);
+}
+
 @media (max-width: 900px) {
     .split {
         grid-template-columns: 1fr;

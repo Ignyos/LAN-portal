@@ -13,6 +13,93 @@ public sealed class FileApiClient(
     NavigationManager navigationManager,
     IConfiguration configuration)
 {
+    public async Task<FileNodeDto> CreateFolderAsync(
+        string? currentPath,
+        string name,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessTokenAsync(cancellationToken);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/files/folders")
+        {
+            Content = JsonContent.Create(new CreateFolderRequestDto(currentPath ?? string.Empty, name))
+        };
+        ApplyBearerToken(request);
+        AddCorrelationId(request, correlationId);
+
+        using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
+        ThrowIfUnauthorized(response);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<FileNodeDto>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Create folder response was empty.");
+    }
+
+    public async Task<FileNodeDto> RenameAsync(
+        string path,
+        string newName,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessTokenAsync(cancellationToken);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/files/rename")
+        {
+            Content = JsonContent.Create(new RenameItemRequestDto(path, newName))
+        };
+        ApplyBearerToken(request);
+        AddCorrelationId(request, correlationId);
+
+        using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
+        ThrowIfUnauthorized(response);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<FileNodeDto>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Rename response was empty.");
+    }
+
+    public async Task<IReadOnlyList<FileNodeDto>> MoveAsync(
+        IReadOnlyList<string> paths,
+        string destinationPath,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessTokenAsync(cancellationToken);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/files/move")
+        {
+            Content = JsonContent.Create(new MoveItemsRequestDto(paths, destinationPath))
+        };
+        ApplyBearerToken(request);
+        AddCorrelationId(request, correlationId);
+
+        using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
+        ThrowIfUnauthorized(response);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<List<FileNodeDto>>(cancellationToken: cancellationToken) ?? [];
+    }
+
+    public async Task DeleteAsync(
+        IReadOnlyList<string> paths,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessTokenAsync(cancellationToken);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/files/delete")
+        {
+            Content = JsonContent.Create(new DeleteItemsRequestDto(paths))
+        };
+        ApplyBearerToken(request);
+        AddCorrelationId(request, correlationId);
+
+        using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
+        ThrowIfUnauthorized(response);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<FolderListResponseDto> ListFolderAsync(string? currentPath, CancellationToken cancellationToken = default)
     {
         await EnsureAccessTokenAsync(cancellationToken);
@@ -60,6 +147,7 @@ public sealed class FileApiClient(
         IBrowserFile file,
         long maxFileSizeBytes,
         string? currentPath = null,
+        string? correlationId = null,
         CancellationToken cancellationToken = default)
     {
         await using var fileStream = file.OpenReadStream(maxFileSizeBytes, cancellationToken);
@@ -75,12 +163,10 @@ public sealed class FileApiClient(
             Content = content
         };
         ApplyBearerToken(request);
+        AddCorrelationId(request, correlationId);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
-        }
+        ThrowIfUnauthorized(response);
 
         response.EnsureSuccessStatusCode();
 
@@ -188,6 +274,22 @@ public sealed class FileApiClient(
             payload.AccessTokenExpiresAtUtc,
             payload.RefreshToken,
             payload.RefreshTokenExpiresAtUtc);
+    }
+
+    private static void AddCorrelationId(HttpRequestMessage request, string? correlationId)
+    {
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            request.Headers.Add("X-Correlation-ID", correlationId);
+        }
+    }
+
+    private static void ThrowIfUnauthorized(HttpResponseMessage response)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+        }
     }
 
 }

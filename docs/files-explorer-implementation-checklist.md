@@ -30,8 +30,8 @@ Scope guardrails:
 - [x] Client reconciliation for affected-folder refresh only.
 
 5. Add remaining milestone-1 actions:
-- [ ] Move (including multi-select support).
-- [ ] Upload + drag/drop upload.
+- [x] Move (including multi-select support).
+- [x] Upload + drag/drop upload.
 
 6. Close milestone quality gates:
 - [ ] Performance baseline for list/search and event latency.
@@ -42,7 +42,7 @@ Suggested first PR slices:
 - PR1: Contracts + permission model + path normalization utilities. (Completed)
 - PR2: Files API baseline endpoints (list/tree/search/create/rename/delete/download) with authorization. (Completed)
 - PR3: Real-time transport + event contract + minimal client reconciliation. (Baseline completed)
-- PR4: Move + upload/drag-drop + multi-select action constraints.
+- PR4: Move + upload/drag-drop + multi-select action constraints. (Completed)
 - PR5: Performance instrumentation + integration tests + exit-criteria hardening.
 
 ## 0. Delivery Setup
@@ -153,15 +153,15 @@ Suggested first PR slices:
 - [ ] Implement back/forward navigation history.
 
 ### 5.2 Selection And Actions
-- [ ] Implement multi-select behavior.
-- [ ] Enforce selection rules in action bar:
+- [x] Implement multi-select behavior.
+- [x] Enforce selection rules in action bar:
   - rename single-item only
   - delete multi-select allowed
   - move multi-select allowed
   - new folder current-folder action
   - upload current-folder action
   - download single-file first pass
-- [ ] Show disabled/hidden actions based on effective permission grants.
+- [x] Show disabled/hidden actions based on effective permission grants.
 
 ### 5.3 Search UX
 - [ ] Implement explicit-trigger search flow (no search-as-you-type).
@@ -169,9 +169,9 @@ Suggested first PR slices:
 - [ ] Ensure search action obeys same permission and root-boundary rules.
 
 ### 5.4 Upload UX
-- [ ] Support file upload picker into current folder.
-- [ ] Support drag-and-drop upload into current folder.
-- [ ] Show progress and actionable errors.
+- [x] Support file upload picker into current folder.
+- [x] Support drag-and-drop upload into current folder.
+- [x] Show progress and actionable errors.
 
 ## 6. Concurrency And Conflict Handling
 

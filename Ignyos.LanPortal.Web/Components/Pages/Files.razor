@@ -28,9 +28,63 @@ else
 {
     <section class="panel reveal stack">
         <div class="actions-row">
-            <InputFile OnChange="HandleUploadAsync" disabled="@isBusy" />
+            <label class="drop-zone @(CanUpload ? string.Empty : "disabled")">
+                <span>Drop files here or choose files</span>
+                <InputFile OnChange="HandleUploadAsync" multiple disabled="@(!CanUpload || isBusy)" />
+            </label>
             <button class="btn btn-secondary" @onclick="LoadFilesAsync" disabled="@isBusy">Refresh</button>
         </div>
+
+        <div class="actions-row" style="margin-top: 0.2rem;">
+            <button class="btn btn-outline" @onclick="BeginCreateFolder" disabled="@(!CanCreateFolder || isBusy)">New Folder</button>
+            <button class="btn btn-outline" @onclick="BeginRename" disabled="@(!CanRenameSelection || isBusy)">Rename</button>
+            <button class="btn btn-outline" @onclick="BeginMove" disabled="@(!CanMoveSelection || isBusy)">Move</button>
+            <button class="btn btn-danger-outline" @onclick="DeleteSelectedAsync" disabled="@(!CanDeleteSelection || isBusy)">Delete</button>
+            <button class="btn btn-secondary" @onclick="DownloadSelected" disabled="@(!CanDownloadSelection || isBusy)">Download</button>
+            <span class="text-muted">Selected: @selectedPaths.Count</span>
+        </div>
+
+        @if (showCreateFolderForm)
+        {
+            <div class="split">
+                <div class="span-8">
+                    <label for="new-folder-name">New Folder Name</label>
+                    <input id="new-folder-name" class="input" @bind="newFolderName" />
+                </div>
+                <div class="span-4" style="display:flex; align-items:end; gap:0.55rem;">
+                    <button class="btn btn-primary" @onclick="CreateFolderAsync" disabled="@isBusy">Create</button>
+                    <button class="btn btn-secondary" @onclick="CancelInlineAction" disabled="@isBusy">Cancel</button>
+                </div>
+            </div>
+        }
+
+        @if (showRenameForm)
+        {
+            <div class="split">
+                <div class="span-8">
+                    <label for="rename-item-name">New Name</label>
+                    <input id="rename-item-name" class="input" @bind="renameTargetName" />
+                </div>
+                <div class="span-4" style="display:flex; align-items:end; gap:0.55rem;">
+                    <button class="btn btn-primary" @onclick="RenameSelectedAsync" disabled="@isBusy">Apply Rename</button>
+                    <button class="btn btn-secondary" @onclick="CancelInlineAction" disabled="@isBusy">Cancel</button>
+                </div>
+            </div>
+        }
+
+        @if (showMoveForm)
+        {
+            <div class="split">
+                <div class="span-8">
+                    <label for="move-destination-path">Destination Path (blank = Root)</label>
+                    <input id="move-destination-path" class="input" @bind="moveDestinationPath" placeholder="example: photos/2026" />
+                </div>
+                <div class="span-4" style="display:flex; align-items:end; gap:0.55rem;">
+                    <button class="btn btn-primary" @onclick="MoveSelectedAsync" disabled="@isBusy">Move Selected</button>
+                    <button class="btn btn-secondary" @onclick="CancelInlineAction" disabled="@isBusy">Cancel</button>
+                </div>
+            </div>
+        }
 
         <div>
             <div class="breadcrumb-row">
@@ -71,6 +125,9 @@ else
                 <table>
                     <thead>
                         <tr>
+                            <th>
+                                <input type="checkbox" checked="@AllVisibleSelected" @onchange="ToggleSelectAll" />
+                            </th>
                             <th>Name</th>
                             <th>Type</th>
                             <th>Size (bytes)</th>
@@ -82,6 +139,7 @@ else
                         @if (!string.IsNullOrWhiteSpace(currentFolderPath))
                         {
                             <tr>
+                                <td></td>
                                 <td><a href="#" @onclick="NavigateUp">..</a></td>
                                 <td>Folder</td>
                                 <td></td>
@@ -92,7 +150,12 @@ else
 
                         @foreach (var entry in folderItems)
                         {
-                            <tr>
+                            <tr class="@(selectedPaths.Contains(entry.Path) ? "row-selected" : string.Empty)">
+                                <td>
+                                    <input type="checkbox"
+                                           checked="@selectedPaths.Contains(entry.Path)"
+                                           @onchange="(e) => ToggleSelection(entry.Path, e)" />
+                                </td>
                                 <td>@entry.Name</td>
                                 <td>@(entry.IsFolder ? "Folder" : "File")</td>
                                 <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
@@ -120,13 +183,31 @@ else
     private const long MaxUploadSizeBytes = 10L * 1024L * 1024L * 1024L;
 
     private readonly List<FileNodeDto> folderItems = [];
+    private readonly HashSet<string> selectedPaths = new(StringComparer.OrdinalIgnoreCase);
 
     private string currentFolderPath = string.Empty;
+    private string newFolderName = string.Empty;
+    private string renameTargetName = string.Empty;
+    private string moveDestinationPath = string.Empty;
 
     private bool isBusy;
+    private bool showCreateFolderForm;
+    private bool showRenameForm;
+    private bool showMoveForm;
     private string? statusMessage;
     private string? errorMessage;
     private bool hasPendingEventRefresh;
+
+    private bool CanCreateFolder => AuthSession.HasPermission(PermissionKeys.Add);
+    private bool CanUpload => AuthSession.HasPermission(PermissionKeys.Upload);
+    private bool CanRenameSelection => AuthSession.HasPermission(PermissionKeys.Rename) && selectedPaths.Count == 1;
+    private bool CanMoveSelection => AuthSession.HasPermission(PermissionKeys.Move) && selectedPaths.Count > 0;
+    private bool CanDeleteSelection => AuthSession.HasPermission(PermissionKeys.Delete) && selectedPaths.Count > 0;
+    private bool CanDownloadSelection =>
+        AuthSession.HasPermission(PermissionKeys.Download) &&
+        selectedPaths.Count == 1 &&
+        folderItems.Any(item => selectedPaths.Contains(item.Path) && !item.IsFolder);
+    private bool AllVisibleSelected => folderItems.Count > 0 && folderItems.All(item => selectedPaths.Contains(item.Path));
 
     protected override Task OnInitializedAsync()
     {
@@ -160,8 +241,8 @@ else
 
     private async Task HandleUploadAsync(InputFileChangeEventArgs args)
     {
-        var selectedFile = args.File;
-        if (selectedFile is null)
+        var selectedFiles = args.GetMultipleFiles();
+        if (selectedFiles.Count == 0)
         {
             return;
         }
@@ -172,8 +253,16 @@ else
 
         try
         {
-            var result = await FileApiClient.UploadAsync(selectedFile, MaxUploadSizeBytes, currentFolderPath);
-            statusMessage = $"Uploaded {result.RelativePath} ({result.SizeBytes} bytes).";
+            var uploadedCount = 0;
+            foreach (var selectedFile in selectedFiles)
+            {
+                await FileApiClient.UploadAsync(selectedFile, MaxUploadSizeBytes, currentFolderPath, CreateCorrelationId());
+                uploadedCount++;
+            }
+
+            statusMessage = uploadedCount == 1
+                ? "Uploaded 1 file."
+                : $"Uploaded {uploadedCount} files.";
             await LoadCurrentFolderAsync();
         }
         catch (UnauthorizedAccessException ex)
@@ -206,6 +295,7 @@ else
             currentFolderPath = NormalizePath(response.CurrentPath);
             folderItems.Clear();
             folderItems.AddRange(response.Items);
+            PruneSelection();
             await SyncSubscriptionsAsync();
         }
         catch (UnauthorizedAccessException ex)
@@ -300,6 +390,7 @@ else
     private async Task NavigateToFolder(string path)
     {
         currentFolderPath = NormalizePath(path);
+        selectedPaths.Clear();
         await LoadCurrentFolderAsync();
     }
 
@@ -315,8 +406,261 @@ else
             ? string.Empty
             : string.Join('/', parts.Take(parts.Length - 1));
 
+        selectedPaths.Clear();
         await LoadCurrentFolderAsync();
     }
+
+    private void ToggleSelection(string path, ChangeEventArgs args)
+    {
+        var selected = IsChecked(args.Value);
+        if (selected)
+        {
+            selectedPaths.Add(path);
+        }
+        else
+        {
+            selectedPaths.Remove(path);
+        }
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs args)
+    {
+        var selected = IsChecked(args.Value);
+        if (selected)
+        {
+            foreach (var item in folderItems)
+            {
+                selectedPaths.Add(item.Path);
+            }
+        }
+        else
+        {
+            selectedPaths.Clear();
+        }
+    }
+
+    private void BeginCreateFolder()
+    {
+        showCreateFolderForm = true;
+        showRenameForm = false;
+        showMoveForm = false;
+        newFolderName = string.Empty;
+    }
+
+    private void BeginRename()
+    {
+        if (!CanRenameSelection)
+        {
+            return;
+        }
+
+        showCreateFolderForm = false;
+        showRenameForm = true;
+        showMoveForm = false;
+
+        var selected = folderItems.FirstOrDefault(item => selectedPaths.Contains(item.Path));
+        renameTargetName = selected?.Name ?? string.Empty;
+    }
+
+    private void BeginMove()
+    {
+        if (!CanMoveSelection)
+        {
+            return;
+        }
+
+        showCreateFolderForm = false;
+        showRenameForm = false;
+        showMoveForm = true;
+        moveDestinationPath = string.Empty;
+    }
+
+    private void CancelInlineAction()
+    {
+        showCreateFolderForm = false;
+        showRenameForm = false;
+        showMoveForm = false;
+        newFolderName = string.Empty;
+        renameTargetName = string.Empty;
+        moveDestinationPath = string.Empty;
+    }
+
+    private async Task CreateFolderAsync()
+    {
+        if (!CanCreateFolder)
+        {
+            return;
+        }
+
+        var folderName = newFolderName.Trim();
+        if (string.IsNullOrWhiteSpace(folderName))
+        {
+            errorMessage = "Folder name is required.";
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+        statusMessage = null;
+
+        try
+        {
+            await FileApiClient.CreateFolderAsync(currentFolderPath, folderName, CreateCorrelationId());
+            statusMessage = $"Created folder '{folderName}'.";
+            CancelInlineAction();
+            await LoadCurrentFolderAsync();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleUnauthorizedAsync(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task RenameSelectedAsync()
+    {
+        if (!CanRenameSelection)
+        {
+            return;
+        }
+
+        var selectedPath = selectedPaths.First();
+        var newName = renameTargetName.Trim();
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            errorMessage = "New name is required.";
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+        statusMessage = null;
+
+        try
+        {
+            await FileApiClient.RenameAsync(selectedPath, newName, CreateCorrelationId());
+            statusMessage = "Rename completed.";
+            selectedPaths.Clear();
+            CancelInlineAction();
+            await LoadCurrentFolderAsync();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleUnauthorizedAsync(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task MoveSelectedAsync()
+    {
+        if (!CanMoveSelection)
+        {
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+        statusMessage = null;
+
+        try
+        {
+            var destination = NormalizePath(moveDestinationPath);
+            await FileApiClient.MoveAsync(selectedPaths.ToArray(), destination, CreateCorrelationId());
+            statusMessage = "Move completed.";
+            selectedPaths.Clear();
+            CancelInlineAction();
+            await LoadCurrentFolderAsync();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleUnauthorizedAsync(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (!CanDeleteSelection)
+        {
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+        statusMessage = null;
+
+        try
+        {
+            await FileApiClient.DeleteAsync(selectedPaths.ToArray(), CreateCorrelationId());
+            statusMessage = "Delete completed.";
+            selectedPaths.Clear();
+            CancelInlineAction();
+            await LoadCurrentFolderAsync();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleUnauthorizedAsync(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void DownloadSelected()
+    {
+        if (!CanDownloadSelection)
+        {
+            return;
+        }
+
+        var selected = folderItems.FirstOrDefault(item => selectedPaths.Contains(item.Path) && !item.IsFolder);
+        if (selected is null)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo(FileApiClient.BuildDownloadUrl(selected.Path), forceLoad: true);
+    }
+
+    private void PruneSelection()
+    {
+        var visiblePaths = folderItems.Select(item => item.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        selectedPaths.RemoveWhere(path => !visiblePaths.Contains(path));
+    }
+
+    private static bool IsChecked(object? value)
+        => value is bool boolValue
+            ? boolValue
+            : string.Equals(value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+
+    private static string CreateCorrelationId()
+        => Guid.NewGuid().ToString("N");
 
     public async ValueTask DisposeAsync()
     {
