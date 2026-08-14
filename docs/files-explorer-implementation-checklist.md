@@ -147,10 +147,10 @@ Suggested first PR slices:
 ## 5. Web UI: Explorer Experience
 
 ### 5.1 Layout And Navigation
-- [ ] Build two-pane explorer layout (tree left, contents right).
-- [ ] Show current path and breadcrumbs when not at root.
-- [ ] Implement double-click folder navigation.
-- [ ] Implement back/forward navigation history.
+- [x] Build two-pane explorer layout (tree left, contents right).
+- [x] Show current path and breadcrumbs when not at root.
+- [x] Implement double-click folder navigation.
+- [x] Implement back/forward navigation history.
 
 ### 5.2 Selection And Actions
 - [x] Implement multi-select behavior.
@@ -164,9 +164,9 @@ Suggested first PR slices:
 - [x] Show disabled/hidden actions based on effective permission grants.
 
 ### 5.3 Search UX
-- [ ] Implement explicit-trigger search flow (no search-as-you-type).
-- [ ] Render search results in a way that preserves path context.
-- [ ] Ensure search action obeys same permission and root-boundary rules.
+- [x] Implement explicit-trigger search flow (no search-as-you-type).
+- [x] Render search results in a way that preserves path context.
+- [x] Ensure search action obeys same permission and root-boundary rules.
 
 ### 5.4 Upload UX
 - [x] Support file upload picker into current folder.

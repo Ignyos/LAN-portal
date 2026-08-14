@@ -33,6 +33,8 @@ else
                 <InputFile OnChange="HandleUploadAsync" multiple disabled="@(!CanUpload || isBusy)" />
             </label>
             <button class="btn btn-secondary" @onclick="LoadFilesAsync" disabled="@isBusy">Refresh</button>
+            <button class="btn btn-outline" @onclick="GoBackAsync" disabled="@(!CanGoBack || isBusy)">Back</button>
+            <button class="btn btn-outline" @onclick="GoForwardAsync" disabled="@(!CanGoForward || isBusy)">Forward</button>
         </div>
 
         <div class="actions-row" style="margin-top: 0.2rem;">
@@ -42,6 +44,17 @@ else
             <button class="btn btn-danger-outline" @onclick="DeleteSelectedAsync" disabled="@(!CanDeleteSelection || isBusy)">Delete</button>
             <button class="btn btn-secondary" @onclick="DownloadSelected" disabled="@(!CanDownloadSelection || isBusy)">Download</button>
             <span class="text-muted">Selected: @selectedPaths.Count</span>
+        </div>
+
+        <div class="split" style="align-items: end;">
+            <div class="span-8">
+                <label for="search-query">Search in current path (explicit only)</label>
+                <input id="search-query" class="input" @bind="searchQuery" @bind:event="oninput" placeholder="Enter filename or folder name" />
+            </div>
+            <div class="span-4" style="display:flex; gap:0.55rem;">
+                <button class="btn btn-primary" @onclick="RunSearchAsync" disabled="@(isBusy || !CanSearch)">Search</button>
+                <button class="btn btn-secondary" @onclick="ClearSearch" disabled="@(isBusy || !showSearchResults)">Clear Search</button>
+            </div>
         </div>
 
         @if (showCreateFolderForm)
@@ -88,7 +101,7 @@ else
 
         <div>
             <div class="breadcrumb-row">
-                <a href="#" @onclick="() => NavigateToFolder(string.Empty)">Root</a>
+                <a href="#" @onclick="() => NavigateToFolderAsync(string.Empty)">Root</a>
                 @foreach (var crumb in GetBreadcrumbs())
                 {
                     <span>/</span>
@@ -98,7 +111,7 @@ else
                     }
                     else
                     {
-                        <a href="#" @onclick="() => NavigateToFolder(crumb.Path)">@crumb.Name</a>
+                        <a href="#" @onclick="() => NavigateToFolderAsync(crumb.Path)">@crumb.Name</a>
                     }
                 }
             </div>
@@ -115,67 +128,134 @@ else
             <p class="text-danger">@errorMessage</p>
         }
 
-        @if (folderItems.Count == 0)
-        {
-            <p><em>No files found in storage.</em></p>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>
-                                <input type="checkbox" checked="@AllVisibleSelected" @onchange="ToggleSelectAll" />
-                            </th>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Size (bytes)</th>
-                            <th>Last Modified (UTC)</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (!string.IsNullOrWhiteSpace(currentFolderPath))
-                        {
-                            <tr>
-                                <td></td>
-                                <td><a href="#" @onclick="NavigateUp">..</a></td>
-                                <td>Folder</td>
-                                <td></td>
-                                <td></td>
-                                <td><a href="#" @onclick="NavigateUp">Open</a></td>
-                            </tr>
-                        }
+        <div class="explorer-grid">
+            <aside class="tree-pane">
+                <div class="tree-header">Folders</div>
+                <button class="tree-link root-link" @onclick="() => NavigateToFolderAsync(string.Empty)">Root</button>
+                @if (rootTreeNodes.Count == 0)
+                {
+                    <p class="text-muted">No folders</p>
+                }
+                else
+                {
+                    @TreeBranch(rootTreeNodes)
+                }
+            </aside>
 
-                        @foreach (var entry in folderItems)
-                        {
-                            <tr class="@(selectedPaths.Contains(entry.Path) ? "row-selected" : string.Empty)">
-                                <td>
-                                    <input type="checkbox"
-                                           checked="@selectedPaths.Contains(entry.Path)"
-                                           @onchange="(e) => ToggleSelection(entry.Path, e)" />
-                                </td>
-                                <td>@entry.Name</td>
-                                <td>@(entry.IsFolder ? "Folder" : "File")</td>
-                                <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
-                                <td>@(entry.LastModifiedUtc?.ToString("u"))</td>
-                                <td>
-                                    @if (entry.IsFolder)
+            <section class="content-pane">
+                @if (showSearchResults)
+                {
+                    @if (searchResults.Count == 0)
+                    {
+                        <p><em>No search results found.</em></p>
+                    }
+                    else
+                    {
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Path</th>
+                                        <th>Size (bytes)</th>
+                                        <th>Last Modified (UTC)</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var entry in searchResults)
                                     {
-                                        <a href="#" @onclick="() => NavigateToFolder(entry.Path)">Open</a>
+                                        <tr>
+                                            <td>@entry.Name</td>
+                                            <td>@(entry.IsFolder ? "Folder" : "File")</td>
+                                            <td class="text-mono">@entry.Path</td>
+                                            <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
+                                            <td>@(entry.LastModifiedUtc?.ToString("u"))</td>
+                                            <td>
+                                                @if (entry.IsFolder)
+                                                {
+                                                    <a href="#" @onclick="() => OpenFromSearchAsync(entry.Path)">Open</a>
+                                                }
+                                                else
+                                                {
+                                                    <a href="@FileApiClient.BuildDownloadUrl(entry.Path)">Download</a>
+                                                }
+                                            </td>
+                                        </tr>
                                     }
-                                    else
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+                else
+                {
+                    @if (folderItems.Count == 0)
+                    {
+                        <p><em>No files found in storage.</em></p>
+                    }
+                    else
+                    {
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            <input type="checkbox" checked="@AllVisibleSelected" @onchange="ToggleSelectAll" />
+                                        </th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Size (bytes)</th>
+                                        <th>Last Modified (UTC)</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (!string.IsNullOrWhiteSpace(currentFolderPath))
                                     {
-                                        <a href="@FileApiClient.BuildDownloadUrl(entry.Path)">Download</a>
+                                        <tr>
+                                            <td></td>
+                                            <td><a href="#" @onclick="NavigateUpAsync">..</a></td>
+                                            <td>Folder</td>
+                                            <td></td>
+                                            <td></td>
+                                            <td><a href="#" @onclick="NavigateUpAsync">Open</a></td>
+                                        </tr>
                                     }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
+
+                                    @foreach (var entry in folderItems)
+                                    {
+                                        <tr class="@(selectedPaths.Contains(entry.Path) ? "row-selected" : string.Empty)"
+                                            @ondblclick="() => HandleRowDoubleClickAsync(entry)">
+                                            <td>
+                                                <input type="checkbox"
+                                                       checked="@selectedPaths.Contains(entry.Path)"
+                                                       @onchange="(e) => ToggleSelection(entry.Path, e)" />
+                                            </td>
+                                            <td>@entry.Name</td>
+                                            <td>@(entry.IsFolder ? "Folder" : "File")</td>
+                                            <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
+                                            <td>@(entry.LastModifiedUtc?.ToString("u"))</td>
+                                            <td>
+                                                @if (entry.IsFolder)
+                                                {
+                                                    <a href="#" @onclick="() => NavigateToFolderAsync(entry.Path)">Open</a>
+                                                }
+                                                else
+                                                {
+                                                    <a href="@FileApiClient.BuildDownloadUrl(entry.Path)">Download</a>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </section>
+        </div>
     </section>
 }
 
@@ -183,31 +263,89 @@ else
     private const long MaxUploadSizeBytes = 10L * 1024L * 1024L * 1024L;
 
     private readonly List<FileNodeDto> folderItems = [];
+    private readonly List<FileNodeDto> searchResults = [];
     private readonly HashSet<string> selectedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<TreeNode> rootTreeNodes = [];
+    private readonly Stack<string> backHistory = new();
+    private readonly Stack<string> forwardHistory = new();
 
     private string currentFolderPath = string.Empty;
     private string newFolderName = string.Empty;
     private string renameTargetName = string.Empty;
     private string moveDestinationPath = string.Empty;
+    private string searchQuery = string.Empty;
 
     private bool isBusy;
     private bool showCreateFolderForm;
     private bool showRenameForm;
     private bool showMoveForm;
+    private bool showSearchResults;
     private string? statusMessage;
     private string? errorMessage;
     private bool hasPendingEventRefresh;
 
     private bool CanCreateFolder => AuthSession.HasPermission(PermissionKeys.Add);
     private bool CanUpload => AuthSession.HasPermission(PermissionKeys.Upload);
-    private bool CanRenameSelection => AuthSession.HasPermission(PermissionKeys.Rename) && selectedPaths.Count == 1;
-    private bool CanMoveSelection => AuthSession.HasPermission(PermissionKeys.Move) && selectedPaths.Count > 0;
-    private bool CanDeleteSelection => AuthSession.HasPermission(PermissionKeys.Delete) && selectedPaths.Count > 0;
+    private bool CanSearch => AuthSession.HasPermission(PermissionKeys.Search);
+    private bool CanRenameSelection => AuthSession.HasPermission(PermissionKeys.Rename) && selectedPaths.Count == 1 && !showSearchResults;
+    private bool CanMoveSelection => AuthSession.HasPermission(PermissionKeys.Move) && selectedPaths.Count > 0 && !showSearchResults;
+    private bool CanDeleteSelection => AuthSession.HasPermission(PermissionKeys.Delete) && selectedPaths.Count > 0 && !showSearchResults;
     private bool CanDownloadSelection =>
         AuthSession.HasPermission(PermissionKeys.Download) &&
         selectedPaths.Count == 1 &&
-        folderItems.Any(item => selectedPaths.Contains(item.Path) && !item.IsFolder);
+        folderItems.Any(item => selectedPaths.Contains(item.Path) && !item.IsFolder) &&
+        !showSearchResults;
     private bool AllVisibleSelected => folderItems.Count > 0 && folderItems.All(item => selectedPaths.Contains(item.Path));
+    private bool CanGoBack => backHistory.Count > 0;
+    private bool CanGoForward => forwardHistory.Count > 0;
+
+    private RenderFragment TreeBranch(IEnumerable<TreeNode> nodes) => __builder =>
+    {
+        var seq = 0;
+        __builder.OpenElement(seq++, "ul");
+        __builder.AddAttribute(seq++, "class", "tree-list");
+
+        foreach (var node in nodes.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            __builder.OpenElement(seq++, "li");
+
+            __builder.OpenElement(seq++, "div");
+            __builder.AddAttribute(seq++, "class", $"tree-node-row {(IsCurrentPath(node.Path) ? "active" : string.Empty)}");
+
+            __builder.OpenElement(seq++, "button");
+            __builder.AddAttribute(seq++, "class", "tree-toggle");
+            __builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ToggleTreeNodeAsync(node)));
+            __builder.AddContent(seq++, node.IsExpanded ? "▾" : "▸");
+            __builder.CloseElement();
+
+            __builder.OpenElement(seq++, "button");
+            __builder.AddAttribute(seq++, "class", "tree-link");
+            __builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => NavigateToFolderAsync(node.Path)));
+            __builder.AddContent(seq++, node.Name);
+            __builder.CloseElement();
+
+            __builder.CloseElement();
+
+            if (node.IsExpanded)
+            {
+                if (node.IsLoading)
+                {
+                    __builder.OpenElement(seq++, "div");
+                    __builder.AddAttribute(seq++, "class", "text-muted");
+                    __builder.AddContent(seq++, "Loading...");
+                    __builder.CloseElement();
+                }
+                else
+                {
+                    __builder.AddContent(seq++, TreeBranch(node.Children));
+                }
+            }
+
+            __builder.CloseElement();
+        }
+
+        __builder.CloseElement();
+    };
 
     protected override Task OnInitializedAsync()
     {
@@ -234,7 +372,9 @@ else
 
         await AuthSession.RememberPathAsync("/files");
         await FileEventsClient.StartAsync();
+        await EnsureTreeLoadedAsync();
         await LoadCurrentFolderAsync();
+        await EnsureTreePathExpandedAsync(currentFolderPath);
         await SyncSubscriptionsAsync();
         StateHasChanged();
     }
@@ -263,7 +403,10 @@ else
             statusMessage = uploadedCount == 1
                 ? "Uploaded 1 file."
                 : $"Uploaded {uploadedCount} files.";
+
             await LoadCurrentFolderAsync();
+            await EnsureTreeLoadedAsync(forceReload: true);
+            await EnsureTreePathExpandedAsync(currentFolderPath);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -282,6 +425,8 @@ else
     private async Task LoadFilesAsync()
     {
         await LoadCurrentFolderAsync();
+        await EnsureTreeLoadedAsync(forceReload: true);
+        await EnsureTreePathExpandedAsync(currentFolderPath);
     }
 
     private async Task LoadCurrentFolderAsync()
@@ -346,6 +491,8 @@ else
         hasPendingEventRefresh = false;
         statusMessage = "Folder updated.";
         await LoadCurrentFolderAsync();
+        await EnsureTreeLoadedAsync(forceReload: true);
+        await EnsureTreePathExpandedAsync(currentFolderPath);
         StateHasChanged();
     }
 
@@ -366,35 +513,55 @@ else
             : path.Replace('\\', '/').Trim('/');
     }
 
-    private static string GetLastSegment(string path)
+    private async Task NavigateToFolderAsync(string path)
     {
-        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Length == 0 ? path : segments[^1];
-    }
-
-    private IEnumerable<BreadcrumbItem> GetBreadcrumbs()
-    {
-        if (string.IsNullOrWhiteSpace(currentFolderPath))
+        var normalizedTarget = NormalizePath(path);
+        if (!string.Equals(normalizedTarget, currentFolderPath, StringComparison.OrdinalIgnoreCase))
         {
-            yield break;
+            backHistory.Push(currentFolderPath);
+            forwardHistory.Clear();
         }
 
-        var segments = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        for (var i = 0; i < segments.Length; i++)
-        {
-            var path = string.Join('/', segments.Take(i + 1));
-            yield return new BreadcrumbItem(segments[i], path, i == segments.Length - 1);
-        }
-    }
-
-    private async Task NavigateToFolder(string path)
-    {
-        currentFolderPath = NormalizePath(path);
+        currentFolderPath = normalizedTarget;
         selectedPaths.Clear();
+        showSearchResults = false;
         await LoadCurrentFolderAsync();
+        await EnsureTreePathExpandedAsync(currentFolderPath);
     }
 
-    private async Task NavigateUp()
+    private async Task GoBackAsync()
+    {
+        if (!CanGoBack)
+        {
+            return;
+        }
+
+        forwardHistory.Push(currentFolderPath);
+        var target = backHistory.Pop();
+        currentFolderPath = NormalizePath(target);
+        selectedPaths.Clear();
+        showSearchResults = false;
+        await LoadCurrentFolderAsync();
+        await EnsureTreePathExpandedAsync(currentFolderPath);
+    }
+
+    private async Task GoForwardAsync()
+    {
+        if (!CanGoForward)
+        {
+            return;
+        }
+
+        backHistory.Push(currentFolderPath);
+        var target = forwardHistory.Pop();
+        currentFolderPath = NormalizePath(target);
+        selectedPaths.Clear();
+        showSearchResults = false;
+        await LoadCurrentFolderAsync();
+        await EnsureTreePathExpandedAsync(currentFolderPath);
+    }
+
+    private async Task NavigateUpAsync()
     {
         if (string.IsNullOrWhiteSpace(currentFolderPath))
         {
@@ -402,12 +569,72 @@ else
         }
 
         var parts = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        currentFolderPath = parts.Length <= 1
+        var parentPath = parts.Length <= 1
             ? string.Empty
             : string.Join('/', parts.Take(parts.Length - 1));
 
-        selectedPaths.Clear();
-        await LoadCurrentFolderAsync();
+        await NavigateToFolderAsync(parentPath);
+    }
+
+    private async Task HandleRowDoubleClickAsync(FileNodeDto item)
+    {
+        if (item.IsFolder)
+        {
+            await NavigateToFolderAsync(item.Path);
+        }
+    }
+
+    private async Task OpenFromSearchAsync(string path)
+    {
+        await NavigateToFolderAsync(path);
+    }
+
+    private async Task RunSearchAsync()
+    {
+        if (!CanSearch)
+        {
+            return;
+        }
+
+        var query = searchQuery.Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            errorMessage = "Search query is required.";
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+        statusMessage = null;
+
+        try
+        {
+            var response = await FileApiClient.SearchAsync(query, currentFolderPath);
+            searchResults.Clear();
+            searchResults.AddRange(response.Items);
+            showSearchResults = true;
+            selectedPaths.Clear();
+            statusMessage = $"Search returned {searchResults.Count} item(s).";
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleUnauthorizedAsync(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void ClearSearch()
+    {
+        showSearchResults = false;
+        searchResults.Clear();
+        errorMessage = null;
     }
 
     private void ToggleSelection(string path, ChangeEventArgs args)
@@ -509,6 +736,8 @@ else
             statusMessage = $"Created folder '{folderName}'.";
             CancelInlineAction();
             await LoadCurrentFolderAsync();
+            await EnsureTreeLoadedAsync(forceReload: true);
+            await EnsureTreePathExpandedAsync(currentFolderPath);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -550,6 +779,8 @@ else
             selectedPaths.Clear();
             CancelInlineAction();
             await LoadCurrentFolderAsync();
+            await EnsureTreeLoadedAsync(forceReload: true);
+            await EnsureTreePathExpandedAsync(currentFolderPath);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -584,6 +815,8 @@ else
             selectedPaths.Clear();
             CancelInlineAction();
             await LoadCurrentFolderAsync();
+            await EnsureTreeLoadedAsync(forceReload: true);
+            await EnsureTreePathExpandedAsync(currentFolderPath);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -617,6 +850,8 @@ else
             selectedPaths.Clear();
             CancelInlineAction();
             await LoadCurrentFolderAsync();
+            await EnsureTreeLoadedAsync(forceReload: true);
+            await EnsureTreePathExpandedAsync(currentFolderPath);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -654,6 +889,125 @@ else
         selectedPaths.RemoveWhere(path => !visiblePaths.Contains(path));
     }
 
+    private IEnumerable<BreadcrumbItem> GetBreadcrumbs()
+    {
+        if (string.IsNullOrWhiteSpace(currentFolderPath))
+        {
+            yield break;
+        }
+
+        var segments = currentFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var path = string.Join('/', segments.Take(i + 1));
+            yield return new BreadcrumbItem(segments[i], path, i == segments.Length - 1);
+        }
+    }
+
+    private async Task EnsureTreeLoadedAsync(bool forceReload = false)
+    {
+        if (rootTreeNodes.Count > 0 && !forceReload)
+        {
+            return;
+        }
+
+        var children = await FileApiClient.ListTreeChildrenAsync(string.Empty);
+        rootTreeNodes.Clear();
+        foreach (var child in children.Children)
+        {
+            rootTreeNodes.Add(ToTreeNode(child));
+        }
+    }
+
+    private async Task ToggleTreeNodeAsync(TreeNode node)
+    {
+        if (!node.IsExpanded)
+        {
+            await LoadTreeChildrenAsync(node);
+            node.IsExpanded = true;
+        }
+        else
+        {
+            node.IsExpanded = false;
+        }
+    }
+
+    private async Task LoadTreeChildrenAsync(TreeNode node)
+    {
+        if (node.HasLoadedChildren)
+        {
+            return;
+        }
+
+        node.IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await FileApiClient.ListTreeChildrenAsync(node.Path);
+            node.Children.Clear();
+            foreach (var child in response.Children)
+            {
+                node.Children.Add(ToTreeNode(child));
+            }
+
+            node.HasLoadedChildren = true;
+        }
+        finally
+        {
+            node.IsLoading = false;
+        }
+    }
+
+    private async Task EnsureTreePathExpandedAsync(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return;
+        }
+
+        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var runningPath = string.Empty;
+        var currentNodes = rootTreeNodes;
+
+        for (var i = 0; i < segments.Length; i++)
+        {
+            runningPath = string.IsNullOrWhiteSpace(runningPath)
+                ? segments[i]
+                : $"{runningPath}/{segments[i]}";
+
+            var match = currentNodes.FirstOrDefault(node => string.Equals(node.Path, runningPath, StringComparison.OrdinalIgnoreCase));
+            if (match is null)
+            {
+                break;
+            }
+
+            match.IsExpanded = true;
+
+            if (i < segments.Length - 1)
+            {
+                await LoadTreeChildrenAsync(match);
+                currentNodes = match.Children;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private bool IsCurrentPath(string path)
+        => string.Equals(NormalizePath(path), currentFolderPath, StringComparison.OrdinalIgnoreCase);
+
+    private static TreeNode ToTreeNode(FileNodeDto dto)
+        => new()
+        {
+            Path = NormalizePath(dto.Path),
+            Name = dto.Name,
+            IsExpanded = false,
+            IsLoading = false,
+            HasLoadedChildren = false
+        };
+
     private static bool IsChecked(object? value)
         => value is bool boolValue
             ? boolValue
@@ -670,4 +1024,13 @@ else
 
     private sealed record BreadcrumbItem(string Name, string Path, bool IsCurrent);
 
+    private sealed class TreeNode
+    {
+        public string Path { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public bool IsExpanded { get; set; }
+        public bool IsLoading { get; set; }
+        public bool HasLoadedChildren { get; set; }
+        public List<TreeNode> Children { get; } = [];
+    }
 }

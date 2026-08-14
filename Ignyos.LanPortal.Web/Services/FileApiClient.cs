@@ -13,6 +13,47 @@ public sealed class FileApiClient(
     NavigationManager navigationManager,
     IConfiguration configuration)
 {
+    public async Task<TreeNodeChildrenResponseDto> ListTreeChildrenAsync(string? parentPath, CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessTokenAsync(cancellationToken);
+
+        var uri = string.IsNullOrWhiteSpace(parentPath)
+            ? "api/files/tree/children"
+            : $"api/files/tree/children?parentPath={Uri.EscapeDataString(parentPath)}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        ApplyBearerToken(request);
+
+        using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
+        ThrowIfUnauthorized(response);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<TreeNodeChildrenResponseDto>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Tree children response was empty.");
+    }
+
+    public async Task<FileSearchResponseDto> SearchAsync(
+        string query,
+        string? searchRootPath,
+        int? maxResults = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAccessTokenAsync(cancellationToken);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/files/search")
+        {
+            Content = JsonContent.Create(new FileSearchRequestDto(query, searchRootPath, maxResults))
+        };
+        ApplyBearerToken(request);
+
+        using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
+        ThrowIfUnauthorized(response);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<FileSearchResponseDto>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Search response was empty.");
+    }
+
     public async Task<FileNodeDto> CreateFolderAsync(
         string? currentPath,
         string name,
