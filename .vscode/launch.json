@@ -2,61 +2,17 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "API (.NET)",
+      "name": "Dev-Test (Host-managed API+Web)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-solution",
-      "program": "${workspaceFolder}/Ignyos.LanPortal.Api/bin/Debug/net9.0/Ignyos.LanPortal.Api.dll",
+      "preLaunchTask": "dev-test-prelaunch",
+      "program": "${workspaceFolder}/Ignyos.LanPortal.Host/bin/Debug/net9.0-windows/Ignyos.LanPortal.Host.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/Ignyos.LanPortal.Api",
+      "cwd": "${workspaceFolder}/Ignyos.LanPortal.Host",
       "stopAtEntry": false,
       "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5212"
-      },
-      "serverReadyAction": {
-        "action": "openExternally",
-        "pattern": "Now listening on:\\s+(https?://\\S+)",
-        "uriFormat": "%s/local/admin"
+        "DOTNET_ENVIRONMENT": "Development"
       }
-    },
-    {
-      "name": "Web (.NET)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-solution",
-      "program": "${workspaceFolder}/Ignyos.LanPortal.Web/bin/Debug/net9.0/Ignyos.LanPortal.Web.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/Ignyos.LanPortal.Web",
-      "stopAtEntry": false,
-      "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5014"
-      },
-      "serverReadyAction": {
-        "action": "openExternally",
-        "pattern": "Now listening on:\\s+(https?://\\S+)"
-      }
-    },
-    {
-      "name": "Build",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "dotnet build ./Ignyos.LanPortal.sln",
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "Build Dev Installer",
-      "type": "PowerShell",
-      "request": "launch",
-      "script": "${workspaceFolder}/scripts/build-dev-installer.ps1",
-      "cwd": "${workspaceFolder}",
-      "args": [
-        "-Configuration",
-        "Release",
-        "-Runtime",
-        "win-x64"
-      ]
     },
     {
       "name": "Docs-Deploy",
@@ -78,16 +34,17 @@
       "request": "launch",
       "script": "${workspaceFolder}/scripts/dev-app-deploy.ps1",
       "cwd": "${workspaceFolder}"
-    }
-  ],
-  "compounds": [
+    },
     {
-      "name": "Launch API + Web",
-      "configurations": [
-        "API (.NET)",
-        "Web (.NET)"
-      ],
-      "stopAll": true
+      "name": "Stop Dev Processes",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/scripts/stop-dev-processes.ps1",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ]
     }
   ]
 }

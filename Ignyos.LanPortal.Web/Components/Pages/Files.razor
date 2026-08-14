@@ -360,23 +360,36 @@ else
             return;
         }
 
-        await AuthSession.InitializeAsync();
-        StateHasChanged();
-
-        if (!AuthSession.HasActiveSession)
+        try
         {
-            var returnUrl = Uri.EscapeDataString("/files");
-            Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
-            return;
-        }
+            await AuthSession.InitializeAsync();
+            StateHasChanged();
 
-        await AuthSession.RememberPathAsync("/files");
-        await FileEventsClient.StartAsync();
-        await EnsureTreeLoadedAsync();
-        await LoadCurrentFolderAsync();
-        await EnsureTreePathExpandedAsync(currentFolderPath);
-        await SyncSubscriptionsAsync();
-        StateHasChanged();
+            if (!AuthSession.HasActiveSession)
+            {
+                var returnUrl = Uri.EscapeDataString("/files");
+                Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
+                return;
+            }
+
+            await AuthSession.RememberPathAsync("/files");
+            await FileEventsClient.StartAsync();
+            await EnsureTreeLoadedAsync();
+            await LoadCurrentFolderAsync();
+            await EnsureTreePathExpandedAsync(currentFolderPath);
+            await SyncSubscriptionsAsync();
+            StateHasChanged();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleUnauthorizedAsync(ex.Message);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to initialize Files view. {ex.Message}";
+            StateHasChanged();
+        }
     }
 
     private async Task HandleUploadAsync(InputFileChangeEventArgs args)
@@ -467,7 +480,18 @@ else
 
     private async Task SyncSubscriptionsAsync()
     {
-        await FileEventsClient.SetSubscriptionsAsync([currentFolderPath]);
+        try
+        {
+            await FileEventsClient.SetSubscriptionsAsync([currentFolderPath]);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleUnauthorizedAsync(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            errorMessage ??= $"Real-time updates unavailable. {ex.Message}";
+        }
     }
 
     private void OnFileChanged(FileChangeEventDto change)
@@ -488,12 +512,20 @@ else
             return;
         }
 
-        hasPendingEventRefresh = false;
-        statusMessage = "Folder updated.";
-        await LoadCurrentFolderAsync();
-        await EnsureTreeLoadedAsync(forceReload: true);
-        await EnsureTreePathExpandedAsync(currentFolderPath);
-        StateHasChanged();
+        try
+        {
+            hasPendingEventRefresh = false;
+            statusMessage = "Folder updated.";
+            await LoadCurrentFolderAsync();
+            await EnsureTreeLoadedAsync(forceReload: true);
+            await EnsureTreePathExpandedAsync(currentFolderPath);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to refresh after file update event. {ex.Message}";
+            StateHasChanged();
+        }
     }
 
     private static bool IsEventRelevant(FileChangeEventDto change, string currentPath)

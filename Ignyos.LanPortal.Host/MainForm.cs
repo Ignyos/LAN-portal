@@ -13,7 +13,8 @@ namespace Ignyos.LanPortal.Host;
 public sealed class MainForm : Form
 {
     private const string ApiListenUrl = "http://0.0.0.0:5212";
-    private const string WebListenUrl = "http://0.0.0.0:80";
+    private const string WebListenUrlProd = "http://0.0.0.0:80";
+    private const string WebListenUrlDev = "http://0.0.0.0:5014";
     private const string SetupUrl = "http://localhost:5212/local/setup";
     private const string AdminUrl = "http://localhost:5212/local/admin";
     private const string AccessHistoryUrl = "http://localhost:5212/local/access-history";
@@ -48,6 +49,8 @@ public sealed class MainForm : Form
     private string? availableUpdateVersion;
     private Process? managedApiProcess;
     private Process? managedWebProcess;
+
+    private static string WebListenUrl => IsDevelopmentEnvironment() ? WebListenUrlDev : WebListenUrlProd;
 
     public MainForm()
     {
@@ -132,13 +135,37 @@ public sealed class MainForm : Form
     private static string GetApiExecutablePath()
     {
         var baseDir = AppContext.BaseDirectory;
-        return Path.GetFullPath(Path.Combine(baseDir, "..", "api", "Ignyos.LanPortal.Api.exe"));
+        var packagedPath = Path.GetFullPath(Path.Combine(baseDir, "..", "api", "Ignyos.LanPortal.Api.exe"));
+        if (File.Exists(packagedPath))
+        {
+            return packagedPath;
+        }
+
+        var devPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "Ignyos.LanPortal.Api", "bin", "Debug", "net9.0", "Ignyos.LanPortal.Api.exe"));
+        if (File.Exists(devPath))
+        {
+            return devPath;
+        }
+
+        return packagedPath;
     }
 
     private static string GetWebExecutablePath()
     {
         var baseDir = AppContext.BaseDirectory;
-        return Path.GetFullPath(Path.Combine(baseDir, "..", "web", "Ignyos.LanPortal.Web.exe"));
+        var packagedPath = Path.GetFullPath(Path.Combine(baseDir, "..", "web", "Ignyos.LanPortal.Web.exe"));
+        if (File.Exists(packagedPath))
+        {
+            return packagedPath;
+        }
+
+        var devPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "Ignyos.LanPortal.Web", "bin", "Debug", "net9.0", "Ignyos.LanPortal.Web.exe"));
+        if (File.Exists(devPath))
+        {
+            return devPath;
+        }
+
+        return packagedPath;
     }
 
     private static string GetWebViewUserDataFolder()
@@ -151,14 +178,20 @@ public sealed class MainForm : Form
 
     private static Process? StartPortalProcess(string executablePath, string processName, IReadOnlyList<string> arguments)
     {
-        if (!File.Exists(executablePath))
-        {
-            throw new FileNotFoundException($"Missing executable: {executablePath}");
-        }
-
         if (Process.GetProcessesByName(processName).Length > 0)
         {
             return null;
+        }
+
+        if (!File.Exists(executablePath))
+        {
+            // In local debug compounds, API/Web may be started externally and appear a moment later.
+            if (WaitForExistingProcess(processName, TimeSpan.FromSeconds(15)))
+            {
+                return null;
+            }
+
+            throw new FileNotFoundException($"Missing executable: {executablePath}");
         }
 
         return Process.Start(new ProcessStartInfo
@@ -169,6 +202,31 @@ public sealed class MainForm : Form
             WindowStyle = ProcessWindowStyle.Hidden,
             WorkingDirectory = Path.GetDirectoryName(executablePath)!
         });
+    }
+
+    private static bool WaitForExistingProcess(string processName, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow.Add(timeout);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (Process.GetProcessesByName(processName).Length > 0)
+            {
+                return true;
+            }
+
+            Thread.Sleep(250);
+        }
+
+        return Process.GetProcessesByName(processName).Length > 0;
+    }
+
+    private static bool IsDevelopmentEnvironment()
+    {
+        var environmentName =
+            Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+        return string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task WaitForApiAsync()

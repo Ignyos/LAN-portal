@@ -11,6 +11,7 @@ namespace Ignyos.LanPortal.Api.Controllers;
 public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDeviceLoginStore loginStore) : ControllerBase
 {
     private const string GuestLoginHostName = "lan.home.arpa";
+  private const int DevelopmentGuestLoginPort = 5014;
 
     [HttpGet("local/admin")]
     public IActionResult AdminPage()
@@ -629,14 +630,35 @@ loadRecent();
     private static string BuildGuestLoginUrl()
     {
         var lanIp = GetLanIpv4Address();
-        return string.IsNullOrWhiteSpace(lanIp)
+      var host = string.IsNullOrWhiteSpace(lanIp)
           ? $"http://{GuestLoginHostName}/login"
           : $"http://{lanIp}/login";
+
+      return AddDevelopmentPortIfNeeded(host);
     }
 
     private static string BuildCustomGuestLoginUrl()
     {
-        return $"http://{GuestLoginHostName}/login";
+      return AddDevelopmentPortIfNeeded($"http://{GuestLoginHostName}/login");
+    }
+
+    private static string AddDevelopmentPortIfNeeded(string baseUrl)
+    {
+      var environmentName =
+        Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
+        Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+      if (!string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase))
+      {
+        return baseUrl;
+      }
+
+      var builder = new UriBuilder(baseUrl)
+      {
+        Port = DevelopmentGuestLoginPort
+      };
+
+      return builder.Uri.ToString().TrimEnd('/');
     }
 
     private static GuestDnsStatus EvaluateGuestDnsStatus()
