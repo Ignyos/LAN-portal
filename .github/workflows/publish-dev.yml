@@ -214,6 +214,18 @@ jobs:
 
           Write-Host "Updated docs release history at $historyPath"
 
+          $sitePublishRoot = Join-Path $releaseRoot "site-publish"
+          $siteReleasesRoot = Join-Path $sitePublishRoot "releases"
+          New-Item -ItemType Directory -Path $siteReleasesRoot -Force | Out-Null
+
+          $releasesIndexSource = Join-Path $env:GITHUB_WORKSPACE "docs/releases/index.html"
+          if (Test-Path $releasesIndexSource) {
+            Copy-Item -Path $releasesIndexSource -Destination (Join-Path $siteReleasesRoot "index.html") -Force
+          }
+
+          Copy-Item -Path $historyPath -Destination (Join-Path $siteReleasesRoot "history.json") -Force
+          Write-Host "Added releases page assets to site publish payload at $siteReleasesRoot"
+
       - name: Publish dev artifacts to LAN-portal-dev repo
         if: ${{ env.DEV_PAGES_TOKEN != '' && env.DEV_PAGES_REPO != '' }}
         shell: pwsh
