@@ -10,6 +10,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddScoped<AuthSession>();
 builder.Services.AddScoped<FileEventsClient>();
+builder.Services.AddScoped<FileClientTelemetry>();
 
 builder.Services.AddHttpClient<FileApiClient>(client =>
 {

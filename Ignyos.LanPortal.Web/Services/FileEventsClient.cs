@@ -4,7 +4,11 @@ using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Ignyos.LanPortal.Web.Services;
 
-public sealed class FileEventsClient(AuthSession authSession, NavigationManager navigationManager, IConfiguration configuration) : IAsyncDisposable
+public sealed class FileEventsClient(
+    AuthSession authSession,
+    NavigationManager navigationManager,
+    IConfiguration configuration,
+    FileClientTelemetry telemetry) : IAsyncDisposable
 {
     private HubConnection? connection;
     private HashSet<string> subscribedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -18,7 +22,30 @@ public sealed class FileEventsClient(AuthSession authSession, NavigationManager 
         if (connection is null)
         {
             connection = BuildConnection();
-            connection.On<FileChangeEventDto>("fileChanged", change => FileChanged?.Invoke(change));
+            connection.On<FileChangeEventDto>("fileChanged", change =>
+            {
+                var lagMs = (DateTimeOffset.UtcNow - change.OccurredAtUtc).TotalMilliseconds;
+                telemetry.RecordEventLag(change.EventType, Math.Max(0, lagMs));
+                FileChanged?.Invoke(change);
+            });
+
+            connection.Reconnecting += _ =>
+            {
+                telemetry.RecordReconnect("reconnecting");
+                return Task.CompletedTask;
+            };
+
+            connection.Reconnected += _ =>
+            {
+                telemetry.RecordReconnect("reconnected");
+                return Task.CompletedTask;
+            };
+
+            connection.Closed += _ =>
+            {
+                telemetry.RecordReconnect("closed");
+                return Task.CompletedTask;
+            };
         }
 
         if (connection.State is HubConnectionState.Connected or HubConnectionState.Connecting)

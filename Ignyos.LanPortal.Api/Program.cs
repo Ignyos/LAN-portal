@@ -33,6 +33,7 @@ builder.Services.AddSingleton<IDeviceLoginStore, InMemoryDeviceLoginStore>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IUpdateManifestService, UpdateManifestService>();
 builder.Services.AddSingleton<IFileEventPublisher, SignalRFileEventPublisher>();
+builder.Services.AddSingleton<FilesApiTelemetry>();
 
 JwtDatabaseConfig jwtConfig;
 var bootstrapSection = builder.Configuration.GetSection(BootstrapOptions.SectionName).Get<BootstrapOptions>() ?? new BootstrapOptions();
@@ -112,6 +113,8 @@ if (useHttpsRedirection)
 {
     app.UseHttpsRedirection();
 }
+
+app.UseMiddleware<FilesRequestMetricsMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

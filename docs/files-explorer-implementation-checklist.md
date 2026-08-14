@@ -44,6 +44,7 @@ Suggested first PR slices:
 - PR3: Real-time transport + event contract + minimal client reconciliation. (Baseline completed)
 - PR4: Move + upload/drag-drop + multi-select action constraints. (Completed)
 - PR5: Performance instrumentation + integration tests + exit-criteria hardening.
+  - Status: In progress (telemetry wired; initial unit tests added)
 
 ## 0. Delivery Setup
 
@@ -186,13 +187,13 @@ Suggested first PR slices:
 - [ ] Add benchmarks for large folder trees and large file collections.
 - [ ] Measure and compare scan overhead before/after indexing strategy.
 - [ ] Set performance budgets for list/search latency and UI update time.
-- [ ] Add instrumentation for event lag, dropped reconnects, and reconciliation cost.
+- [x] Add instrumentation for event lag, dropped reconnects, and reconciliation cost.
 
 ## 8. Testing
 
 ### 8.1 Unit Tests
-- [ ] Path normalization and traversal protection.
-- [ ] Permission evaluation and enforcement mapping.
+- [x] Path normalization and traversal protection.
+- [x] Permission evaluation and enforcement mapping.
 - [ ] Event payload serialization and schema compatibility.
 - [ ] Conflict handling and optimistic state transitions.
 
