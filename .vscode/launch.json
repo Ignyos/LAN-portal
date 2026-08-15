@@ -15,36 +15,32 @@
       }
     },
     {
-      "name": "Docs-Deploy",
-      "type": "PowerShell",
+      "name": "Stop Dev Processes",
+      "type": "node-terminal",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/docs-deploy.ps1",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev-processes.ps1 -WorkspaceRoot .",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Docs-Deploy",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/docs-deploy.ps1",
       "cwd": "${workspaceFolder}"
     },
     {
       "name": "Live-App-Deploy",
-      "type": "PowerShell",
+      "type": "node-terminal",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/live-app-deploy.ps1",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/live-app-deploy.ps1",
       "cwd": "${workspaceFolder}"
     },
     {
       "name": "Dev-App-Deploy",
-      "type": "PowerShell",
+      "type": "node-terminal",
       "request": "launch",
-      "script": "${workspaceFolder}/scripts/dev-app-deploy.ps1",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-app-deploy.ps1",
       "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "Stop Dev Processes",
-      "type": "PowerShell",
-      "request": "launch",
-      "script": "${workspaceFolder}/scripts/stop-dev-processes.ps1",
-      "cwd": "${workspaceFolder}",
-      "args": [
-        "-WorkspaceRoot",
-        "${workspaceFolder}"
-      ]
     }
   ]
 }
