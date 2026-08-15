@@ -72,14 +72,7 @@ jobs:
               cp "$source_docs/releases/index.html" "$target_root/releases/index.html"
             fi
 
-            # Seed manifests only if missing, never overwrite dynamic values.
-            if [ ! -f "$target_root/updates/manifest.json" ] && [ -f "$source_docs/updates/manifest.json" ]; then
-              cp "$source_docs/updates/manifest.json" "$target_root/updates/manifest.json"
-            fi
-
-            if [ ! -f "$target_root/updates/manifest-test.json" ] && [ -f "$source_docs/updates/manifest-test.json" ]; then
-              cp "$source_docs/updates/manifest-test.json" "$target_root/updates/manifest-test.json"
-            fi
+            # Never write manifests here; publish workflows own dynamic update state.
           done
 
           printf 'lanportal-dev.ignyos.com\n' > "$repo_dir/CNAME"
@@ -150,14 +143,7 @@ jobs:
               cp "$source_docs/releases/index.html" "$target_root/releases/index.html"
             fi
 
-            # Seed manifests only if missing, never overwrite dynamic values.
-            if [ ! -f "$target_root/updates/manifest.json" ] && [ -f "$source_docs/updates/manifest.json" ]; then
-              cp "$source_docs/updates/manifest.json" "$target_root/updates/manifest.json"
-            fi
-
-            if [ ! -f "$target_root/updates/manifest-test.json" ] && [ -f "$source_docs/updates/manifest-test.json" ]; then
-              cp "$source_docs/updates/manifest-test.json" "$target_root/updates/manifest-test.json"
-            fi
+            # Never write manifests here; publish workflows own dynamic update state.
           done
 
           printf 'lanportal.ignyos.com\n' > "$repo_dir/CNAME"
