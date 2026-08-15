@@ -30,10 +30,18 @@
 
     const [, major, minor, patch, build] = match;
     if (devHost) {
-      return `${major}.${minor}.${patch}`;
+      return `${major}.${minor}.${patch}.${build}`;
     }
 
     return `${major}.${minor}.${patch}.0`;
+  }
+
+  function formatPublishedText(publishedAt, devHost) {
+    if (!publishedAt || Number.isNaN(publishedAt.valueOf())) {
+      return "unknown publish time";
+    }
+
+    return devHost ? publishedAt.toLocaleString() : publishedAt.toLocaleDateString();
   }
 
   async function wireSingleDownload() {
@@ -64,12 +72,9 @@
       }
 
       const publishedAt = manifest.publishedAt ? new Date(manifest.publishedAt) : null;
-      const publishedText =
-        publishedAt && !Number.isNaN(publishedAt.valueOf())
-          ? publishedAt.toLocaleString()
-          : "unknown publish time";
+      const publishedText = formatPublishedText(publishedAt, devHost);
 
-      statusEl.textContent = "Latest version: " + formatVersionLabel(version, devHost) + " (" + publishedText + ")";
+      statusEl.textContent = "Latest version: " + formatVersionLabel(version, devHost) + publishedText;
       linkEl.textContent = "Download " + formatVersionLabel(version, devHost);
       linkEl.href = downloadUrl;
       linkEl.target = "_blank";
