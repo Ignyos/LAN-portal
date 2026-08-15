@@ -54,6 +54,9 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
         label { display: block; font-weight: 600; margin-bottom: 8px; }
         input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
         .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+        .path-row { display: flex; gap: 10px; align-items: center; }
+        .path-row input { flex: 1 1 auto; }
+        .path-row button { white-space: nowrap; }
         button, .linkbtn { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font: inherit; cursor: pointer; background: #fff; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; }
         button.primary, .linkbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
         .status { margin-top: 14px; min-height: 1.4em; }
@@ -85,11 +88,13 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 
             <div class="field">
                 <label for="storageRootPath">Storage folder</label>
-                <input id="storageRootPath" value="{{storageRootPath}}" placeholder="D:/Ignyos/LanPortal" />
+                <div class="path-row">
+                    <input id="storageRootPath" value="{{storageRootPath}}" placeholder="D:/Ignyos/LanPortal" />
+                    <button type="button" onclick="pickStorageFolder()">Browse...</button>
+                </div>
             </div>
 
             <div class="actions">
-                <button class="primary" onclick="saveSetup()">Save setup</button>
                 <a class="linkbtn primary" id="openAdminLink" href="/local/admin" style="{{(setupComplete ? "" : "display:none;")}}">Open admin console</a>
             </div>
 
@@ -119,27 +124,59 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
     <footer class="sticky-footer">Version {{displayVersion}}</footer>
 
     <script>
-    async function saveSetup() {
-        const storageRootPath = document.getElementById('storageRootPath').value;
-
-        const storageResponse = await fetch('/api/local/setup/storage-root', {
+    async function persistStorageRoot(storageRootPath) {
+        const response = await fetch('/api/local/setup/storage-root', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ storageRootPath })
         });
 
-        const status = document.getElementById('status');
-        if (!storageResponse.ok) {
-            status.className = 'status warn';
-            status.innerText = 'Setup could not be saved. Please check the folder path and try again.';
-            return;
-        }
+        return response;
+    }
 
-        document.getElementById('setupBanner').className = 'banner ok';
-        document.getElementById('setupBanner').innerText = 'Setup saved. You can now open the admin console.';
-        document.getElementById('openAdminLink').style.display = '';
-        status.className = 'status ok';
-        status.innerText = 'Saved successfully.';
+    async function pickStorageFolder() {
+        const status = document.getElementById('status');
+        const storageRootPathInput = document.getElementById('storageRootPath');
+        const currentPath = storageRootPathInput.value;
+
+        try {
+            const response = await fetch('/api/local/setup/pick-storage-root', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPath })
+            });
+
+            if (response.status === 204) {
+                return;
+            }
+
+            if (!response.ok) {
+                status.className = 'status warn';
+                status.innerText = 'Could not open folder picker. Please enter a folder path manually.';
+                return;
+            }
+
+            const payload = await response.json();
+            if (payload && payload.storageRootPath) {
+                storageRootPathInput.value = payload.storageRootPath;
+
+                const saveResponse = await persistStorageRoot(payload.storageRootPath);
+                if (!saveResponse.ok) {
+                    status.className = 'status warn';
+                    status.innerText = 'Folder selected, but setup could not be saved. Please try again.';
+                    return;
+                }
+
+                document.getElementById('setupBanner').className = 'banner ok';
+                document.getElementById('setupBanner').innerText = 'Setup saved. You can now open the admin console.';
+                document.getElementById('openAdminLink').style.display = '';
+                status.className = 'status ok';
+                status.innerText = 'Folder selected and saved.';
+            }
+        } catch {
+            status.className = 'status warn';
+            status.innerText = 'Could not open folder picker. Please enter a folder path manually.';
+        }
     }
     </script>
 </body>

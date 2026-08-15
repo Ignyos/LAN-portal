@@ -33,6 +33,7 @@ public sealed class MainForm : Form
     private const string FaultChecksum = "CHECKSUM";
     private const string FaultOrchestration = "ORCHESTRATION";
     private const string FaultLaunch = "LAUNCH";
+    private const string HostMenuDismissMessage = "HOST_CLOSE_OPEN_MENUS";
 
     private readonly WebView2 browser;
     private readonly string appVersionFull;
@@ -49,6 +50,7 @@ public sealed class MainForm : Form
     private string? availableUpdateVersion;
     private Process? managedApiProcess;
     private Process? managedWebProcess;
+    private readonly MenuDismissMessageFilter menuDismissMessageFilter;
 
     private static string WebListenUrl => IsDevelopmentEnvironment() ? WebListenUrlDev : WebListenUrlProd;
 
@@ -69,6 +71,8 @@ public sealed class MainForm : Form
 
         var menuStrip = BuildMenuStrip(out checkForUpdatesMenuItem);
         MainMenuStrip = menuStrip;
+        menuDismissMessageFilter = new MenuDismissMessageFilter(this);
+        Application.AddMessageFilter(menuDismissMessageFilter);
 
         var statusStrip = BuildStatusStrip(appVersionDisplay, out updateStateLabel, out updateActionLabel);
         updatePollTimer = BuildUpdatePollTimer();
@@ -87,7 +91,144 @@ public sealed class MainForm : Form
         Controls.Add(menuStrip);
         Controls.Add(statusStrip);
 
+        Deactivate += (_, _) => CloseOpenMenus();
+        browser.GotFocus += (_, _) => CloseOpenMenus();
+
         Shown += async (_, _) => await InitializeAsync();
+    }
+
+    private void CloseOpenMenus()
+    {
+        if (MainMenuStrip is null)
+        {
+            return;
+        }
+
+        foreach (ToolStripItem item in MainMenuStrip.Items)
+        {
+            if (item is ToolStripMenuItem menuItem && menuItem.DropDown.Visible)
+            {
+                menuItem.HideDropDown();
+            }
+        }
+    }
+
+    private void CloseOpenMenusIfClickedOutside()
+    {
+        if (MainMenuStrip is null)
+        {
+            return;
+        }
+
+        var openMenus = MainMenuStrip.Items
+            .OfType<ToolStripMenuItem>()
+            .Where(menuItem => menuItem.DropDown.Visible)
+            .ToArray();
+
+        if (openMenus.Length == 0)
+        {
+            return;
+        }
+
+        var clickPoint = Cursor.Position;
+        var menuStripBounds = new Rectangle(MainMenuStrip.PointToScreen(Point.Empty), MainMenuStrip.Size);
+        if (menuStripBounds.Contains(clickPoint))
+        {
+            return;
+        }
+
+        foreach (var menuItem in openMenus)
+        {
+            if (menuItem.DropDown.Bounds.Contains(clickPoint))
+            {
+                return;
+            }
+        }
+
+        foreach (var menuItem in openMenus)
+        {
+            menuItem.HideDropDown();
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Application.RemoveMessageFilter(menuDismissMessageFilter);
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private sealed class MenuDismissMessageFilter : IMessageFilter
+    {
+        private const int WmLButtonDown = 0x0201;
+        private const int WmRButtonDown = 0x0204;
+        private const int WmMButtonDown = 0x0207;
+        private readonly MainForm owner;
+
+        public MenuDismissMessageFilter(MainForm owner)
+        {
+            this.owner = owner;
+        }
+
+        public bool PreFilterMessage(ref Message m)
+        {
+            if (m.Msg == WmLButtonDown || m.Msg == WmRButtonDown || m.Msg == WmMButtonDown)
+            {
+                owner.CloseOpenMenusIfClickedOutside();
+            }
+
+            return false;
+        }
+    }
+
+    private async Task ConfigureWebViewMenuDismissBridgeAsync()
+    {
+        if (browser.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        browser.CoreWebView2.WebMessageReceived -= OnBrowserWebMessageReceived;
+        browser.CoreWebView2.WebMessageReceived += OnBrowserWebMessageReceived;
+
+        await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+            """
+            (() => {
+                const hostMessage = 'HOST_CLOSE_OPEN_MENUS';
+                const notifyHost = () => {
+                    try {
+                        chrome.webview.postMessage(hostMessage);
+                    } catch {
+                    }
+                };
+
+                window.addEventListener('pointerdown', notifyHost, true);
+                window.addEventListener('mousedown', notifyHost, true);
+            })();
+            """);
+    }
+
+    private void OnBrowserWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        string? message = null;
+
+        try
+        {
+            message = e.TryGetWebMessageAsString();
+        }
+        catch
+        {
+        }
+
+        if (!string.Equals(message, HostMenuDismissMessage, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        CloseOpenMenus();
     }
 
     private async Task InitializeAsync()
@@ -100,6 +241,7 @@ public sealed class MainForm : Form
             await WaitForApiAsync();
 
             await browser.EnsureCoreWebView2Async();
+            await ConfigureWebViewMenuDismissBridgeAsync();
 
             browser.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
             browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
@@ -275,16 +417,12 @@ public sealed class MainForm : Form
         var accessHistoryMenuItem = new ToolStripMenuItem("Access History");
         accessHistoryMenuItem.Click += (_, _) => NavigateTo(AccessHistoryUrl);
 
-        var refreshMenuItem = new ToolStripMenuItem("Refresh");
-        refreshMenuItem.Click += (_, _) => browser.CoreWebView2?.Reload();
-
         checkUpdatesMenuItem = new ToolStripMenuItem("Check For Updates");
         checkUpdatesMenuItem.Click += async (_, _) => await CheckForUpdatesAsync(isManualCheck: true, forceRefresh: true);
 
         fileMenu.DropDownItems.Add(setupMenuItem);
         fileMenu.DropDownItems.Add(adminMenuItem);
         fileMenu.DropDownItems.Add(accessHistoryMenuItem);
-        fileMenu.DropDownItems.Add(refreshMenuItem);
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
         fileMenu.DropDownItems.Add(checkUpdatesMenuItem);
 
