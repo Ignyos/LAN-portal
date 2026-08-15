@@ -3,13 +3,13 @@
 
   var defaults = {
     enabled: true,
-    patterns: ['test-dev'],
+    patterns: ['test-dev', 'dev', 'test', 'localhost'],
     message: 'DEVELOPER PAGE',
     backgroundColor: '#b91c1c',
     textColor: '#ffffff',
     heightPx: 44,
     zIndex: 2147483647,
-    skipOnLocalhost: true
+    skipOnLocalhost: false
   };
 
   var userConfig = window.DEV_SITE_BANNER_CONFIG || {};

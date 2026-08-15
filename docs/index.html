@@ -12,11 +12,12 @@
   <script>
     window.DEV_SITE_BANNER_CONFIG = {
       enabled: true,
-      patterns: ['test-dev'],
+      patterns: ['test-dev', 'dev', 'test', 'localhost'],
       message: 'DEVELOPER PAGE',
       backgroundColor: '#b91c1c',
       textColor: '#ffffff',
-      heightPx: 44
+      heightPx: 44,
+      skipOnLocalhost: false
     };
   </script>
   <script src="./dev-site-banner.js?v=2026-08-02-16-04" defer></script>

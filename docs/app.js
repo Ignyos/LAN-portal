@@ -30,10 +30,10 @@
 
     const [, major, minor, patch, build] = match;
     if (devHost) {
-      return `${major}.${minor}.${patch}.${build}`;
+      return build ? `${major}.${minor}.${patch}.${build}` : `${major}.${minor}.${patch}`;
     }
 
-    return `${major}.${minor}.${patch}.0`;
+    return `${major}.${minor}.${patch}`;
   }
 
   function formatPublishedText(publishedAt, devHost) {
@@ -74,7 +74,7 @@
       const publishedAt = manifest.publishedAt ? new Date(manifest.publishedAt) : null;
       const publishedText = formatPublishedText(publishedAt, devHost);
 
-      statusEl.textContent = "Latest version: " + formatVersionLabel(version, devHost) + publishedText;
+      statusEl.textContent = "Latest version: " + formatVersionLabel(version, devHost) + " " +publishedText;
       linkEl.textContent = "Download " + formatVersionLabel(version, devHost);
       linkEl.href = downloadUrl;
       linkEl.target = "_blank";
