@@ -50,7 +50,6 @@ public sealed class MainForm : Form
     private string? availableUpdateVersion;
     private Process? managedApiProcess;
     private Process? managedWebProcess;
-    private readonly MenuDismissMessageFilter menuDismissMessageFilter;
 
     private static string WebListenUrl => IsDevelopmentEnvironment() ? WebListenUrlDev : WebListenUrlProd;
 
@@ -71,8 +70,6 @@ public sealed class MainForm : Form
 
         var menuStrip = BuildMenuStrip(out checkForUpdatesMenuItem);
         MainMenuStrip = menuStrip;
-        menuDismissMessageFilter = new MenuDismissMessageFilter(this);
-        Application.AddMessageFilter(menuDismissMessageFilter);
 
         var statusStrip = BuildStatusStrip(appVersionDisplay, out updateStateLabel, out updateActionLabel);
         updatePollTimer = BuildUpdatePollTimer();
@@ -110,77 +107,6 @@ public sealed class MainForm : Form
             {
                 menuItem.HideDropDown();
             }
-        }
-    }
-
-    private void CloseOpenMenusIfClickedOutside()
-    {
-        if (MainMenuStrip is null)
-        {
-            return;
-        }
-
-        var openMenus = MainMenuStrip.Items
-            .OfType<ToolStripMenuItem>()
-            .Where(menuItem => menuItem.DropDown.Visible)
-            .ToArray();
-
-        if (openMenus.Length == 0)
-        {
-            return;
-        }
-
-        var clickPoint = Cursor.Position;
-        var menuStripBounds = new Rectangle(MainMenuStrip.PointToScreen(Point.Empty), MainMenuStrip.Size);
-        if (menuStripBounds.Contains(clickPoint))
-        {
-            return;
-        }
-
-        foreach (var menuItem in openMenus)
-        {
-            if (menuItem.DropDown.Bounds.Contains(clickPoint))
-            {
-                return;
-            }
-        }
-
-        foreach (var menuItem in openMenus)
-        {
-            menuItem.HideDropDown();
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            Application.RemoveMessageFilter(menuDismissMessageFilter);
-        }
-
-        base.Dispose(disposing);
-    }
-
-    private sealed class MenuDismissMessageFilter : IMessageFilter
-    {
-        private const int WmLButtonDown = 0x0201;
-        private const int WmRButtonDown = 0x0204;
-        private const int WmMButtonDown = 0x0207;
-        private readonly MainForm owner;
-
-        public MenuDismissMessageFilter(MainForm owner)
-        {
-            this.owner = owner;
-        }
-
-        public bool PreFilterMessage(ref Message m)
-        {
-            if (m.Msg == WmLButtonDown || m.Msg == WmRButtonDown || m.Msg == WmMButtonDown)
-            {
-                owner.CloseOpenMenusIfClickedOutside();
-            }
-
-            return false;
         }
     }
 
@@ -495,35 +421,58 @@ public sealed class MainForm : Form
 
     private static bool IsDeveloperVersionByFourthNode(string fullVersion)
     {
-        if (string.IsNullOrWhiteSpace(fullVersion))
+        if (!TryParseVersionParts(fullVersion, out _, out _, out _, out var build))
         {
             return false;
         }
 
-        var match = Regex.Match(fullVersion, "^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)");
+        return build > 0;
+    }
+
+    private static string GetDisplayVersionForInstaller(string fullVersion, bool isDevFlavor)
+    {
+        if (TryParseVersionParts(fullVersion, out var major, out var minor, out var patch, out var build))
+        {
+            return isDevFlavor
+                ? $"{major}.{minor}.{patch}.{build}"
+                : $"{major}.{minor}.{patch}";
+        }
+
+        var sanitized = fullVersion.Split('+', 2)[0].Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "unknown" : sanitized;
+    }
+
+    private static bool TryParseVersionParts(string? value, out int major, out int minor, out int patch, out int build)
+    {
+        major = 0;
+        minor = 0;
+        patch = 0;
+        build = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(value, "^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?");
         if (!match.Success)
         {
             return false;
         }
 
-        var buildNode = match.Groups["build"].Value;
-        return !string.Equals(buildNode, "0", StringComparison.Ordinal);
-    }
-
-    private static string GetDisplayVersionForInstaller(string fullVersion, bool isDevFlavor)
-    {
-        if (isDevFlavor)
+        if (!int.TryParse(match.Groups["major"].Value, out major) ||
+            !int.TryParse(match.Groups["minor"].Value, out minor) ||
+            !int.TryParse(match.Groups["patch"].Value, out patch))
         {
-            return fullVersion;
+            return false;
         }
 
-        var match = Regex.Match(fullVersion, "(?<core>\\d+\\.\\d+\\.\\d+)");
-        if (match.Success)
+        if (match.Groups["build"].Success && !int.TryParse(match.Groups["build"].Value, out build))
         {
-            return match.Groups["core"].Value;
+            return false;
         }
 
-        return fullVersion;
+        return true;
     }
 
     private static async Task<string> ResolveInitialUrlAsync()

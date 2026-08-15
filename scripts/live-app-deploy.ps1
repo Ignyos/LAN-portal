@@ -48,7 +48,7 @@ function Get-ProdSuggestedVersion {
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $currentVersion = Get-CurrentVersion -ProjectPath $versionProjectPath
     $suggestedVersion = Get-ProdSuggestedVersion -CurrentVersion $currentVersion
-    $enteredVersion = Read-Host "Enter production publish version [$suggestedVersion]"
+    $enteredVersion = Read-Host "Enter live publish version (current $currentVersion) [$suggestedVersion]: "
     $Version = if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $suggestedVersion } else { $enteredVersion.Trim() }
 }
 

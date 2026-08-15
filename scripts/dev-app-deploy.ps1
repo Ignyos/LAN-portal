@@ -51,7 +51,7 @@ function Get-DevSuggestedVersion {
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $currentVersion = Get-CurrentVersion -ProjectPath $versionProjectPath
     $suggestedVersion = Get-DevSuggestedVersion -CurrentVersion $currentVersion
-    $enteredVersion = Read-Host "Enter dev publish version [$suggestedVersion]"
+    $enteredVersion = Read-Host "Enter dev publish version (current $currentVersion) [$suggestedVersion]: "
     $Version = if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $suggestedVersion } else { $enteredVersion.Trim() }
 }
 

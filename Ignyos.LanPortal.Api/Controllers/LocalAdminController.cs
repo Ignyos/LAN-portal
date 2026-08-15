@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Text;
 using Ignyos.LanPortal.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -24,8 +25,6 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
         var guestLoginUrl = BuildGuestLoginUrl();
         var customGuestLoginUrl = BuildCustomGuestLoginUrl();
         var guestDnsStatus = EvaluateGuestDnsStatus();
-        var displayVersion = GetDisplayVersion();
-
         var html = $$"""
 <!DOCTYPE html>
 <html lang="en">
@@ -35,7 +34,7 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
   <title>My Home Admin</title>
   <style>
     :root { --bg: #f5f7f8; --card: #ffffff; --ink: #0f1a20; --muted: #6a747a; --accent: #0a6c74; --line: #d9e1e4; }
-    body { font-family: Segoe UI, sans-serif; margin: 0; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); padding-bottom: 52px; }
+    body { font-family: Segoe UI, sans-serif; margin: 0; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); }
     .shell { max-width: 1200px; margin: 20px auto; padding: 0 16px 20px; }
     .header { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
@@ -59,7 +58,6 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
     .banner.warn { color: #9d5d00; background: #fff8eb; border-color: #f1dfb7; }
     details.router-help { margin-top: 10px; }
     details.router-help summary { cursor: pointer; font-weight: 600; }
-    .sticky-footer { position: fixed; left: 0; right: 0; bottom: 0; background: #ffffff; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 8px 16px; }
   </style>
 </head>
 <body>
@@ -112,8 +110,6 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
       <div id="activeSessionsContainer" class="muted" style="margin-top:10px;">Loading...</div>
     </section>
   </div>
-  <footer class="sticky-footer">Version {{displayVersion}}</footer>
-
 <script>
 async function getJson(url) {
   const res = await fetch(url);
@@ -454,8 +450,6 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
             return NotFound();
         }
 
-        var displayVersion = GetDisplayVersion();
-
         var html = $$"""
 <!DOCTYPE html>
 <html lang="en">
@@ -465,7 +459,7 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
   <title>My Home Access History</title>
   <style>
     :root { --bg: #f5f7f8; --card: #ffffff; --ink: #0f1a20; --muted: #6a747a; --accent: #0a6c74; --line: #d9e1e4; }
-    body { font-family: Segoe UI, sans-serif; margin: 0; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); padding-bottom: 52px; }
+    body { font-family: Segoe UI, sans-serif; margin: 0; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); }
     .shell { max-width: 1200px; margin: 20px auto; padding: 0 16px 20px; }
     .header { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
     .sub { color: var(--muted); margin-top: 6px; }
@@ -473,7 +467,6 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
     table { border-collapse: collapse; width: 100%; font-size: 14px; }
     th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
     .muted { color: var(--muted); font-size: 13px; }
-    .sticky-footer { position: fixed; left: 0; right: 0; bottom: 0; background: #ffffff; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 8px 16px; }
   </style>
 </head>
 <body>
@@ -488,8 +481,6 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
       <div id="recentContainer" class="muted">Loading...</div>
     </section>
   </div>
-  <footer class="sticky-footer">Version {{displayVersion}}</footer>
-
 <script>
 async function getJson(url) {
   const res = await fetch(url);
@@ -777,12 +768,55 @@ loadRecent();
           .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
           .InformationalVersion;
 
-        if (!string.IsNullOrWhiteSpace(informational))
+      if (TryParseVersionParts(informational, out var major, out var minor, out var patch, out var build))
         {
-            return informational;
+        return build > 0
+          ? $"{major}.{minor}.{patch}.{build}"
+          : $"{major}.{minor}.{patch}";
         }
 
-        return Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
+      var fallback = Assembly.GetEntryAssembly()?.GetName().Version?.ToString();
+      if (TryParseVersionParts(fallback, out major, out minor, out patch, out build))
+      {
+        return build > 0
+          ? $"{major}.{minor}.{patch}.{build}"
+          : $"{major}.{minor}.{patch}";
+      }
+
+      return "unknown";
+    }
+
+    private static bool TryParseVersionParts(string? value, out int major, out int minor, out int patch, out int build)
+    {
+      major = 0;
+      minor = 0;
+      patch = 0;
+      build = 0;
+
+      if (string.IsNullOrWhiteSpace(value))
+      {
+        return false;
+      }
+
+      var match = Regex.Match(value, "^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?");
+      if (!match.Success)
+      {
+        return false;
+      }
+
+      if (!int.TryParse(match.Groups["major"].Value, out major) ||
+        !int.TryParse(match.Groups["minor"].Value, out minor) ||
+        !int.TryParse(match.Groups["patch"].Value, out patch))
+      {
+        return false;
+      }
+
+      if (match.Groups["build"].Success && !int.TryParse(match.Groups["build"].Value, out build))
+      {
+        return false;
+      }
+
+      return true;
     }
 
     private static string NormalizeRoles(string roles)

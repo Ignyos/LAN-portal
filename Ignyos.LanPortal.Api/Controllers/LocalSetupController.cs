@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Diagnostics;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Text;
 using Ignyos.LanPortal.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -25,8 +26,6 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 
         var setupComplete = settingsStore.IsSetupComplete();
         var storageRootPath = settingsStore.GetStorageRootPath() ?? string.Empty;
-        var displayVersion = GetDisplayVersion();
-
         var guestLoginUrl = BuildGuestLoginUrl();
         var customGuestLoginUrl = BuildCustomGuestLoginUrl();
         var guestDnsStatus = EvaluateGuestDnsStatus();
@@ -40,7 +39,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
     <title>My Home - File Share Setup</title>
     <style>
         :root { --bg: #f4f7f8; --card: #ffffff; --ink: #102028; --muted: #68757d; --accent: #0a6c74; --line: #d9e1e4; --ok: #116b2f; --warn: #9d5d00; }
-        body { margin: 0; font-family: Segoe UI, sans-serif; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); padding-bottom: 52px; }
+        body { margin: 0; font-family: Segoe UI, sans-serif; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); }
         .shell { max-width: 760px; margin: 32px auto; padding: 0 16px 28px; }
         .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; box-shadow: 0 14px 40px rgba(16,32,40,.06); }
         h1 { margin: 0; font-size: 28px; }
@@ -67,7 +66,6 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
         .guest-url { font-family: Consolas, Menlo, monospace; font-size: 14px; word-break: break-all; }
         details.router-help { margin-top: 10px; }
         details.router-help summary { cursor: pointer; font-weight: 600; }
-        .sticky-footer { position: fixed; left: 0; right: 0; bottom: 0; background: #ffffff; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 8px 16px; }
     </style>
 </head>
 <body>
@@ -121,7 +119,6 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
             <div class="footer">Nothing else is required during installation. Once setup is saved, you can use the portal from this browser window.</div>
         </div>
     </div>
-    <footer class="sticky-footer">Version {{displayVersion}}</footer>
 
     <script>
     async function persistStorageRoot(storageRootPath) {
@@ -403,12 +400,55 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
 
-        if (!string.IsNullOrWhiteSpace(informational))
+        if (TryParseVersionParts(informational, out var major, out var minor, out var patch, out var build))
         {
-            return informational;
+            return build > 0
+                ? $"{major}.{minor}.{patch}.{build}"
+                : $"{major}.{minor}.{patch}";
         }
 
-        return Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
+        var fallback = Assembly.GetEntryAssembly()?.GetName().Version?.ToString();
+        if (TryParseVersionParts(fallback, out major, out minor, out patch, out build))
+        {
+            return build > 0
+                ? $"{major}.{minor}.{patch}.{build}"
+                : $"{major}.{minor}.{patch}";
+        }
+
+        return "unknown";
+    }
+
+    private static bool TryParseVersionParts(string? value, out int major, out int minor, out int patch, out int build)
+    {
+        major = 0;
+        minor = 0;
+        patch = 0;
+        build = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(value, "^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(match.Groups["major"].Value, out major) ||
+            !int.TryParse(match.Groups["minor"].Value, out minor) ||
+            !int.TryParse(match.Groups["patch"].Value, out patch))
+        {
+            return false;
+        }
+
+        if (match.Groups["build"].Success && !int.TryParse(match.Groups["build"].Value, out build))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static string? TryPickStorageRoot(string? currentPath)

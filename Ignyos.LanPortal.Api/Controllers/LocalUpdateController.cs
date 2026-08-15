@@ -98,19 +98,12 @@ public sealed class LocalUpdateController(IUpdateManifestService updateManifestS
 
     private static bool IsDeveloperVersionByFourthNode(string? version)
     {
-        if (string.IsNullOrWhiteSpace(version))
+        if (!TryParseVersionParts(version, out _, out _, out _, out var build))
         {
             return false;
         }
 
-        var match = Regex.Match(version, "^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)");
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        var buildNode = match.Groups["build"].Value;
-        return !string.Equals(buildNode, "0", StringComparison.Ordinal);
+        return build > 0;
     }
 
     private static bool IsLocalRequest(HttpContext httpContext)
@@ -145,12 +138,55 @@ public sealed class LocalUpdateController(IUpdateManifestService updateManifestS
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
 
-        if (!string.IsNullOrWhiteSpace(informational))
+        if (TryParseVersionParts(informational, out var major, out var minor, out var patch, out var build))
         {
-            return informational.Split('+', 2)[0].Trim();
+            return build > 0
+                ? $"{major}.{minor}.{patch}.{build}"
+                : $"{major}.{minor}.{patch}";
         }
 
-        return Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
+        var fallback = Assembly.GetEntryAssembly()?.GetName().Version?.ToString();
+        if (TryParseVersionParts(fallback, out major, out minor, out patch, out build))
+        {
+            return build > 0
+                ? $"{major}.{minor}.{patch}.{build}"
+                : $"{major}.{minor}.{patch}";
+        }
+
+        return "unknown";
+    }
+
+    private static bool TryParseVersionParts(string? value, out int major, out int minor, out int patch, out int build)
+    {
+        major = 0;
+        minor = 0;
+        patch = 0;
+        build = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(value, "^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(match.Groups["major"].Value, out major) ||
+            !int.TryParse(match.Groups["minor"].Value, out minor) ||
+            !int.TryParse(match.Groups["patch"].Value, out patch))
+        {
+            return false;
+        }
+
+        if (match.Groups["build"].Success && !int.TryParse(match.Groups["build"].Value, out build))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     public sealed record CheckNowRequest(string? CurrentVersion);

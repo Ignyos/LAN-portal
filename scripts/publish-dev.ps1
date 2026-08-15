@@ -134,7 +134,7 @@ $targetVersion = if ([string]::IsNullOrWhiteSpace($PublishVersion)) {
         $defaultVersion
     }
     else {
-        $enteredVersion = Read-Host "Enter dev version to publish [$defaultVersion]"
+        $enteredVersion = Read-Host "Enter dev publish version (current $currentVersion) [$defaultVersion]: "
         if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $defaultVersion } else { $enteredVersion.Trim() }
     }
 }
