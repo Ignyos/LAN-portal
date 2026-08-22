@@ -71,6 +71,8 @@ Notes:
 - [x] Confirm the first user-facing permission display contains Upload, Download, Rename, Delete, and New Folder only.
 - [x] Confirm the standard User role receives the five core file permissions by default.
 - [x] Confirm granular per-user permission control remains a required future Admin capability.
+- [x] Confirm Read and Search are basic internal permissions for the User role.
+- [x] Confirm Move is an Admin permission and remains hidden from the User experience for now.
 
 Recommended direction to review:
 - Persist coarse roles separately from fine-grained permissions.
