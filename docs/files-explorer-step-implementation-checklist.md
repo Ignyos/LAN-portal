@@ -38,12 +38,12 @@ Acceptance gate:
 - [ ] Use stronger themed text for enabled permissions.
 - [ ] Use light gray text for disabled permissions.
 - [ ] Add tooltips for disabled permissions.
-- [ ] Confirm `User` receives the five visible core permissions plus basic Read and Search permissions by default.
+- [ ] Confirm the final runtime default permission set for `User` after the File Explorer refactor; do not change it as part of the initial UI slice.
 - [ ] Keep API permission checks authoritative regardless of UI state.
 
 Permission policy:
-- User: Read, Search, Upload, Download, Rename, Delete, New Folder.
-- Admin: User permissions plus Move and other current administrative permissions.
+- User: Read, Search, Upload, Download, Rename, Delete, New Folder (target policy; runtime decision deferred).
+- Admin: User permissions plus Move and other current administrative permissions (target policy; runtime decision deferred).
 - Visible File Explorer permission strip: Upload, Download, Rename, Delete, New Folder.
 
 Acceptance gate:
@@ -57,11 +57,13 @@ Acceptance gate:
 - [ ] Add the file-only drop area text: `Drag and drop files or`.
 - [ ] Add a multi-file `Browse` button.
 - [ ] Add the explicit Search input and Search button.
+- [x] Confirm `file_explorer_ui.txt` is the source of truth for toolbar and section placement.
 - [ ] Keep the explorer content area dynamically sized.
 - [ ] Set a minimum usable explorer height.
 - [ ] Support vertical and horizontal scrolling without hiding the permissions area.
 - [ ] Keep the layout usable at narrow desktop and mobile widths.
 - [x] Confirm the first implementation slice is layout/navigation only, with existing upload/search behavior preserved temporarily.
+- [x] Confirm the permissions strip is a separate section below the explorer.
 
 Acceptance gate:
 - The page presents a stable two-pane explorer without losing the permissions area on shorter displays.
@@ -78,6 +80,7 @@ Acceptance gate:
 - [ ] Preserve the full logical path for assistive technology.
 - [ ] Keep the current folder visible at all times.
 - [ ] Keep the rightmost/current path visible when breadcrumbs overflow.
+- [x] Confirm tree-pane sizing and breadcrumb treatment should follow `file_explorer_ui.txt` rather than a preset pixel width.
 - [ ] Preserve Back and Forward navigation.
 - [ ] Preserve single-click folder selection.
 - [ ] Preserve double-click folder navigation.
@@ -115,6 +118,7 @@ Acceptance gate:
 - [ ] Provide accessible labels and tooltips for disabled actions.
 - [ ] Preserve confirmation for destructive deletion.
 - [ ] Preserve actionable success, failure, and conflict feedback.
+- [x] Confirm the first visual slice should simplify the experience according to `file_explorer_ui.txt`, rather than preserve redundant toolbar actions.
 - [x] Confirm New Folder should remain an inline form near the toolbar.
 - [x] Confirm Delete should name one selected item or count multiple selected items, and warn when deleting folder contents.
 

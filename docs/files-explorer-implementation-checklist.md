@@ -7,6 +7,9 @@ Scope guardrails:
 - Windows + NTFS host target for milestone 1.
 - No hard lock requirement in milestone 1; use optimistic concurrency and conflict handling.
 - Defer host-side UI refactor until milestone-1 Files functionality is implemented and validated.
+- User-facing actions are Upload, Download, Rename, Delete, and New Folder.
+- Move remains backend-retained and is deferred from the first user-facing experience.
+- Folder upload and folder selection are deferred; Browse and drag/drop accept files only.
 
 ## Immediate Next Steps (Execution Order)
 
@@ -30,7 +33,6 @@ Scope guardrails:
 - [x] Client reconciliation for affected-folder refresh only.
 
 5. Add remaining milestone-1 actions:
-- [x] Move (including multi-select support).
 - [x] Upload + drag/drop upload.
 
 6. Close milestone quality gates:
@@ -67,6 +69,7 @@ Suggested first PR slices:
 - [x] Define claim format as repeated permission claims, not CSV.
 - [ ] Keep coarse roles and fine-grained permissions as separate concepts in model types.
 - [ ] Define response shapes so UI can hide/disable actions based on grants.
+- [ ] Decide final runtime defaults for the User role; do not change them in the initial UI slice.
 
 ### 1.2 API DTOs
 - [x] Define/extend DTOs for:
@@ -163,6 +166,8 @@ Suggested first PR slices:
   - upload current-folder action
   - download single-file first pass
 - [x] Show disabled/hidden actions based on effective permission grants.
+- [ ] Show only Upload, Download, Rename, Delete, and New Folder in the user-facing action and permission experience.
+- [ ] Keep Move out of the first user-facing action bar and context menu.
 
 ### 5.3 Search UX
 - [x] Implement explicit-trigger search flow (no search-as-you-type).
@@ -173,6 +178,7 @@ Suggested first PR slices:
 - [x] Support file upload picker into current folder.
 - [x] Support drag-and-drop upload into current folder.
 - [x] Show progress and actionable errors.
+- [ ] Reject dropped folders atomically with: `Folders cannot be uploaded here. Please select files instead.`
 
 ## 6. Concurrency And Conflict Handling
 

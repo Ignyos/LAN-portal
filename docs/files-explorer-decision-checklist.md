@@ -39,6 +39,7 @@ Notes:
 
 Notes:
 - New Folder is specific to folder creation; Rename and Delete apply to both files and folders.
+- The implementation should follow the layout and control placement represented in `file_explorer_ui.txt`.
 
 ## 4. Multi-Select Rules
 
@@ -69,10 +70,10 @@ Notes:
 - [x] Confirm the server must enforce permissions regardless of what the UI shows.
 - [x] Confirm the UI may hide or disable actions depending on grants.
 - [x] Confirm the first user-facing permission display contains Upload, Download, Rename, Delete, and New Folder only.
-- [x] Confirm the standard User role receives the five core file permissions by default.
+- [ ] Decide the final runtime default permission set for the User role during the File Explorer implementation.
 - [x] Confirm granular per-user permission control remains a required future Admin capability.
 - [x] Confirm Read and Search are basic internal permissions for the User role.
-- [x] Confirm Move is an Admin permission and remains hidden from the User experience for now.
+- [ ] Decide the final runtime treatment of Move during the File Explorer implementation; keep it hidden from the User experience for now.
 
 Recommended direction to review:
 - Persist coarse roles separately from fine-grained permissions.
@@ -85,6 +86,7 @@ Notes:
 - The core File Explorer should not display or manage add-in permissions.
 - Add-in permissions should be managed by the add-in UI or a future central permissions screen.
 - The Admin experience needs a future design for easy granular control over core permissions without making the File Explorer technical.
+- The current implementation should not change User-role permission defaults as part of the File Explorer UI refactor; revisit them after the rest of the refactor is in place.
 
 ## 6. Search Behavior
 
@@ -194,6 +196,7 @@ Must-haves to confirm:
 - [x] Real-time update notifications
 - [x] Incremental refresh of affected folders (not full explorer refresh)
 - [x] Strict shared-root path safety and traversal protection
+- [x] Permissions status is a separate section below the explorer, as shown in `file_explorer_ui.txt`.
 
 Nice-to-haves to confirm:
 - [x] Advanced sorting controls by name, type, size, and modified date can wait if needed.
@@ -203,6 +206,7 @@ Nice-to-haves to confirm:
 Notes:
 - This section reflects accepted decisions from Sections 1-13.
 - Locking remains a later-feature candidate (advisory soft lock), not a milestone-1 requirement.
+- The ASCII mock in `file_explorer_ui.txt` is the source of truth for the first-pass explorer layout and control placement.
 
 ## 15. Permission Management Scope
 
