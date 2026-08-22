@@ -34,9 +34,11 @@ Notes:
 - [x] Confirm users should be able to delete items.
 - [x] Confirm users should be able to upload files into the current folder.
 - [x] Confirm drag-and-drop upload is part of the desired experience.
-- [x] Confirm move is part of the intended action set for the first implementation.
+- [x] Confirm Move should be retained in the backend for future functionality, but excluded from the first user-facing action set.
+- [x] Confirm the first user-facing action set is Upload, Download, Rename, Delete, and New Folder.
 
 Notes:
+- New Folder is specific to folder creation; Rename and Delete apply to both files and folders.
 
 ## 4. Multi-Select Rules
 
@@ -44,7 +46,7 @@ Notes:
 - [x] Confirm the action bar should react to both selection shape and permissions.
 - [x] Confirm rename should be single-item only.
 - [x] Confirm delete should support multi-select.
-- [x] Confirm move should support multi-select.
+- [x] Confirm Move multi-select behavior is deferred with the future Move action.
 - [x] Confirm new folder is a current-folder action, not a selected-item action.
 - [x] Confirm upload is a current-folder action, not a selected-item action.
 - [x] Confirm download can stay single-file only in the first pass.
@@ -66,6 +68,9 @@ Notes:
 - [x] Confirm coarse roles may still appear in JWT claims, but add-ons should depend on permissions rather than hardcoded built-in roles.
 - [x] Confirm the server must enforce permissions regardless of what the UI shows.
 - [x] Confirm the UI may hide or disable actions depending on grants.
+- [x] Confirm the first user-facing permission display contains Upload, Download, Rename, Delete, and New Folder only.
+- [x] Confirm the standard User role receives the five core file permissions by default.
+- [x] Confirm granular per-user permission control remains a required future Admin capability.
 
 Recommended direction to review:
 - Persist coarse roles separately from fine-grained permissions.
@@ -75,14 +80,31 @@ Recommended direction to review:
 - Design future add-ons to register or depend on namespaced permissions instead of built-in roles.
 
 Notes:
+- The core File Explorer should not display or manage add-in permissions.
+- Add-in permissions should be managed by the add-in UI or a future central permissions screen.
+- The Admin experience needs a future design for easy granular control over core permissions without making the File Explorer technical.
 
 ## 6. Search Behavior
 
 - [x] Confirm search should be explicitly started by the user.
 - [x] Confirm search-as-you-type is not desired.
 - [x] Confirm search can be part of the overall contract even if the richer UX arrives after core explorer parity.
+- [x] Confirm search should support both the Search button and the Enter key.
+- [x] Confirm the search dropdown should appear only after an explicit search starts.
+- [x] Confirm no debounce should be added to search-as-you-type in the first implementation.
 
 Notes:
+- Search performance can be measured later before considering a 200-300ms debounce.
+- The first implementation should use the existing filesystem search behind a provider boundary; Everything integration follows that boundary.
+
+## 6.1 Upload Drop Constraints
+
+- [x] Confirm drag-and-drop should accept files only in the first implementation.
+- [x] Confirm dropped folders should be detected and rejected without uploading any files from that drop.
+- [x] Confirm the folder-drop warning text: "Folders cannot be uploaded here. Please select files instead."
+
+Notes:
+- Folder selection and folder upload are deferred.
 
 ## 7. Real-Time Update Strategy
 
@@ -110,6 +132,7 @@ Notes:
 
 Notes:
 - We can also consider building our own library or service worker to replace Everything by Voidtools if that path becomes a better fit.
+- Bundle Everything with the product if it can be packaged, installed, licensed, and maintained reliably; otherwise keep it optional with a fallback provider.
 
 ## 10. Host Change Detection
 
@@ -160,7 +183,7 @@ Must-haves to confirm:
 - [x] New folder
 - [x] Rename (single-item)
 - [x] Delete (supports multi-select)
-- [x] Move (supports multi-select)
+- [x] Move retained in backend; user-facing Move action deferred
 - [x] Upload into current folder
 - [x] Drag/drop upload
 - [x] Download (single-file in first pass)
@@ -178,6 +201,17 @@ Nice-to-haves to confirm:
 Notes:
 - This section reflects accepted decisions from Sections 1-13.
 - Locking remains a later-feature candidate (advisory soft lock), not a milestone-1 requirement.
+
+## 15. Permission Management Scope
+
+- [x] Confirm no new permission-management UI is needed for the File Explorer milestone.
+- [x] Confirm the existing host approval role choice remains responsible for standard core permissions.
+- [x] Confirm the File Explorer should display effective permissions without managing them.
+- [x] Confirm future add-in permissions should be managed by the add-in UI or a central add-in permissions screen.
+
+Notes:
+- The core File Explorer should expose only Upload, Download, Rename, Delete, and New Folder.
+- Move remains retained in the backend for future functionality but is not part of the current user-facing action set.
 
 ## 15. Readiness Before Implementation Checklist
 
