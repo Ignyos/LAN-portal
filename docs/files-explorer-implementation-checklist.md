@@ -58,7 +58,7 @@ Suggested first PR slices:
 ### 1.1 Permission Model Contract
 - [x] Define permission key namespace and initial keys:
   - file:read
-  - file:add
+  - file:new-folder
   - file:rename
   - file:move
   - file:delete

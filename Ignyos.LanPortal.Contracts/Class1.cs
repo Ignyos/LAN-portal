@@ -3,7 +3,7 @@
 public static class PermissionKeys
 {
     public const string Read = "file:read";
-    public const string Add = "file:add";
+    public const string NewFolder = "file:new-folder";
     public const string Rename = "file:rename";
     public const string Move = "file:move";
     public const string Delete = "file:delete";
@@ -14,7 +14,7 @@ public static class PermissionKeys
     public static readonly IReadOnlyList<string> All =
     [
         Read,
-        Add,
+        NewFolder,
         Rename,
         Move,
         Delete,

@@ -226,6 +226,55 @@ tr:last-child td {
     color: #7f2525;
 }
 
+.approval-progress {
+    position: relative;
+    width: 100%;
+    min-height: 2.8rem;
+    margin-top: 1rem;
+    overflow: hidden;
+    border: 1px solid #c7b48d;
+    border-radius: 0.58rem;
+    background: transparent;
+}
+
+.approval-progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 100%;
+    background: var(--accent);
+    animation-name: approval-progress-empty;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+.approval-progress-label {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    min-height: 2.8rem;
+    padding: 0 0.85rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 4px var(--accent);
+    white-space: nowrap;
+}
+
+.approval-progress-expired .approval-progress-label {
+    color: #a31f1f;
+    animation: approval-expired-fade 2s ease forwards;
+}
+
+@keyframes approval-expired-fade {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes approval-progress-empty {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
 .modal-backdrop {
     position: fixed;
     inset: 0;

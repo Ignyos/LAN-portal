@@ -33,7 +33,7 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Home Admin</title>
+  <title>Admin</title>
   <link rel="stylesheet" href="/host.css?v=1" />
 </head>
 <body>
@@ -42,9 +42,9 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
       <p class="eyebrow">Admin</p>
     </header>
 
-    <section class="card" style="margin-top:16px;">
+    <!-- <section class="card" style="margin-top:16px;">
       <h1>My Home</h1>
-    </section>
+    </section> -->
 
     <section class="card" style="margin-top:16px;">
       <h2>Pending Approvals</h2>
@@ -427,8 +427,6 @@ async function approve(id) {
     }
 
     approvalDrafts.delete(id);
-    status.className = 'status ok';
-    status.innerText = `Approved login for ${userName} on ${deviceName}.`;
   } finally {
     setRowBusy(id, false);
   }
@@ -482,8 +480,6 @@ async function deny(id, reason) {
     }
 
     approvalDrafts.delete(id);
-    status.className = 'status ok';
-    status.innerText = 'Request denied.';
   } finally {
     setRowBusy(id, false);
   }
@@ -532,15 +528,13 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Home Access History</title>
+  <title>Access History</title>
   <link rel="stylesheet" href="/host.css?v=1" />
 </head>
 <body>
   <div class="shell">
     <div class="header">
       <p class="eyebrow">Access History</p>
-      <h1>My Home Access History</h1>
-      <div class="sub">Review recent approval and denial decisions.</div>
     </div>
 
     <section class="card">

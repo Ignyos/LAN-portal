@@ -99,7 +99,7 @@ public sealed class JwtTokenService(IAppSettingsStore settingsStore) : IJwtToken
             return
             [
                 PermissionKeys.Read,
-                PermissionKeys.Add,
+                PermissionKeys.NewFolder,
                 PermissionKeys.Rename,
                 PermissionKeys.Move,
                 PermissionKeys.Delete,

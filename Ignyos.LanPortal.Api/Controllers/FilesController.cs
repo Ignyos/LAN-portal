@@ -200,7 +200,7 @@ public sealed class FilesController(IAppSettingsStore settingsStore, IFileEventP
     [HttpPost("folders")]
     public ActionResult<FileNodeDto> CreateFolder([FromBody] CreateFolderRequestDto request)
     {
-        if (!FilePermissionService.HasPermission(User, PermissionKeys.Add))
+        if (!FilePermissionService.HasPermission(User, PermissionKeys.NewFolder))
         {
             return Forbid();
         }

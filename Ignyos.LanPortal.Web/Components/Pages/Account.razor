@@ -55,11 +55,6 @@ else if (!AuthSession.HasActiveSession)
             <button class="btn btn-primary" @onclick="RequestAccessAsync" disabled="@isBusy">Request Access</button>
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(statusMessage))
-        {
-            <p class="text-success">@statusMessage</p>
-        }
-
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
             <p class="text-danger">@errorMessage</p>
@@ -67,10 +62,16 @@ else if (!AuthSession.HasActiveSession)
 
         @if (pendingRequest is not null)
         {
-            <div class="notice notice-info text-mono">
-                <div><strong>Request ID:</strong> @pendingRequest.RequestId</div>
-                <div><strong>User Code:</strong> @pendingRequest.UserCode</div>
-                <div><strong>Expires:</strong> @FormatLocalDateTime(pendingRequest.ExpiresAtUtc)</div>
+            <div class="approval-progress @(requestExpired ? "approval-progress-expired" : string.Empty)"
+                 role="progressbar"
+                 aria-label="Access request expiration"
+                 aria-valuemin="0"
+                 aria-valuemax="100"
+                 aria-valuenow="@PendingProgressPercent">
+                <div class="approval-progress-fill" style="animation-duration: @PendingDurationSeconds.ToString("F1")s;"></div>
+                <div class="approval-progress-label">
+                    @(requestExpired ? "Request expired." : $"Waiting for approval. {PendingTimeRemaining}")
+                </div>
             </div>
         }
     </section>
@@ -91,7 +92,7 @@ else
             <span class="account-value">@(AuthSession.Roles.Count == 0 ? "None" : string.Join(", ", AuthSession.Roles))</span>
         </div>
         <div class="account-row">
-            <span class="account-label">Session Expires (Local)</span>
+            <span class="account-label">Session Expires</span>
             <span class="account-value">@GetSessionExpiryDisplay()</span>
         </div>
 
@@ -121,6 +122,45 @@ else
     private string? errorMessage;
     private string? revocationReason;
     private DeviceLoginStartResponseDto? pendingRequest;
+    private DateTimeOffset? pendingStartedAtUtc;
+    private bool requestExpired;
+    private int requestSequence;
+
+    private int PendingProgressPercent
+    {
+        get
+        {
+            if (pendingRequest is null || requestExpired)
+            {
+                return 0;
+            }
+
+            var startedAtUtc = pendingStartedAtUtc ?? DateTimeOffset.UtcNow;
+            var totalSeconds = Math.Max(1, (pendingRequest.ExpiresAtUtc - startedAtUtc).TotalSeconds);
+            var remainingSeconds = Math.Max(0, (pendingRequest.ExpiresAtUtc - DateTimeOffset.UtcNow).TotalSeconds);
+            return (int)Math.Clamp(Math.Ceiling(remainingSeconds / totalSeconds * 100), 0, 100);
+        }
+    }
+
+    private string PendingTimeRemaining
+    {
+        get
+        {
+            if (pendingRequest is null)
+            {
+                return "0:00";
+            }
+
+            var remaining = pendingRequest.ExpiresAtUtc - DateTimeOffset.UtcNow;
+            var totalSeconds = Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
+            return $"{totalSeconds / 60}:{totalSeconds % 60:00}";
+        }
+    }
+
+    private double PendingDurationSeconds
+        => pendingRequest is null || pendingStartedAtUtc is null
+            ? 1
+            : Math.Max(1, (pendingRequest.ExpiresAtUtc - pendingStartedAtUtc.Value).TotalSeconds);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -179,21 +219,38 @@ else
         }
 
         isBusy = true;
+        var currentRequest = ++requestSequence;
         statusMessage = null;
         errorMessage = null;
         pendingRequest = null;
+        pendingStartedAtUtc = null;
+        requestExpired = false;
 
         try
         {
             pendingRequest = await AuthApiClient.StartLoginAsync(new DeviceLoginStartRequestDto(
                 userName.Trim(),
                 resolvedDeviceName));
+            pendingStartedAtUtc = DateTimeOffset.UtcNow;
+            StateHasChanged();
 
-            statusMessage = "Request created. Waiting for approval on Machine A...";
-
+            var nextPollAt = DateTimeOffset.UtcNow;
             while (DateTimeOffset.UtcNow < pendingRequest.ExpiresAtUtc)
             {
-                await Task.Delay(TimeSpan.FromSeconds(pendingRequest.PollIntervalSeconds));
+                await Task.Delay(TimeSpan.FromSeconds(1));
+
+                if (DateTimeOffset.UtcNow >= pendingRequest.ExpiresAtUtc)
+                {
+                    break;
+                }
+
+                StateHasChanged();
+                if (DateTimeOffset.UtcNow < nextPollAt)
+                {
+                    continue;
+                }
+
+                nextPollAt = DateTimeOffset.UtcNow.AddSeconds(pendingRequest.PollIntervalSeconds);
 
                 var poll = await AuthApiClient.PollLoginAsync(new DeviceLoginPollRequestDto(
                     pendingRequest.RequestId,
@@ -201,7 +258,6 @@ else
 
                 if (poll.Status == "pending")
                 {
-                    statusMessage = poll.Message ?? "Waiting for approval on Machine A...";
                     StateHasChanged();
                     continue;
                 }
@@ -226,7 +282,24 @@ else
                 return;
             }
 
-            errorMessage = "Access request expired before approval.";
+            if (currentRequest != requestSequence)
+            {
+                return;
+            }
+
+            isBusy = false;
+            requestExpired = true;
+            StateHasChanged();
+            await Task.Delay(TimeSpan.FromSeconds(2));
+
+            if (currentRequest != requestSequence)
+            {
+                return;
+            }
+
+            pendingRequest = null;
+            pendingStartedAtUtc = null;
+            requestExpired = false;
         }
         catch (Exception ex)
         {
@@ -234,7 +307,10 @@ else
         }
         finally
         {
-            isBusy = false;
+            if (currentRequest == requestSequence)
+            {
+                isBusy = false;
+            }
         }
     }
 

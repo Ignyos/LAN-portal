@@ -5,7 +5,7 @@ namespace Ignyos.LanPortal.Api.Services;
 
 public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
 {
-    private const int RequestLifetimeMinutes = 10;
+    private const int RequestLifetimeSeconds = 20;
     private const int MaxDecisionHistory = 100;
 
     private readonly ConcurrentDictionary<Guid, DeviceLoginRequestState> _requests = new();
@@ -21,7 +21,7 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
 
         var requestId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var expiresAtUtc = now.AddMinutes(RequestLifetimeMinutes);
+        var expiresAtUtc = now.AddSeconds(RequestLifetimeSeconds);
         var userCode = BuildUserCode();
 
         var state = new DeviceLoginRequestState

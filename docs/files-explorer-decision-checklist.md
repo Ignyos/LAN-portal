@@ -57,7 +57,7 @@ Notes:
 ## 5. Permissions Model Direction
 
 - [x] Confirm coarse roles and fine-grained permissions should remain separate concepts.
-- [x] Confirm the UI should be designed around action-specific permissions such as `file:add`, `file:rename`, `file:move`, and `file:delete`.
+- [x] Confirm the UI should be designed around action-specific permissions such as `file:new-folder`, `file:rename`, `file:move`, and `file:delete`.
 - [x] Confirm permission keys should be namespaced so future add-ons can participate cleanly.
 - [x] Confirm the first implementation should be compatible with future fine-grained file permissions even if the current role model is simpler.
 - [x] Confirm the server-side persistence model should be the source of truth for permissions.

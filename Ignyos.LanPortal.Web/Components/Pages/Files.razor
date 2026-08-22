@@ -284,7 +284,7 @@ else
     private string? errorMessage;
     private bool hasPendingEventRefresh;
 
-    private bool CanCreateFolder => AuthSession.HasPermission(PermissionKeys.Add);
+    private bool CanCreateFolder => AuthSession.HasPermission(PermissionKeys.NewFolder);
     private bool CanUpload => AuthSession.HasPermission(PermissionKeys.Upload);
     private bool CanSearch => AuthSession.HasPermission(PermissionKeys.Search);
     private bool CanRenameSelection => AuthSession.HasPermission(PermissionKeys.Rename) && selectedPaths.Count == 1 && !showSearchResults;
