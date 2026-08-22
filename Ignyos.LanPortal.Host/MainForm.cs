@@ -12,10 +12,23 @@ namespace Ignyos.LanPortal.Host;
 
 public sealed class MainForm : Form
 {
+    private static readonly Color HostBackground = Color.FromArgb(245, 239, 227);
+    private static readonly Color HostSurface = Color.FromArgb(255, 249, 237);
+    private static readonly Color HostSurfaceAlt = Color.FromArgb(249, 242, 226);
+    private static readonly Color HostInk = Color.FromArgb(17, 34, 45);
+    private static readonly Color HostMuted = Color.FromArgb(66, 90, 102);
+    private static readonly Color HostLine = Color.FromArgb(216, 200, 170);
+    private static readonly Color HostAccent = Color.FromArgb(10, 143, 143);
+    private static readonly Color HostAccentDark = Color.FromArgb(11, 112, 112);
+    private static readonly Color HostAccentSoft = Color.FromArgb(143, 217, 217);
+    private static readonly Color HostAccent2 = Color.FromArgb(240, 138, 36);
+    private static readonly Color HostDanger = Color.FromArgb(163, 31, 31);
+
     private const string ApiListenUrl = "http://0.0.0.0:5212";
     private const string WebListenUrlProd = "http://0.0.0.0:80";
     private const string WebListenUrlDev = "http://0.0.0.0:5014";
     private const string SetupUrl = "http://localhost:5212/local/setup";
+    private const string AdvancedUrl = "http://localhost:5212/local/advanced";
     private const string AdminUrl = "http://localhost:5212/local/admin";
     private const string AccessHistoryUrl = "http://localhost:5212/local/access-history";
     private const string UpdateStatusUrl = "http://localhost:5212/api/local/update/status";
@@ -62,6 +75,8 @@ public sealed class MainForm : Form
         Text = isDevInstaller
             ? $"{AppTitlePrefix} (Dev) v{appVersionDisplay}"
             : $"{AppTitlePrefix} v{appVersionDisplay}";
+        BackColor = HostBackground;
+        ForeColor = HostInk;
         Width = 1280;
         Height = 860;
         MinimumSize = new Size(900, 640);
@@ -77,7 +92,8 @@ public sealed class MainForm : Form
         browser = new WebView2
         {
             Dock = DockStyle.Fill,
-            DefaultBackgroundColor = Color.White,
+            BackColor = HostBackground,
+            DefaultBackgroundColor = HostBackground,
             CreationProperties = new CoreWebView2CreationProperties
             {
                 UserDataFolder = GetWebViewUserDataFolder()
@@ -329,28 +345,54 @@ public sealed class MainForm : Form
     {
         var menuStrip = new MenuStrip
         {
-            Dock = DockStyle.Top
+            Dock = DockStyle.Top,
+            BackColor = HostBackground,
+            ForeColor = HostInk,
+            Renderer = new ToolStripProfessionalRenderer(new HostColorTable())
         };
 
-        var fileMenu = new ToolStripMenuItem("File");
+        var fileMenu = new ToolStripMenuItem("Portal")
+        {
+            ForeColor = HostInk,
+            BackColor = HostBackground
+        };
 
-        var setupMenuItem = new ToolStripMenuItem("Setup");
+        var setupMenuItem = new ToolStripMenuItem("File Sharing")
+        {
+            ForeColor = HostInk
+        };
         setupMenuItem.Click += (_, _) => NavigateTo(SetupUrl);
 
-        var adminMenuItem = new ToolStripMenuItem("Admin");
+        var adminMenuItem = new ToolStripMenuItem("Admin")
+        {
+            ForeColor = HostInk
+        };
         adminMenuItem.Click += (_, _) => NavigateTo(AdminUrl);
 
-        var accessHistoryMenuItem = new ToolStripMenuItem("Access History");
+        var accessHistoryMenuItem = new ToolStripMenuItem("Access History")
+        {
+            ForeColor = HostInk
+        };
         accessHistoryMenuItem.Click += (_, _) => NavigateTo(AccessHistoryUrl);
 
-        checkUpdatesMenuItem = new ToolStripMenuItem("Check For Updates");
+        var advancedMenuItem = new ToolStripMenuItem("Advanced")
+        {
+            ForeColor = HostInk
+        };
+        advancedMenuItem.Click += (_, _) => NavigateTo(AdvancedUrl);
+
+        checkUpdatesMenuItem = new ToolStripMenuItem("Check For Updates")
+        {
+            ForeColor = HostInk,
+            Visible = false
+        };
         checkUpdatesMenuItem.Click += async (_, _) => await CheckForUpdatesAsync(isManualCheck: true, forceRefresh: true);
 
         fileMenu.DropDownItems.Add(setupMenuItem);
         fileMenu.DropDownItems.Add(adminMenuItem);
         fileMenu.DropDownItems.Add(accessHistoryMenuItem);
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
-        fileMenu.DropDownItems.Add(checkUpdatesMenuItem);
+        fileMenu.DropDownItems.Add(advancedMenuItem);
 
         menuStrip.Items.Add(fileMenu);
         return menuStrip;
@@ -361,13 +403,16 @@ public sealed class MainForm : Form
         var statusStrip = new StatusStrip
         {
             Dock = DockStyle.Bottom,
-            SizingGrip = false
+            SizingGrip = false,
+            BackColor = HostBackground,
+            ForeColor = HostInk,
+            Renderer = new ToolStripProfessionalRenderer(new HostColorTable())
         };
 
         var versionLabel = new ToolStripStatusLabel
         {
             Text = $"Version {currentVersion}",
-            ForeColor = Color.DimGray
+            ForeColor = HostMuted
         };
 
         stateLabel = new ToolStripStatusLabel
@@ -375,14 +420,14 @@ public sealed class MainForm : Form
             Text = "Checking for updates...",
             Spring = true,
             TextAlign = ContentAlignment.MiddleRight,
-            ForeColor = Color.DimGray
+            ForeColor = HostMuted
         };
 
         actionLabel = new ToolStripStatusLabel
         {
             IsLink = true,
             Visible = false,
-            ForeColor = Color.FromArgb(20, 92, 148)
+            ForeColor = HostAccent
         };
 
         statusStrip.Items.Add(versionLabel);
@@ -390,6 +435,39 @@ public sealed class MainForm : Form
         statusStrip.Items.Add(actionLabel);
 
         return statusStrip;
+    }
+
+    private sealed class HostColorTable : ProfessionalColorTable
+    {
+        public override Color MenuStripGradientBegin => HostBackground;
+        public override Color MenuStripGradientEnd => HostBackground;
+        public override Color ToolStripBorder => HostLine;
+        public override Color ToolStripDropDownBackground => HostSurface;
+        public override Color ToolStripGradientBegin => HostSurface;
+        public override Color ToolStripGradientMiddle => HostSurface;
+        public override Color ToolStripGradientEnd => HostSurfaceAlt;
+        public override Color StatusStripGradientBegin => HostSurface;
+        public override Color StatusStripGradientEnd => HostSurfaceAlt;
+        public override Color MenuBorder => HostLine;
+        public override Color MenuItemBorder => HostLine;
+        public override Color MenuItemSelected => HostAccentSoft;
+        public override Color MenuItemSelectedGradientBegin => HostAccentSoft;
+        public override Color MenuItemSelectedGradientEnd => HostAccentSoft;
+        public override Color MenuItemPressedGradientBegin => HostAccentSoft;
+        public override Color MenuItemPressedGradientMiddle => HostAccentSoft;
+        public override Color MenuItemPressedGradientEnd => HostAccentSoft;
+        public override Color SeparatorDark => HostLine;
+        public override Color SeparatorLight => HostSurfaceAlt;
+        public override Color ImageMarginGradientBegin => HostSurface;
+        public override Color ImageMarginGradientMiddle => HostSurface;
+        public override Color ImageMarginGradientEnd => HostSurfaceAlt;
+        public override Color ButtonSelectedGradientBegin => HostAccentSoft;
+        public override Color ButtonSelectedGradientMiddle => HostAccentSoft;
+        public override Color ButtonSelectedGradientEnd => HostAccentSoft;
+        public override Color ButtonSelectedBorder => HostAccent;
+        public override Color ButtonPressedGradientBegin => HostAccentDark;
+        public override Color ButtonPressedGradientMiddle => HostAccent;
+        public override Color ButtonPressedGradientEnd => HostAccentDark;
     }
 
     private System.Windows.Forms.Timer BuildUpdatePollTimer()

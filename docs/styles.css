@@ -132,24 +132,21 @@ li {
 .single-download-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.55rem;
-}
-
-.status-line {
-  margin: 0.55rem 0;
-  color: var(--muted);
+  align-items: stretch;
+  gap: 0.6rem;
 }
 
 .download-link {
-  display: inline-block;
+  display: block;
   text-decoration: none;
   color: #fff;
   background: linear-gradient(145deg, var(--accent), #0b7070);
   border: 1px solid #086868;
   border-radius: 0.55rem;
-  padding: 0.45rem 0.75rem;
+  padding: 0.78rem 1rem;
   font-weight: 700;
+  font-size: 1.04rem;
+  text-align: center;
   transition: transform 180ms ease, filter 180ms ease;
 }
 
@@ -162,6 +159,33 @@ li {
   background: #8ba0a9;
   border-color: #798f99;
   pointer-events: none;
+}
+
+.download-subtext {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.platform-chip {
+  margin: 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 34, 45, 0.16);
+  color: #2d4f5f;
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.platform-chip svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  fill: currentColor;
 }
 
 .small {

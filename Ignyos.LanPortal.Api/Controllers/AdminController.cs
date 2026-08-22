@@ -52,13 +52,18 @@ public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLogi
             return BadRequest("Roles is required.");
         }
 
+        if (request.DeviceName is not null && string.IsNullOrWhiteSpace(request.DeviceName))
+        {
+            return BadRequest("DeviceName cannot be blank.");
+        }
+
         const int maxTokenMinutes = 87600 * 60;
         if (request.TokenMinutes is not null && (request.TokenMinutes is < 5 or > maxTokenMinutes))
         {
             return BadRequest($"TokenMinutes must be between 5 and {maxTokenMinutes}.");
         }
 
-        var approved = loginStore.Approve(requestId, request.UserName.Trim(), request.Roles, request.TokenMinutes);
+        var approved = loginStore.Approve(requestId, request.UserName.Trim(), request.Roles, request.TokenMinutes, request.DeviceName?.Trim());
         return approved ? Ok() : NotFound();
     }
 

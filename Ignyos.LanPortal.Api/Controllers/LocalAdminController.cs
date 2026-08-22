@@ -25,6 +25,8 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
         var guestLoginUrl = BuildGuestLoginUrl();
         var customGuestLoginUrl = BuildCustomGuestLoginUrl();
         var guestDnsStatus = EvaluateGuestDnsStatus();
+        var tokenExpiryOptionsJson = System.Text.Json.JsonSerializer.Serialize(
+            Contracts.TokenExpiryOptions.All.Select(option => new { value = option.Value, label = option.Label }));
         var html = $$"""
 <!DOCTYPE html>
 <html lang="en">
@@ -32,58 +34,17 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>My Home Admin</title>
-  <style>
-    :root { --bg: #f5f7f8; --card: #ffffff; --ink: #0f1a20; --muted: #6a747a; --accent: #0a6c74; --line: #d9e1e4; }
-    body { font-family: Segoe UI, sans-serif; margin: 0; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); }
-    .shell { max-width: 1200px; margin: 20px auto; padding: 0 16px 20px; }
-    .header { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-    h2 { margin: 0 0 10px; font-size: 18px; }
-    table { border-collapse: collapse; width: 100%; font-size: 14px; }
-    th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
-    input { width: 100%; box-sizing: border-box; padding: 7px; }
-    select { width: 100%; box-sizing: border-box; padding: 7px; }
-    label { display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
-    button { padding: 7px 12px; margin-right: 6px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; }
-    button.primary { border-color: var(--accent); color: #fff; background: var(--accent); }
-    .muted { color: var(--muted); font-size: 13px; }
-    .status { margin-top: 10px; }
-    .ok { color: #116b2f; }
-    .warn { color: #9d5d00; }
-    .guest { margin-top: 16px; padding: 14px; border-radius: 10px; background: #f7fafb; border: 1px solid var(--line); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-    .guest img { width: 156px; height: 156px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px; }
-    .guest-url { font-family: Consolas, Menlo, monospace; font-size: 14px; word-break: break-all; }
-    .banner { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #f7fafb; border: 1px solid var(--line); }
-    .banner.ok { color: #116b2f; background: #eef8f1; border-color: #cfe9d7; }
-    .banner.warn { color: #9d5d00; background: #fff8eb; border-color: #f1dfb7; }
-    details.router-help { margin-top: 10px; }
-    details.router-help summary { cursor: pointer; font-weight: 600; }
-  </style>
+  <link rel="stylesheet" href="/host.css?v=1" />
 </head>
 <body>
   <div class="shell">
-    <div class="header">
-      <h1>My Home Admin</h1>
-      <div class="guest">
-        <img src="/api/local/setup/guest-login-qr.svg" alt="Guest login QR code" />
-        <div>
-          <div><strong>Recommended guest URL</strong></div>
-          <div class="guest-url">{{guestLoginUrl}}</div>
-          <div class="muted" style="margin-top:6px;">Guests on the same Wi-Fi can scan this QR code to open login. No router changes required.</div>
-          <div class="banner {{(guestDnsStatus.IsConfigured ? "ok" : "warn")}}">{{guestDnsStatus.Message}}</div>
-          <div class="muted" style="margin-top:8px;"><strong>Optional custom URL:</strong> {{customGuestLoginUrl}}</div>
-          <details class="router-help">
-            <summary>How to customize a URL to replace the default {{guestLoginUrl}}</summary>
-            <ol style="margin-top:8px; padding-left:20px;">
-              <li>Create a DHCP reservation so this host keeps the same LAN IP.</li>
-              <li>In your router DNS settings, add an A record: lan.home.arpa -> this host LAN IP.</li>
-              <li>Reconnect guest devices to Wi-Fi (or toggle Wi-Fi) so they pick up updated DNS.</li>
-              <li>Share <span class="guest-url">{{customGuestLoginUrl}}</span> instead of the default IP link.</li>
-            </ol>
-          </details>
-        </div>
-      </div>
-    </div>
+    <header class="page-header">
+      <p class="eyebrow">Admin</p>
+    </header>
+
+    <section class="card" style="margin-top:16px;">
+      <h1>My Home</h1>
+    </section>
 
     <section class="card" style="margin-top:16px;">
       <h2>Pending Approvals</h2>
@@ -91,24 +52,39 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
     </section>
 
     <section class="card" style="margin-top:16px;">
-      <h2>Logged In Users</h2>
-      <div class="muted" style="margin-bottom:8px;">Revoke by user/device or revoke a single session.</div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 0;">
-        <div>
-          <label for="revokeUserName">User Name</label>
-          <input id="revokeUserName" placeholder="home-user" />
-        </div>
-        <div>
-          <label for="revokeDeviceName">Device Name</label>
-          <input id="revokeDeviceName" placeholder="Device-Browser" />
-        </div>
-      </div>
-      <div style="margin-top:8px;">
-        <button onclick="revokeByFilter()">Revoke Matching Sessions</button>
-      </div>
+      <h2>Manage Active Users</h2>
+      <div class="muted" style="margin-bottom:8px;">Review active users and revoke access when needed.</div>
       <div id="sessionsStatus" class="status"></div>
       <div id="activeSessionsContainer" class="muted" style="margin-top:10px;">Loading...</div>
     </section>
+
+    <div id="denyRequestModal" class="modal-backdrop" style="display:none;" role="presentation" onclick="closeDenyRequestModal()">
+      <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="denyRequestTitle" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h3 id="denyRequestTitle">Deny Request</h3>
+          <button type="button" class="modal-close" aria-label="Close deny dialog" onclick="closeDenyRequestModal()">×</button>
+        </div>
+
+        <dl class="modal-details">
+          <div>
+            <dt>Device</dt>
+            <dd id="denyRequestDevice">-</dd>
+          </div>
+        </dl>
+
+        <div class="muted" style="margin-top:12px;">The request will be dismissed and the waiting device will be told access was denied.</div>
+
+        <div style="margin-top:12px;">
+          <label for="denyRequestReason">Reason (optional)</label>
+          <input id="denyRequestReason" placeholder="Shared with the requesting device" />
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" onclick="closeDenyRequestModal()">Cancel</button>
+          <button type="button" class="primary" id="confirmDenyRequest" onclick="confirmDenyRequest()">Confirm Deny</button>
+        </div>
+      </section>
+    </div>
   </div>
 <script>
 async function getJson(url) {
@@ -120,6 +96,8 @@ async function getJson(url) {
 }
 
 const approvalDrafts = new Map();
+const busyRequests = new Set();
+const TOKEN_EXPIRY_OPTIONS = {{tokenExpiryOptionsJson}};
 let pendingSignature = '';
 let pendingRendered = false;
 
@@ -128,9 +106,20 @@ function createDefaultDraft(item) {
     userName: (item.requestedUserName && item.requestedUserName.trim().length > 0)
       ? item.requestedUserName.trim()
       : 'home-user',
+    deviceName: (item.deviceName && item.deviceName.trim().length > 0) ? item.deviceName.trim() : '',
     roles: ['User'],
     expiryOption: '60',
     customHours: 24
+  };
+}
+
+function draftInputs(id) {
+  return {
+    userName: document.getElementById(`user-${id}`),
+    deviceName: document.getElementById(`device-${id}`),
+    admin: document.getElementById(`admin-${id}`),
+    expiry: document.getElementById(`expiry-${id}`),
+    customHours: document.getElementById(`custom-hours-${id}`)
   };
 }
 
@@ -142,20 +131,25 @@ function capturePendingDrafts() {
       continue;
     }
 
-    const userNameInput = document.getElementById(`user-${id}`);
-    const rolesSelect = document.getElementById(`roles-${id}`);
-    const expirySelect = document.getElementById(`expiry-${id}`);
-    const customHoursInput = document.getElementById(`custom-hours-${id}`);
-
-    if (!userNameInput || !rolesSelect || !expirySelect || !customHoursInput) {
+    const el = draftInputs(id);
+    if (!el.userName || !el.deviceName || !el.admin || !el.expiry || !el.customHours) {
       continue;
     }
 
+    // Roles the host UI has no control for are preserved so future add-in roles survive an approval.
+    const previous = approvalDrafts.get(id);
+    const roles = new Set((previous?.roles ?? ['User']).filter(role => role !== 'Admin'));
+    if (el.admin.checked) {
+      roles.add('Admin');
+    }
+    roles.add('User');
+
     approvalDrafts.set(id, {
-      userName: userNameInput.value,
-      roles: Array.from(rolesSelect.selectedOptions).map(option => option.value).filter(Boolean),
-      expiryOption: expirySelect.value,
-      customHours: Number(customHoursInput.value) || 24
+      userName: el.userName.value,
+      deviceName: el.deviceName.value,
+      roles: Array.from(roles),
+      expiryOption: el.expiry.value,
+      customHours: Number(el.customHours.value) || 24
     });
   }
 }
@@ -164,23 +158,50 @@ function applyDraft(id, item) {
   const draft = approvalDrafts.get(id) ?? createDefaultDraft(item);
   approvalDrafts.set(id, draft);
 
-  const userNameInput = document.getElementById(`user-${id}`);
-  const rolesSelect = document.getElementById(`roles-${id}`);
-  const expirySelect = document.getElementById(`expiry-${id}`);
-  const customHoursInput = document.getElementById(`custom-hours-${id}`);
-
-  if (!userNameInput || !rolesSelect || !expirySelect || !customHoursInput) {
+  const el = draftInputs(id);
+  if (!el.userName || !el.deviceName || !el.admin || !el.expiry || !el.customHours) {
     return;
   }
 
-  userNameInput.value = draft.userName || '';
-  for (const option of rolesSelect.options) {
-    option.selected = draft.roles.includes(option.value);
+  el.userName.value = draft.userName || '';
+  el.deviceName.value = draft.deviceName || '';
+  el.admin.checked = draft.roles.includes('Admin');
+  el.expiry.value = draft.expiryOption || '60';
+  el.customHours.value = String(Math.max(1, Math.min(87600, draft.customHours || 24)));
+  toggleCustomHours(id);
+  updateApproveState(id);
+}
+
+function updateApproveState(id) {
+  const el = draftInputs(id);
+  const approveButton = document.getElementById(`approve-${id}`);
+  if (!el.userName || !el.deviceName || !approveButton) {
+    return;
   }
 
-  expirySelect.value = draft.expiryOption || '60';
-  customHoursInput.value = String(Math.max(1, Math.min(87600, draft.customHours || 24)));
-  toggleCustomHours(id);
+  const valid = el.userName.value.trim().length > 0 && el.deviceName.value.trim().length > 0;
+  approveButton.disabled = !valid || busyRequests.has(id);
+}
+
+function setRowBusy(id, busy) {
+  if (busy) {
+    busyRequests.add(id);
+  } else {
+    busyRequests.delete(id);
+  }
+
+  const row = document.querySelector(`#pendingContainer tbody tr[data-request-id="${id}"]`);
+  if (!row) {
+    return;
+  }
+
+  for (const control of row.querySelectorAll('input, select, button')) {
+    control.disabled = busy;
+  }
+
+  if (!busy) {
+    updateApproveState(id);
+  }
 }
 
 async function loadPending() {
@@ -211,40 +232,31 @@ async function loadPending() {
     return;
   }
 
-  let html = '<table><thead><tr><th>Device</th><th>Source</th><th>Requested</th><th>Actions</th></tr></thead><tbody>';
+  const expiryOptionsHtml = TOKEN_EXPIRY_OPTIONS
+    .map(option => `<option value="${option.value}">${option.label}</option>`)
+    .join('');
+
+  let html = '<table><thead><tr><th>User</th><th>Device</th><th>Admin</th><th>Expiration</th><th>Actions</th></tr></thead><tbody>';
   for (const item of rows) {
     html += `<tr data-request-id="${item.requestId}">
-      <td><div>${item.deviceName}</div><div class="muted">${item.requestId}</div></td>
-      <td><div>${item.sourceIp ?? ''}</div><div class="muted">${item.userAgent ?? ''}</div></td>
+      <td><input id="user-${item.requestId}" placeholder="home-user" value="" aria-label="Approved user name" oninput="updateApproveState('${item.requestId}')" /></td>
+      <td><input id="device-${item.requestId}" placeholder="Desktop" value="" aria-label="Device name" oninput="updateApproveState('${item.requestId}')" /></td>
       <td>
-        <div>User: ${item.requestedUserName}</div>
-        <div class="muted">Created: ${item.createdAtUtc}</div>
+        <label class="checkbox-row">
+          <input id="admin-${item.requestId}" type="checkbox" aria-label="Grant administrator access" />
+          <span>Admin</span>
+        </label>
       </td>
       <td>
-        <label for="user-${item.requestId}">User Name</label>
-        <input id="user-${item.requestId}" placeholder="home-user" value="" />
-        <label for="roles-${item.requestId}" style="margin-top:6px;">Roles</label>
-        <select id="roles-${item.requestId}" multiple size="2">
-          <option value="User">User</option>
-          <option value="Admin">Admin</option>
-        </select>
-        <div class="muted" style="margin-top:4px;">Hold Ctrl (or Cmd on Mac) to select multiple roles.</div>
-        <label for="expiry-${item.requestId}" style="margin-top:6px;">Token Expiration</label>
-        <select id="expiry-${item.requestId}" onchange="toggleCustomHours('${item.requestId}')">
-          <option value="60">1 hour</option>
-          <option value="1440">1 day</option>
-          <option value="10080">1 week</option>
-          <option value="never">Never</option>
-          <option value="custom">Custom</option>
-        </select>
+        <select id="expiry-${item.requestId}" aria-label="Token expiration" onchange="toggleCustomHours('${item.requestId}')">${expiryOptionsHtml}</select>
         <div id="custom-hours-wrap-${item.requestId}" style="display:none; margin-top:6px;">
           <label for="custom-hours-${item.requestId}">Custom (hours)</label>
           <input id="custom-hours-${item.requestId}" type="number" min="1" max="87600" value="" />
         </div>
-        <div style="margin-top:8px;">
-          <button class="primary" onclick="approve('${item.requestId}')">Approve</button>
-          <button onclick="deny('${item.requestId}')">Deny</button>
-        </div>
+      </td>
+      <td>
+        <button class="primary" id="approve-${item.requestId}" onclick="approve('${item.requestId}')">Approve</button>
+        <button type="button" title="Deny request" aria-label="Deny request from ${item.deviceName}" onclick="openDenyRequestModal('${item.requestId}')">Deny</button>
       </td>
     </tr>`;
   }
@@ -259,6 +271,41 @@ async function loadPending() {
   pendingRendered = true;
 }
 
+function formatLocalDateTime(value) {
+  if (!value) {
+    return 'Never';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Never';
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatFriendlyDateTime(value) {
+  if (!value) {
+    return 'Never';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Never';
+  }
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+  const year = date.getFullYear();
+  const hour24 = date.getHours();
+  const hour12 = hour24 % 12 || 12;
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  const suffix = hour24 >= 12 ? 'pm' : 'am';
+  return `${month} ${day} ${year} ${hour12}:${minute}${suffix}`;
+}
+
 function toggleCustomHours(id) {
   const expiry = document.getElementById(`expiry-${id}`);
   const customWrap = document.getElementById(`custom-hours-wrap-${id}`);
@@ -268,34 +315,25 @@ function toggleCustomHours(id) {
 async function loadActiveSessions() {
   const rows = await getJson('/api/local/admin/sessions/active');
   const container = document.getElementById('activeSessionsContainer');
+  container.dataset.sessionRows = JSON.stringify(rows);
 
   if (!rows.length) {
     container.innerText = 'No active sessions.';
     return;
   }
 
-  let html = '<table><thead><tr><th>User</th><th>Device</th><th>Roles</th><th>Issued</th><th>Expires</th><th>Last Seen</th><th>Action</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>User</th><th>Device</th><th>Role</th><th>Access Expires</th><th>Revoke</th></tr></thead><tbody>';
   for (const item of rows) {
-    const normalizedRoles = (item.roles || '').split(',').map(value => value.trim()).filter(Boolean);
-    const userSelected = normalizedRoles.some(role => role.toLowerCase() === 'user') ? 'selected' : '';
-    const adminSelected = normalizedRoles.some(role => role.toLowerCase() === 'admin') ? 'selected' : '';
+    const roles = parseRoles(item.roles);
+    const hasAdmin = roles.includes('Admin');
 
     html += `<tr>
       <td>${item.userName}</td>
       <td>${item.deviceName}</td>
+      <td>${hasAdmin ? 'Admin' : 'User'}</td>
+      <td>${formatFriendlyDateTime(item.expiresAtUtc)}</td>
       <td>
-        <select id="session-roles-${item.sessionId}" multiple size="2">
-          <option value="User" ${userSelected}>User</option>
-          <option value="Admin" ${adminSelected}>Admin</option>
-        </select>
-        <div class="muted" style="margin-top:4px;">Hold Ctrl (or Cmd on Mac) to select multiple roles.</div>
-      </td>
-      <td>${item.issuedAtUtc}</td>
-      <td>${item.expiresAtUtc ?? 'Never'}</td>
-      <td>${item.lastSeenAtUtc}</td>
-      <td>
-        <button onclick="updateSessionRoles('${item.sessionId}')">Save Roles</button>
-        <button onclick="revokeSession('${item.sessionId}')">Revoke</button>
+        <button class="icon-btn" type="button" title="Revoke access for ${item.userName}" aria-label="Revoke access for ${item.userName}" onclick="revokeSession('${item.sessionId}')" style="opacity:1; cursor:pointer;">✕</button>
       </td>
     </tr>`;
   }
@@ -303,48 +341,34 @@ async function loadActiveSessions() {
   container.innerHTML = html;
 }
 
-function getSelectedRoles(sessionId) {
-  const select = document.getElementById(`session-roles-${sessionId}`);
-  if (!select) {
+function parseRoles(rawRoles) {
+  if (!rawRoles) {
     return ['User'];
   }
 
-  const roles = Array.from(select.selectedOptions)
-    .map(option => option.value)
-    .filter(Boolean);
+  const values = String(rawRoles)
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean)
+    .map(value => value.toLowerCase() === 'admin' ? 'Admin' : value.toLowerCase() === 'user' ? 'User' : value);
 
-  return roles.length ? roles : ['User'];
-}
-
-async function updateSessionRoles(sessionId) {
-  const roles = getSelectedRoles(sessionId).join(',');
-
-  const response = await fetch(`/api/local/admin/sessions/${sessionId}/roles`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ roles, reason: 'Roles updated by local admin operator.' })
-  });
-
-  const status = document.getElementById('sessionsStatus');
-  if (!response.ok) {
-    status.className = 'status warn';
-    status.innerText = 'Failed to update roles.';
-    return;
-  }
-
-  status.className = 'status ok';
-  status.innerText = 'Roles updated. Changes apply on the user\'s next action.';
-  await Promise.all([loadPending(), loadActiveSessions()]);
+  return values.length ? [...new Set(values)] : ['User'];
 }
 
 async function revokeSession(sessionId) {
+  const status = document.getElementById('sessionsStatus');
+  if (!sessionId) {
+    status.className = 'status warn';
+    status.innerText = 'No session was selected to revoke.';
+    return;
+  }
+
   const response = await fetch(`/api/local/admin/sessions/${sessionId}/revoke`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason: 'Revoked by admin operator.' })
+    body: JSON.stringify({ reason: 'Revoked by local admin operator.' })
   });
 
-  const status = document.getElementById('sessionsStatus');
   if (!response.ok) {
     status.className = 'status warn';
     status.innerText = 'Failed to revoke session.';
@@ -356,36 +380,28 @@ async function revokeSession(sessionId) {
   await Promise.all([loadPending(), loadActiveSessions()]);
 }
 
-async function revokeByFilter() {
-  const userName = document.getElementById('revokeUserName').value;
-  const deviceName = document.getElementById('revokeDeviceName').value;
-
-  const response = await fetch('/api/local/admin/sessions/revoke-by-filter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userName, deviceName, reason: 'Revoked by admin operator.' })
-  });
-
+async function approve(id) {
+  const el = draftInputs(id);
+  const userName = el.userName.value.trim();
+  const deviceName = el.deviceName.value.trim();
   const status = document.getElementById('sessionsStatus');
-  if (!response.ok) {
+
+  if (!userName || !deviceName) {
     status.className = 'status warn';
-    status.innerText = 'Failed to revoke matching sessions.';
+    status.innerText = 'User and Device are required before approving.';
     return;
   }
 
-  const result = await response.json();
-  status.className = 'status ok';
-  status.innerText = `Revoked ${result.revokedCount} session(s).`;
-  await Promise.all([loadPending(), loadActiveSessions()]);
-}
+  // Roles the host UI has no control for are preserved so future add-in roles survive an approval.
+  const previous = approvalDrafts.get(id);
+  const roleSet = new Set((previous?.roles ?? ['User']).filter(role => role !== 'Admin'));
+  if (el.admin.checked) {
+    roleSet.add('Admin');
+  }
+  roleSet.add('User');
 
-async function approve(id) {
-  const userName = document.getElementById(`user-${id}`).value;
-  const roleSelect = document.getElementById(`roles-${id}`);
-  const selectedRoles = Array.from(roleSelect.selectedOptions).map(option => option.value).filter(Boolean);
-  const roles = selectedRoles.length ? selectedRoles.join(',') : 'User';
-  const expiryOption = document.getElementById(`expiry-${id}`).value;
-  const customHours = Number(document.getElementById(`custom-hours-${id}`).value);
+  const expiryOption = el.expiry.value;
+  const customHours = Number(el.customHours.value);
   let tokenMinutes = 60;
 
   if (expiryOption === 'custom') {
@@ -396,21 +412,81 @@ async function approve(id) {
     tokenMinutes = Number(expiryOption);
   }
 
-  await fetch(`/api/local/approvals/${id}/approve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userName, roles, tokenMinutes })
-  });
+  setRowBusy(id, true);
+  try {
+    const response = await fetch(`/api/local/approvals/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userName, roles: Array.from(roleSet).join(','), tokenMinutes, deviceName })
+    });
+
+    if (!response.ok) {
+      status.className = 'status warn';
+      status.innerText = 'Failed to approve request.';
+      return;
+    }
+
+    approvalDrafts.delete(id);
+    status.className = 'status ok';
+    status.innerText = `Approved login for ${userName} on ${deviceName}.`;
+  } finally {
+    setRowBusy(id, false);
+  }
 
   await Promise.all([loadPending(), loadActiveSessions()]);
 }
 
-async function deny(id) {
-  await fetch(`/api/local/approvals/${id}/deny`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason: 'Denied by host operator.' })
-  });
+function openDenyRequestModal(id) {
+  const el = draftInputs(id);
+  const modal = document.getElementById('denyRequestModal');
+  document.getElementById('denyRequestDevice').textContent = el.deviceName?.value || 'Unknown device';
+  document.getElementById('denyRequestReason').value = '';
+  modal.dataset.requestId = id;
+  modal.style.display = 'flex';
+}
+
+function closeDenyRequestModal() {
+  const modal = document.getElementById('denyRequestModal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.dataset.requestId = '';
+  }
+}
+
+async function confirmDenyRequest() {
+  const modal = document.getElementById('denyRequestModal');
+  const id = modal?.dataset.requestId;
+  if (!id) {
+    return;
+  }
+
+  const reason = document.getElementById('denyRequestReason').value.trim();
+  closeDenyRequestModal();
+  await deny(id, reason || 'Denied by host operator.');
+}
+
+async function deny(id, reason) {
+  const status = document.getElementById('sessionsStatus');
+  setRowBusy(id, true);
+  try {
+    const response = await fetch(`/api/local/approvals/${id}/deny`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || 'Denied by host operator.' })
+    });
+
+    if (!response.ok) {
+      status.className = 'status warn';
+      status.innerText = 'Failed to deny request.';
+      return;
+    }
+
+    approvalDrafts.delete(id);
+    status.className = 'status ok';
+    status.innerText = 'Request denied.';
+  } finally {
+    setRowBusy(id, false);
+  }
 
   await Promise.all([loadPending(), loadActiveSessions()]);
 }
@@ -457,21 +533,12 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>My Home Access History</title>
-  <style>
-    :root { --bg: #f5f7f8; --card: #ffffff; --ink: #0f1a20; --muted: #6a747a; --accent: #0a6c74; --line: #d9e1e4; }
-    body { font-family: Segoe UI, sans-serif; margin: 0; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); }
-    .shell { max-width: 1200px; margin: 20px auto; padding: 0 16px 20px; }
-    .header { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-    .sub { color: var(--muted); margin-top: 6px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
-    table { border-collapse: collapse; width: 100%; font-size: 14px; }
-    th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
-    .muted { color: var(--muted); font-size: 13px; }
-  </style>
+  <link rel="stylesheet" href="/host.css?v=1" />
 </head>
 <body>
   <div class="shell">
     <div class="header">
+      <p class="eyebrow">Access History</p>
       <h1>My Home Access History</h1>
       <div class="sub">Review recent approval and denial decisions.</div>
     </div>
@@ -502,7 +569,7 @@ async function loadRecent() {
   let html = '<table><thead><tr><th>Time (UTC)</th><th>Device</th><th>Decision</th><th>Details</th></tr></thead><tbody>';
   for (const item of rows) {
     html += `<tr>
-      <td>${item.decidedAtUtc}</td>
+      <td>${formatLocalDateTime(item.decidedAtUtc)}</td>
       <td>${item.deviceName}</td>
       <td>${item.decision}</td>
       <td>
@@ -622,15 +689,15 @@ loadRecent();
     {
         var lanIp = GetLanIpv4Address();
       var host = string.IsNullOrWhiteSpace(lanIp)
-          ? $"http://{GuestLoginHostName}/login"
-          : $"http://{lanIp}/login";
+          ? $"http://{GuestLoginHostName}/"
+          : $"http://{lanIp}/";
 
       return AddDevelopmentPortIfNeeded(host);
     }
 
     private static string BuildCustomGuestLoginUrl()
     {
-      return AddDevelopmentPortIfNeeded($"http://{GuestLoginHostName}/login");
+      return AddDevelopmentPortIfNeeded($"http://{GuestLoginHostName}/");
     }
 
     private static string AddDevelopmentPortIfNeeded(string baseUrl)
@@ -659,7 +726,7 @@ loadRecent();
         {
             return new GuestDnsStatus(
               false,
-              "Could not detect this machine's LAN IP. Keep using the default IP login URL once network details are available.");
+              "Could not detect this machine's LAN IP. Keep using the default portal URL once network details are available.");
         }
 
         try
@@ -683,7 +750,7 @@ loadRecent();
             {
                 return new GuestDnsStatus(
                   false,
-                  $"Custom URL is not ready yet. {GuestLoginHostName} currently resolves to {string.Join(", ", resolvedIps)} instead of {lanIp}. Keep using the default IP login URL.");
+                  $"Custom URL is not ready yet. {GuestLoginHostName} currently resolves to {string.Join(", ", resolvedIps)} instead of {lanIp}. Keep using the default portal URL.");
             }
         }
         catch
@@ -693,7 +760,7 @@ loadRecent();
 
         return new GuestDnsStatus(
           false,
-          $"Custom URL is not configured yet. Map {GuestLoginHostName} to this host LAN IP ({lanIp}) in your router DNS. Keep using the default IP login URL.");
+          $"Custom URL is not configured yet. Map {GuestLoginHostName} to this host LAN IP ({lanIp}) in your router DNS. Keep using the default portal URL.");
     }
 
     private static string? GetLanIpv4Address()

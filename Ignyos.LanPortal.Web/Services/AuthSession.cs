@@ -176,6 +176,25 @@ public sealed class AuthSession(IJSRuntime jsRuntime)
             : normalized;
     }
 
+    /// <summary>
+    /// Analyzes the current session state to determine if a 401 error indicates
+    /// revocation (token still valid) or natural expiration (token expired).
+    /// Clears the session and returns the detected reason.
+    /// </summary>
+    public async Task<string> HandleUnauthorizedAccessAsync()
+    {
+        // Determine the reason for the 401
+        var wasAuthenticated = IsAuthenticated;
+        var tokenStillValid = AccessTokenExpiresAtUtc is not null && AccessTokenExpiresAtUtc > DateTimeOffset.UtcNow;
+
+        // Clear the session
+        await ClearAsync();
+
+        // If we were authenticated and the token is still valid, it's likely revoked
+        // If the token had expired, it's natural expiration
+        return wasAuthenticated && tokenStillValid ? "revoked" : "expired";
+    }
+
     public bool HasRole(string role)
     {
         if (string.IsNullOrWhiteSpace(role))

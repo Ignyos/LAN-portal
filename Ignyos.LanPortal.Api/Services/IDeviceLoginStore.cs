@@ -14,7 +14,7 @@ public interface IDeviceLoginStore
 
     DeviceLoginPollSnapshot Poll(Guid requestId, string userCode);
 
-    bool Approve(Guid requestId, string userName, string roles, int? tokenMinutes);
+    bool Approve(Guid requestId, string userName, string roles, int? tokenMinutes, string? deviceName = null);
 
     bool Deny(Guid requestId, string? reason);
 

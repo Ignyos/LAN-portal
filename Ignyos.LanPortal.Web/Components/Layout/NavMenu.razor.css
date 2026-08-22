@@ -80,10 +80,52 @@
     transition: background-color 170ms ease, border-color 170ms ease, transform 170ms ease;
 }
 
+.nav-item ::deep button.nav-link {
+    width: 100%;
+    appearance: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.nav-item ::deep .nav-link-disabled {
+    color: #7c8c91;
+    cursor: not-allowed;
+    background: transparent;
+}
+
+.nav-guidance {
+    margin: 0.35rem 0.65rem 0;
+    padding: 0.55rem 0.7rem;
+    border-left: 3px solid var(--accent-2);
+    border-radius: 0.35rem;
+    background: rgba(240, 138, 36, 0.12);
+    color: var(--ink);
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+.account-attention ::deep .nav-link {
+    animation: account-attention 900ms ease-in-out 2;
+}
+
+@keyframes account-attention {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(4px); }
+}
+
 .nav-item ::deep .nav-link:hover {
     background: rgba(10, 143, 143, 0.12);
     border-color: rgba(10, 143, 143, 0.3);
     transform: translateX(2px);
+}
+
+.nav-item ::deep .nav-link-disabled:hover {
+    color: #7c8c91;
+    cursor: not-allowed;
+    background: rgba(81, 126, 126, 0.12);
+    border-color: rgba(70, 97, 97, 0.3);
+    transform: none;
 }
 
 .nav-item ::deep .nav-link.active {
@@ -95,6 +137,12 @@
 
 .nav-toggle:checked ~ .nav-shell {
     display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .account-attention ::deep .nav-link {
+        animation: none;
+    }
 }
 
 @media (min-width: 901px) {

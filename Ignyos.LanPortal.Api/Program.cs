@@ -114,6 +114,7 @@ if (useHttpsRedirection)
     app.UseHttpsRedirection();
 }
 
+app.UseStaticFiles();
 app.UseMiddleware<FilesRequestMetricsMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();

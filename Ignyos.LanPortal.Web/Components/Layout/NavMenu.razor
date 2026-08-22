@@ -5,7 +5,7 @@
 <div class="nav-root">
     <div class="brand-shell">
         <div class="brand-title-wrap">
-            <a class="brand-title" href="">@networkName</a>
+            <a class="brand-title" href="home">@networkName</a>
             <p class="brand-subtitle">LAN Portal</p>
         </div>
     </div>
@@ -15,33 +15,35 @@
     <div class="nav-shell" onclick="document.querySelector('.nav-toggle')?.click()">
         <nav class="nav-stack">
             <div class="nav-item">
-                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <NavLink class="nav-link" href="home">
                     Home
                 </NavLink>
             </div>
 
-            @if (hasActiveSession)
-            {
-                <div class="nav-item">
+            <div class="nav-item">
+                @if (hasActiveSession)
+                {
                     <NavLink class="nav-link" href="files">
                         Files
                     </NavLink>
-                </div>
+                }
+                else
+                {
+                    <button type="button" class="nav-link nav-link-disabled" aria-disabled="true" title="Start by requesting access in Account." @onclick="HandleSignedOutFilesClick">
+                        Files
+                    </button>
+                }
+            </div>
 
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="account">
-                        Account
-                    </NavLink>
-                </div>
-            }
-            else
-            {
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="login">
-                        Login
-                    </NavLink>
-                </div>
-            }
+            <div class="nav-item @(showAccountAttention ? "account-attention" : string.Empty)">
+                <NavLink class="nav-link" href="account">
+                    Account
+                </NavLink>
+                @if (showFilesGuidance)
+                {
+                    <div class="nav-guidance" role="status">Start by requesting access in Account.</div>
+                }
+            </div>
 
             @if (showAdminLink)
             {
@@ -59,6 +61,8 @@
     private string networkName = "My Home";
     private bool hasActiveSession;
     private bool showAdminLink;
+    private bool showFilesGuidance;
+    private bool showAccountAttention;
 
     protected override async Task OnInitializedAsync()
     {
@@ -84,6 +88,23 @@
     {
         hasActiveSession = AuthSession.HasActiveSession;
         showAdminLink = hasActiveSession && AuthSession.HasRole("Admin");
+    }
+
+    private async Task HandleSignedOutFilesClick()
+    {
+        if (hasActiveSession)
+        {
+            return;
+        }
+
+        showFilesGuidance = true;
+        showAccountAttention = true;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(TimeSpan.FromSeconds(4));
+        showFilesGuidance = false;
+        showAccountAttention = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()

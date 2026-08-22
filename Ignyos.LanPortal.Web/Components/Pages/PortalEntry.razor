@@ -1,0 +1,25 @@
+@page "/"
+@rendermode InteractiveServer
+@inject Ignyos.LanPortal.Web.Services.AuthSession AuthSession
+@inject NavigationManager Navigation
+
+<PageTitle>LAN Portal</PageTitle>
+
+@if (!AuthSession.IsLoaded)
+{
+    <p>Loading portal...</p>
+}
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        var destination = AuthSession.HasActiveSession ? "/files" : "/account";
+        Navigation.NavigateTo(destination, replace: true, forceLoad: false);
+    }
+}

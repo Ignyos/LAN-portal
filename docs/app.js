@@ -12,45 +12,12 @@
     return isDevHost ? "./updates/manifest-test.json" : "./updates/manifest.json";
   }
 
-  function isDevHost() {
-    const host = window.location.hostname || "";
-    return host.indexOf("dev") !== -1 || host.indexOf("test") !== -1 || host.indexOf("localhost") !== -1;
-  }
-
-  function formatVersionLabel(version, devHost) {
-    if (!version) {
-      return devHost ? "latest version" : "latest version";
-    }
-
-    const normalized = String(version).trim();
-    const match = normalized.match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$/);
-    if (!match) {
-      return normalized;
-    }
-
-    const [, major, minor, patch, build] = match;
-    if (devHost) {
-      return build ? `${major}.${minor}.${patch}.${build}` : `${major}.${minor}.${patch}`;
-    }
-
-    return `${major}.${minor}.${patch}`;
-  }
-
-  function formatPublishedText(publishedAt, devHost) {
-    if (!publishedAt || Number.isNaN(publishedAt.valueOf())) {
-      return "unknown publish time";
-    }
-
-    return devHost ? publishedAt.toLocaleString() : publishedAt.toLocaleDateString();
-  }
-
   async function wireSingleDownload() {
-    const statusEl = document.getElementById("download-status");
     const linkEl = document.getElementById("download-link");
     const checksumEl = document.getElementById("checksum-link");
     const releaseNotesEl = document.getElementById("release-notes-link");
 
-    if (!statusEl || !linkEl) {
+    if (!linkEl) {
       return;
     }
 
@@ -62,8 +29,6 @@
       }
 
       const manifest = await response.json();
-      const version = manifest.version || "unknown";
-      const devHost = isDevHost();
       const downloadUrl = manifest.url;
       const checksumUrl = manifest.checksumUrl || (manifest.url ? manifest.url + ".sha256" : "");
 
@@ -71,11 +36,7 @@
         throw new Error("Manifest missing url");
       }
 
-      const publishedAt = manifest.publishedAt ? new Date(manifest.publishedAt) : null;
-      const publishedText = formatPublishedText(publishedAt, devHost);
-
-      statusEl.textContent = "Latest version: " + formatVersionLabel(version, devHost) + " " +publishedText;
-      linkEl.textContent = "Download " + formatVersionLabel(version, devHost);
+      linkEl.textContent = "Download LAN Portal";
       linkEl.href = downloadUrl;
       linkEl.target = "_blank";
       linkEl.rel = "noopener";
@@ -95,7 +56,6 @@
         releaseNotesEl.textContent = "Release notes";
       }
     } catch (error) {
-      statusEl.textContent = "Download unavailable: " + error.message;
       linkEl.textContent = "Download unavailable";
       linkEl.href = "#";
       linkEl.classList.add("disabled");

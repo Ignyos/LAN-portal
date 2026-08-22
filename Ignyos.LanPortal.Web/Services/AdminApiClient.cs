@@ -186,7 +186,7 @@ public sealed class AdminApiClient(HttpClient httpClient, AuthSession authSessio
 
         if (!authSession.CanRefresh)
         {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+            throw new UnauthorizedAccessException("Your session is no longer valid. Please request access again.");
         }
 
         await RefreshAccessTokenAsync(cancellationToken);
@@ -209,7 +209,7 @@ public sealed class AdminApiClient(HttpClient httpClient, AuthSession authSessio
     {
         if (string.IsNullOrWhiteSpace(authSession.AccessToken))
         {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+            throw new UnauthorizedAccessException("Your session is no longer valid. Please request access again.");
         }
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authSession.AccessToken);

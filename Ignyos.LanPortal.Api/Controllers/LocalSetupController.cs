@@ -36,146 +36,209 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>My Home - File Share Setup</title>
-    <style>
-        :root { --bg: #f4f7f8; --card: #ffffff; --ink: #102028; --muted: #68757d; --accent: #0a6c74; --line: #d9e1e4; --ok: #116b2f; --warn: #9d5d00; }
-        body { margin: 0; font-family: Segoe UI, sans-serif; background: linear-gradient(180deg,#f3f7f8,#edf3f5); color: var(--ink); }
-        .shell { max-width: 760px; margin: 32px auto; padding: 0 16px 28px; }
-        .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; box-shadow: 0 14px 40px rgba(16,32,40,.06); }
-        h1 { margin: 0; font-size: 28px; }
-        .sub { color: var(--muted); margin-top: 8px; line-height: 1.5; }
-        .banner { margin: 18px 0 0; padding: 12px 14px; border-radius: 10px; background: #f7fafb; border: 1px solid var(--line); }
-        .banner.ok { color: var(--ok); background: #eef8f1; border-color: #cfe9d7; }
-        .banner.warn { color: var(--warn); background: #fff8eb; border-color: #f1dfb7; }
-        .steps { margin: 18px 0 0; padding-left: 20px; color: var(--ink); }
-        .steps li { margin: 8px 0; }
-        .field { margin-top: 18px; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; }
-        input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
-        .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
-        .path-row { display: flex; gap: 10px; align-items: center; }
-        .path-row input { flex: 1 1 auto; }
-        .path-row button { white-space: nowrap; }
-        button, .linkbtn { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font: inherit; cursor: pointer; background: #fff; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; }
-        button.primary, .linkbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-        .status { margin-top: 14px; min-height: 1.4em; }
-        .muted { color: var(--muted); font-size: 14px; }
-        .footer { margin-top: 16px; color: var(--muted); font-size: 14px; }
-        .guest { margin-top: 18px; padding: 14px; border-radius: 10px; background: #f7fafb; border: 1px solid var(--line); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-        .guest img { width: 156px; height: 156px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px; }
-        .guest-url { font-family: Consolas, Menlo, monospace; font-size: 14px; word-break: break-all; }
-        details.router-help { margin-top: 10px; }
-        details.router-help summary { cursor: pointer; font-weight: 600; }
-    </style>
+    <title>LAN Portal | File Sharing</title>
+    <link rel="stylesheet" href="/host.css?v=1" />
 </head>
 <body>
     <div class="shell">
-        <div class="card">
-            <h1>My Home - File Share Setup</h1>
-            <div class="sub">Use this page any time to verify or change where shared files are stored on this host machine.</div>
+        <header class="page-header">
+            <p class="eyebrow">File Sharing</p>
+        </header>
 
-            <div class="banner {{(setupComplete ? "ok" : "warn")}}" id="setupBanner">
-                {{(setupComplete ? "Setup is already complete. You can continue to the admin console." : "Setup is not complete yet. You only need to choose a storage folder.")}}
+        <section class="card">
+            <div class="step-title">
+                <span class="step-badge">1</span>
+                <h1 class="step-label">Choose a folder or drive to share</h1>
             </div>
-
-            <ol class="steps">
-                <li>Choose a storage folder for portal files.</li>
-                <li>Save the setup.</li>
-                <li>Open the admin console to manage approvals and access sessions.</li>
-            </ol>
-
-            <div class="field">
-                <label for="storageRootPath">Storage folder</label>
-                <div class="path-row">
-                    <input id="storageRootPath" value="{{storageRootPath}}" placeholder="D:/Ignyos/LanPortal" />
-                    <button type="button" onclick="pickStorageFolder()">Browse...</button>
+            <div class="step-body">
+                <div class="field">
+                    <div class="path-row">
+                        <input id="storageRootPath" value="{{storageRootPath}}" placeholder="D:/Ignyos/LanPortal" aria-label="Shared folder" readonly />
+                        <button type="button" class="secondary" id="changeStorageRootButton">Change folder</button>
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="actions">
-                <a class="linkbtn primary" id="openAdminLink" href="/local/admin" style="{{(setupComplete ? "" : "display:none;")}}">Open admin console</a>
-            </div>
-
-            <div class="status" id="status"></div>
-            <div class="guest">
-                <img src="/api/local/setup/guest-login-qr.svg" alt="Guest login QR code" />
-                <div>
-                    <div><strong>Recommended guest URL</strong></div>
-                    <div class="guest-url">{{guestLoginUrl}}</div>
-                    <div class="muted" style="margin-top:6px;">Guests on the same Wi-Fi can always scan this QR code to open login. No router changes required.</div>
-                    <div class="banner {{(guestDnsStatus.IsConfigured ? "ok" : "warn")}}" style="margin-top:10px;">{{guestDnsStatus.Message}}</div>
-                    <div class="muted" style="margin-top:8px;"><strong>Optional custom URL:</strong> {{customGuestLoginUrl}}</div>
-                    <details class="router-help">
-                        <summary>How to customize a URL to replace the default {{guestLoginUrl}}</summary>
-                        <ol class="steps" style="margin-top:8px;">
-                            <li>Create a DHCP reservation so this host keeps the same LAN IP.</li>
-                            <li>In your router DNS settings, add an A record: lan.home.arpa -> this host LAN IP.</li>
-                            <li>Reconnect guest devices to Wi-Fi (or toggle Wi-Fi) so they pick up updated DNS.</li>
-                            <li>Share <span class="guest-url">{{customGuestLoginUrl}}</span> instead of the default IP link.</li>
-                        </ol>
-                    </details>
+        <section class="card">
+                <div class="step-title">
+                    <span class="step-badge">2</span>
+                    <h2 class="step-label">Share the link or QR Code</h2>
                 </div>
-            </div>
-            <div class="footer">Nothing else is required during installation. Once setup is saved, you can use the portal from this browser window.</div>
-        </div>
+                <div class="step-body">
+                    <div class="guest-url" style="margin-top:1.25rem;">{{guestLoginUrl}}</div>
+                    <div class="guest-qr">
+                        <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
+                    </div>
+                </div>
+        </section>
+
+        <section class="card">
+                <div class="step-title">
+                    <span class="step-badge">3</span>
+                    <h2 class="step-label">Securely grant access to the shared folder or drive</h2>
+                </div>
+                <div class="step-body">
+                    <div class="actions">
+                        <button type="button" id="openAdminButton" onclick="openAdminConsole()">Open admin console</button>
+                    </div>
+                </div>
+        </section>
+
+        <div class="status" id="status"></div>
     </div>
 
     <script>
-    async function persistStorageRoot(storageRootPath) {
-        const response = await fetch('/api/local/setup/storage-root', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ storageRootPath })
-        });
-
-        return response;
-    }
-
-    async function pickStorageFolder() {
-        const status = document.getElementById('status');
-        const storageRootPathInput = document.getElementById('storageRootPath');
-        const currentPath = storageRootPathInput.value;
-
-        try {
-            const response = await fetch('/api/local/setup/pick-storage-root', {
+        async function persistStorageRoot(storageRootPath) {
+            return fetch('/api/local/setup/storage-root', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ currentPath })
+                body: JSON.stringify({ storageRootPath })
             });
+        }
 
-            if (response.status === 204) {
-                return;
-            }
+        async function changeStorageRoot() {
+            const input = document.getElementById('storageRootPath');
+            const status = document.getElementById('status');
+            const currentPath = (input.value || '').trim();
 
-            if (!response.ok) {
-                status.className = 'status warn';
-                status.innerText = 'Could not open folder picker. Please enter a folder path manually.';
-                return;
-            }
+            status.className = 'status';
+            status.textContent = 'Opening folder picker...';
 
-            const payload = await response.json();
-            if (payload && payload.storageRootPath) {
-                storageRootPathInput.value = payload.storageRootPath;
+            try {
+                const response = await fetch('/api/local/setup/pick-storage-root', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPath })
+                });
 
-                const saveResponse = await persistStorageRoot(payload.storageRootPath);
-                if (!saveResponse.ok) {
-                    status.className = 'status warn';
-                    status.innerText = 'Folder selected, but setup could not be saved. Please try again.';
+                if (response.status === 204) {
+                    status.className = 'status error';
+                    status.textContent = 'No folder was selected.';
                     return;
                 }
 
-                document.getElementById('setupBanner').className = 'banner ok';
-                document.getElementById('setupBanner').innerText = 'Setup saved. You can now open the admin console.';
-                document.getElementById('openAdminLink').style.display = '';
+                if (!response.ok) {
+                    status.className = 'status error';
+                    status.textContent = 'Could not open the folder picker.';
+                    return;
+                }
+
+                const data = await response.json();
+                const selectedPath = (data?.storageRootPath || '').trim();
+                if (!selectedPath) {
+                    status.className = 'status error';
+                    status.textContent = 'No folder was selected.';
+                    return;
+                }
+
+                const saveResponse = await persistStorageRoot(selectedPath);
+                if (!saveResponse.ok) {
+                    status.className = 'status error';
+                    status.textContent = 'Could not save the selected folder.';
+                    return;
+                }
+
+                input.value = selectedPath;
                 status.className = 'status ok';
-                status.innerText = 'Folder selected and saved.';
+                status.textContent = 'Shared folder updated.';
+            } catch {
+                status.className = 'status error';
+                status.textContent = 'Could not update the shared folder.';
             }
-        } catch {
-            status.className = 'status warn';
-            status.innerText = 'Could not open folder picker. Please enter a folder path manually.';
         }
-    }
+
+        async function openAdminConsole() {
+            const input = document.getElementById('storageRootPath');
+            const status = document.getElementById('status');
+            const storageRootPath = (input.value || '').trim();
+
+            if (!storageRootPath) {
+                status.className = 'status error';
+                status.textContent = 'Please choose a shared folder first.';
+                return;
+            }
+
+            status.className = 'status';
+            status.textContent = 'Saving...';
+
+            try {
+                const response = await persistStorageRoot(storageRootPath);
+                if (!response.ok) {
+                    status.className = 'status error';
+                    status.textContent = 'Could not save the shared folder. Please try again.';
+                    return;
+                }
+
+                window.location.href = '/local/admin';
+            } catch {
+                status.className = 'status error';
+                status.textContent = 'Could not save the shared folder. Please try again.';
+            }
+        }
+
+        document.getElementById('changeStorageRootButton').addEventListener('click', changeStorageRoot);
     </script>
+</body>
+</html>
+""";
+
+        return Content(html, "text/html", Encoding.UTF8);
+    }
+
+    [HttpGet("local/advanced")]
+    public IActionResult AdvancedPage()
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        var guestLoginUrl = BuildGuestLoginUrl();
+        var customGuestLoginUrl = BuildCustomGuestLoginUrl();
+        var guestDnsStatus = EvaluateGuestDnsStatus();
+
+        var html = $$"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LAN Portal | Advanced</title>
+    <link rel="stylesheet" href="/host.css?v=1" />
+</head>
+<body>
+  <div class="shell">
+        <header class="page-header">
+            <p class="eyebrow">Advanced</p>
+            <h1>Guest URL settings</h1>
+            <p class="sub">Use these options only if you want to replace the default local URL with a custom LAN-friendly name.</p>
+        </header>
+
+            <section class="section">
+        <div class="label">Recommended guest URL</div>
+        <div class="url">{{guestLoginUrl}}</div>
+        <div class="qr">
+          <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="label">Optional custom URL</div>
+        <div class="url">{{customGuestLoginUrl}}</div>
+        <div class="status {{(guestDnsStatus.IsConfigured ? "ok" : "warn")}}">{{guestDnsStatus.Message}}</div>
+    </section>
+
+    <section class="section">
+        <div class="label">How to customize it</div>
+        <ol class="steps">
+          <li>Create a DHCP reservation so this host keeps the same LAN IP.</li>
+          <li>In your router DNS settings, add an A record: lan.home.arpa → this host LAN IP.</li>
+          <li>Reconnect guest devices to Wi‑Fi or toggle Wi‑Fi so they pick up updated DNS.</li>
+          <li>Share <span class="url">{{customGuestLoginUrl}}</span> instead of the default URL.</li>
+        </ol>
+            </section>
+  </div>
 </body>
 </html>
 """;
@@ -280,15 +343,15 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
     {
         var lanIp = GetLanIpv4Address();
         var host = string.IsNullOrWhiteSpace(lanIp)
-            ? $"http://{GuestLoginHostName}/login"
-            : $"http://{lanIp}/login";
+            ? $"http://{GuestLoginHostName}/"
+            : $"http://{lanIp}/";
 
         return AddDevelopmentPortIfNeeded(host);
     }
 
     private static string BuildCustomGuestLoginUrl()
     {
-        return AddDevelopmentPortIfNeeded($"http://{GuestLoginHostName}/login");
+        return AddDevelopmentPortIfNeeded($"http://{GuestLoginHostName}/");
     }
 
     private static string AddDevelopmentPortIfNeeded(string baseUrl)
@@ -317,7 +380,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
         {
             return new GuestDnsStatus(
                 false,
-                "Could not detect this machine's LAN IP. Keep using the default IP login URL once network details are available.");
+                  "Could not detect this machine's LAN IP. Keep using the default portal URL once network details are available.");
         }
 
         try
@@ -341,7 +404,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
             {
                 return new GuestDnsStatus(
                     false,
-                    $"Custom URL is not ready yet. {GuestLoginHostName} currently resolves to {string.Join(", ", resolvedIps)} instead of {lanIp}. Keep using the default IP login URL.");
+                    $"Custom URL is not ready yet. {GuestLoginHostName} currently resolves to {string.Join(", ", resolvedIps)} instead of {lanIp}. Keep using the default portal URL.");
             }
         }
         catch
@@ -351,7 +414,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 
         return new GuestDnsStatus(
             false,
-            $"Custom URL is not configured yet. Map {GuestLoginHostName} to this host LAN IP ({lanIp}) in your router DNS. Keep using the default IP login URL.");
+            $"Custom URL is not configured yet. Map {GuestLoginHostName} to this host LAN IP ({lanIp}) in your router DNS. Keep using the default portal URL.");
     }
 
     private static string? GetLanIpv4Address()

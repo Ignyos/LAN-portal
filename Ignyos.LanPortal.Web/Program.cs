@@ -54,7 +54,6 @@ if (useHttpsRedirection)
     app.UseHttpsRedirection();
 }
 
-
 app.UseAntiforgery();
 
 app.MapStaticAssets();

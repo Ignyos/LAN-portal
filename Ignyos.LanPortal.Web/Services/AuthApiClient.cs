@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Ignyos.LanPortal.Contracts;
 
@@ -31,6 +32,12 @@ public sealed class AuthApiClient(HttpClient httpClient)
         CancellationToken cancellationToken = default)
     {
         var response = await httpClient.PostAsJsonAsync("api/auth/token/refresh", request, cancellationToken);
+        
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            throw new SessionRevokedException();
+        }
+
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadFromJsonAsync<RefreshTokenResponseDto>(cancellationToken: cancellationToken);

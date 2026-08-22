@@ -17,6 +17,19 @@
       "problemMatcher": []
     },
     {
+      "label": "clean-web-build",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Remove-Item -Path '${workspaceFolder}/Ignyos.LanPortal.Web/bin', '${workspaceFolder}/Ignyos.LanPortal.Web/obj' -Recurse -Force -ErrorAction SilentlyContinue; Write-Output 'Cleaned Web project bin/obj'"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "build-solution",
       "type": "shell",
       "command": "dotnet",
@@ -27,7 +40,9 @@
       "group": "build",
       "problemMatcher": [
         "$msCompile"
-      ]
+      ],
+      "dependsOn": ["clean-web-build"],
+      "dependsOrder": "sequence"
     },
     {
       "label": "dev-test-prelaunch",

@@ -28,8 +28,8 @@ Output is generated under:
 3. The browser opens to `http://localhost:5212/local/setup`.
 4. Save the storage root path, then continue to the admin console.
 5. Guests on the same Wi-Fi can scan the setup-page QR code to open login immediately.
-6. Default guest access is the host LAN IP login URL (for example `http://192.168.1.240/login`) shown in setup/admin.
-7. Optional customization: configure router DNS so `http://lan.home.arpa/login` resolves to the host machine LAN IP.
+6. Default guest access is the host LAN IP portal URL (for example `http://192.168.1.240/`) shown in setup/admin.
+7. Optional customization: configure router DNS so `http://lan.home.arpa/` resolves to the host machine LAN IP.
 
 ## Notes
 

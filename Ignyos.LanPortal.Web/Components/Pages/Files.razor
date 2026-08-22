@@ -22,7 +22,7 @@
 }
 else if (!AuthSession.HasActiveSession)
 {
-    <p class="text-warning">Redirecting to login...</p>
+    <p class="text-warning">Redirecting to Account...</p>
 }
 else
 {
@@ -159,7 +159,7 @@ else
                                         <th>Type</th>
                                         <th>Path</th>
                                         <th>Size (bytes)</th>
-                                        <th>Last Modified (UTC)</th>
+                                        <th>Last Modified (Local)</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -171,7 +171,7 @@ else
                                             <td>@(entry.IsFolder ? "Folder" : "File")</td>
                                             <td class="text-mono">@entry.Path</td>
                                             <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
-                                            <td>@(entry.LastModifiedUtc?.ToString("u"))</td>
+                                            <td>@FormatLocalDateTime(entry.LastModifiedUtc)</td>
                                             <td>
                                                 @if (entry.IsFolder)
                                                 {
@@ -207,7 +207,7 @@ else
                                         <th>Name</th>
                                         <th>Type</th>
                                         <th>Size (bytes)</th>
-                                        <th>Last Modified (UTC)</th>
+                                        <th>Last Modified (Local)</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -236,7 +236,7 @@ else
                                             <td>@entry.Name</td>
                                             <td>@(entry.IsFolder ? "Folder" : "File")</td>
                                             <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
-                                            <td>@(entry.LastModifiedUtc?.ToString("u"))</td>
+                                            <td>@FormatLocalDateTime(entry.LastModifiedUtc)</td>
                                             <td>
                                                 @if (entry.IsFolder)
                                                 {
@@ -368,7 +368,7 @@ else
             if (!AuthSession.HasActiveSession)
             {
                 var returnUrl = Uri.EscapeDataString("/files");
-                Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
+                Navigation.NavigateTo($"/account?returnUrl={returnUrl}", forceLoad: false);
                 return;
             }
 
@@ -380,9 +380,21 @@ else
             await SyncSubscriptionsAsync();
             StateHasChanged();
         }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
+            StateHasChanged();
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HandleUnauthorizedAsync(ex.Message);
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
             StateHasChanged();
         }
         catch (Exception ex)
@@ -421,6 +433,11 @@ else
             await EnsureTreeLoadedAsync(forceReload: true);
             await EnsureTreePathExpandedAsync(currentFolderPath);
         }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HandleUnauthorizedAsync(ex.Message);
@@ -456,6 +473,11 @@ else
             PruneSelection();
             await SyncSubscriptionsAsync();
         }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HandleUnauthorizedAsync(ex.Message);
@@ -470,11 +492,12 @@ else
         }
     }
 
-    private async Task HandleUnauthorizedAsync(string? message)
+    private async Task HandleUnauthorizedAsync(string? message, string? reason = null)
     {
         await AuthSession.ClearAsync();
         var returnUrl = Uri.EscapeDataString("/files");
-        Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
+        var reasonParam = !string.IsNullOrWhiteSpace(reason) ? $"&reason={reason}" : string.Empty;
+        Navigation.NavigateTo($"/account?returnUrl={returnUrl}{reasonParam}", forceLoad: false);
         errorMessage = message;
     }
 
@@ -483,6 +506,11 @@ else
         try
         {
             await FileEventsClient.SetSubscriptionsAsync([currentFolderPath]);
+        }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -648,6 +676,11 @@ else
             selectedPaths.Clear();
             statusMessage = $"Search returned {searchResults.Count} item(s).";
         }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HandleUnauthorizedAsync(ex.Message);
@@ -771,6 +804,11 @@ else
             await EnsureTreeLoadedAsync(forceReload: true);
             await EnsureTreePathExpandedAsync(currentFolderPath);
         }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HandleUnauthorizedAsync(ex.Message);
@@ -814,6 +852,11 @@ else
             await EnsureTreeLoadedAsync(forceReload: true);
             await EnsureTreePathExpandedAsync(currentFolderPath);
         }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HandleUnauthorizedAsync(ex.Message);
@@ -850,6 +893,11 @@ else
             await EnsureTreeLoadedAsync(forceReload: true);
             await EnsureTreePathExpandedAsync(currentFolderPath);
         }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HandleUnauthorizedAsync(ex.Message);
@@ -884,6 +932,11 @@ else
             await LoadCurrentFolderAsync();
             await EnsureTreeLoadedAsync(forceReload: true);
             await EnsureTreePathExpandedAsync(currentFolderPath);
+        }
+        catch (SessionRevokedException ex)
+        {
+            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
+            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -1044,6 +1097,9 @@ else
         => value is bool boolValue
             ? boolValue
             : string.Equals(value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatLocalDateTime(DateTimeOffset? value, string fallback = "n/a")
+        => value is null ? fallback : value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     private static string CreateCorrelationId()
         => Guid.NewGuid().ToString("N");

@@ -11,7 +11,7 @@
 
 <section class="view-header">
     <h1>Admin</h1>
-    <p>Manage pending login requests and active user sessions for this network.</p>
+    <p>Manage pending access requests and active user sessions for this network.</p>
 </section>
 
 @if (!AuthSession.IsLoaded)
@@ -21,7 +21,7 @@
 else if (!AuthSession.HasActiveSession)
 {
     <div class="notice notice-warning">
-        Not authenticated. Please <a href="/login">log in</a>.
+        Access is required. Please <a href="/account">request access</a>.
     </div>
 }
 else if (!AuthSession.HasRole("Admin"))
@@ -41,7 +41,7 @@ else
     }
 
     <section class="panel reveal" style="margin-top: 0.8rem;">
-        <h2>Pending Login Requests</h2>
+        <h2>Pending Access Requests</h2>
 
         @if (pendingRequests.Count == 0)
         {
@@ -53,13 +53,10 @@ else
                 <table>
                     <thead>
                         <tr>
-                            <th>Requested User</th>
+                            <th>User</th>
                             <th>Device</th>
-                            <th>Source</th>
-                            <th>Requested (UTC)</th>
-                            <th>Approve As</th>
-                            <th>Roles</th>
-                            <th>Expires After</th>
+                            <th>Admin</th>
+                            <th>Expiration</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -67,49 +64,49 @@ else
                         @foreach (var req in pendingRequests)
                         {
                             var draft = GetOrCreateDraft(req);
+                            var rowBusy = IsRowBusy(req.RequestId);
                             <tr>
-                                <td>@req.RequestedUserName</td>
-                                <td>@req.DeviceName</td>
-                                <td class="text-mono">@req.SourceIp</td>
-                                <td>@req.CreatedAtUtc.ToString("u")</td>
                                 <td>
                                     <input class="input"
                                            value="@draft.UserName"
+                                           disabled="@rowBusy"
+                                           aria-label="Approved user name"
                                            @oninput="(e) => draft.UserName = e.Value?.ToString() ?? string.Empty" />
                                 </td>
                                 <td>
-                                    <select multiple size="2" @onchange="(args) => OnApprovalRoleChanged(req.RequestId, args)">
-                                        <option value="User" selected='@draft.Roles.Contains("User")'>User</option>
-                                        <option value="Admin" selected='@draft.Roles.Contains("Admin")'>Admin</option>
-                                    </select>
-                                    <div class="text-muted">Hold Ctrl/Cmd for multiple</div>
+                                    <input class="input"
+                                           value="@draft.DeviceName"
+                                           disabled="@rowBusy"
+                                           aria-label="Device name"
+                                           @oninput="(e) => draft.DeviceName = e.Value?.ToString() ?? string.Empty" />
                                 </td>
                                 <td>
-                                    <select value="@draft.ExpiryOption" @onchange="(args) => OnExpiryChanged(req.RequestId, args)">
-                                        <option value="60">1 hour</option>
-                                        <option value="1440">1 day</option>
-                                        <option value="10080">1 week</option>
-                                        <option value="never">Never</option>
-                                        <option value="custom">Custom</option>
-                                    </select>
-                                    @if (draft.ExpiryOption == "custom")
-                                    {
-                                        <div class="field">
-                                            <input class="input" type="number" min="1" max="87600"
-                                                   value="@draft.CustomHours"
-                                                   @oninput="(e) => { if (int.TryParse(e.Value?.ToString(), out var h)) draft.CustomHours = h; }"
-                                                   placeholder="hours" />
-                                        </div>
-                                    }
+                                    <label class="checkbox-row">
+                                        <input type="checkbox"
+                                               checked="@draft.Roles.Contains("Admin")"
+                                               disabled="@rowBusy"
+                                               aria-label="Grant administrator access"
+                                               @onchange="(e) => SetDraftAdmin(draft, e)" />
+                                        <span>Admin</span>
+                                    </label>
+                                </td>
+                                <td>
+                                    <TokenExpirySelect Option="@draft.ExpiryOption"
+                                                       OptionChanged="@(value => draft.ExpiryOption = value)"
+                                                       CustomHours="@draft.CustomHours"
+                                                       CustomHoursChanged="@(value => draft.CustomHours = value)"
+                                                       Disabled="@rowBusy" />
                                 </td>
                                 <td>
                                     <div class="actions-row" style="margin-top: 0;">
                                         <button class="btn btn-primary"
                                                 @onclick="() => ApproveAsync(req)"
-                                                disabled="@isBusy">Approve</button>
-                                        <button class="btn btn-outline"
-                                                @onclick="() => DenyAsync(req)"
-                                                disabled="@isBusy">Deny</button>
+                                                disabled="@(rowBusy || !IsDraftValid(draft))">Approve</button>
+                                        <button class="btn btn-danger"
+                                                title="Deny request"
+                                                aria-label="Deny request from @req.DeviceName"
+                                                @onclick="() => OpenDenyModal(req)"
+                                                disabled="@rowBusy">&times;</button>
                                     </div>
                                 </td>
                             </tr>
@@ -121,22 +118,8 @@ else
     </section>
 
     <section class="panel reveal" style="margin-top: 0.8rem;">
-        <h2>Manage Active Sessions</h2>
-        <p class="text-muted">Revoke all sessions matching a user or device, or update individual session roles.</p>
-
-        <div class="split" style="margin-top: 0.5rem;">
-            <div class="span-4">
-                <label for="revokeUserName">User Name</label>
-                <input id="revokeUserName" class="input" @bind="revokeUserName" />
-            </div>
-            <div class="span-4">
-                <label for="revokeDeviceName">Device Name</label>
-                <input id="revokeDeviceName" class="input" @bind="revokeDeviceName" />
-            </div>
-            <div class="span-4" style="display: flex; align-items: end;">
-                <button class="btn btn-danger-outline" style="width: 100%;" @onclick="RevokeByFilterAsync" disabled="@isBusy">Revoke By Filter</button>
-            </div>
-        </div>
+        <h2>Manage Active Users</h2>
+        <p class="text-muted">Review active users and revoke access when needed.</p>
 
         @if (sessions.Count == 0)
         {
@@ -150,11 +133,9 @@ else
                         <tr>
                             <th>User</th>
                             <th>Device</th>
-                            <th>Roles</th>
-                            <th>Issued (UTC)</th>
-                            <th>Expires (UTC)</th>
-                            <th>Last Seen (UTC)</th>
-                            <th>Actions</th>
+                            <th>Role</th>
+                            <th>Access Expires</th>
+                            <th>Revoke</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -169,24 +150,12 @@ else
                                     }
                                 </td>
                                 <td>@session.DeviceName</td>
+                                <td>@GetRoleLabel(session.Roles)</td>
+                                <td>@FormatFriendlyLocalDateTime(session.ExpiresAtUtc)</td>
                                 <td>
-                                    <select multiple size="2" @onchange="(args) => OnSessionRoleChanged(session.SessionId, args)">
-                                        <option value="User" selected='@IsSessionRoleSelected(session.SessionId, "User")'>User</option>
-                                        <option value="Admin" selected='@IsSessionRoleSelected(session.SessionId, "Admin")'>Admin</option>
-                                    </select>
-                                </td>
-                                <td>@session.IssuedAtUtc.ToString("u")</td>
-                                <td>@GetSessionExpiryDisplay(session.ExpiresAtUtc)</td>
-                                <td>@session.LastSeenAtUtc.ToString("u")</td>
-                                <td>
-                                    <div class="actions-row" style="margin-top: 0;">
-                                        <button class="btn btn-outline"
-                                                @onclick="() => UpdateRolesAsync(session)"
-                                                disabled="@isBusy">Save Roles</button>
-                                        <button class="btn btn-danger"
-                                                @onclick="() => RevokeSessionAsync(session)"
-                                                disabled="@isBusy">Revoke</button>
-                                    </div>
+                                    <button class="btn btn-danger" title="Revoke access" aria-label="Revoke access for @session.UserName"
+                                            @onclick="() => OpenRevokeModal(session)"
+                                            disabled="@isBusy">&times;</button>
                                 </td>
                             </tr>
                         }
@@ -195,6 +164,71 @@ else
             </div>
         }
     </section>
+
+    @if (revokeSession is not null)
+    {
+        <div class="modal-backdrop" role="presentation" @onclick="CloseRevokeModal">
+            <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="revoke-user-title" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <div>
+                        <p class="eyebrow">Revoke access</p>
+                        <h2 id="revoke-user-title">Remove access for @revokeSession.UserName</h2>
+                    </div>
+                    <button type="button" class="modal-close" title="Close" aria-label="Close revoke dialog" @onclick="CloseRevokeModal">&times;</button>
+                </div>
+
+                <div class="notice notice-warning" style="margin-top: 1rem;">
+                    <strong>Device:</strong> @revokeSession.DeviceName
+                    <br />
+                    @if (revokeSession.IsCurrentSession)
+                    {
+                        <span>This will end your current session and return you to the account page.</span>
+                    }
+                    else
+                    {
+                        <span>This will revoke access for the selected user immediately.</span>
+                    }
+                </div>
+
+                <div class="actions-row modal-actions">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseRevokeModal" disabled="@isBusy">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmRevokeAsync" disabled="@isBusy">Confirm Revoke</button>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (denyRequest is not null)
+    {
+        <div class="modal-backdrop" role="presentation" @onclick="CloseDenyModal">
+            <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deny-request-title" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <div>
+                        <p class="eyebrow">Deny request</p>
+                        <h2 id="deny-request-title">Deny access for @denyRequest.RequestedUserName</h2>
+                    </div>
+                    <button type="button" class="modal-close" title="Close" aria-label="Close deny dialog" @onclick="CloseDenyModal">&times;</button>
+                </div>
+
+                <div class="notice notice-warning" style="margin-top: 1rem;">
+                    <strong>Device:</strong> @denyRequest.DeviceName
+                    <br />
+                    <span>The request will be dismissed and the waiting device will be told access was denied.</span>
+                </div>
+
+                <div class="field">
+                    <label for="deny-reason">Reason (optional)</label>
+                    <input id="deny-reason" class="input" @bind="denyReason" @bind:event="oninput"
+                           placeholder="Shared with the requesting device" />
+                </div>
+
+                <div class="actions-row modal-actions">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDenyModal" disabled="@isBusy">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDenyAsync" disabled="@isBusy">Confirm Deny</button>
+                </div>
+            </section>
+        </div>
+    }
 }
 
 @code {
@@ -202,12 +236,13 @@ else
     private readonly Dictionary<Guid, ApprovalDraft> approvalDrafts = [];
 
     private readonly List<AccessSessionDto> sessions = [];
-    private readonly Dictionary<Guid, HashSet<string>> sessionRoleSelections = [];
 
     private bool isBusy;
+    private readonly HashSet<Guid> busyRequests = [];
     private bool initialized;
-    private string revokeUserName = string.Empty;
-    private string revokeDeviceName = string.Empty;
+    private AccessSessionDto? revokeSession;
+    private PendingLoginRequestDto? denyRequest;
+    private string denyReason = string.Empty;
     private string? statusMessage;
     private string? errorMessage;
     private Timer? pendingTimer;
@@ -226,7 +261,7 @@ else
         if (!AuthSession.HasActiveSession)
         {
             var returnUrl = Uri.EscapeDataString("/admin");
-            Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
+            Navigation.NavigateTo($"/account?returnUrl={returnUrl}", forceLoad: false);
             return;
         }
 
@@ -305,21 +340,8 @@ else
         {
             var fetched = await AdminApiClient.ListActiveSessionsAsync();
 
-            var updatedSelections = new Dictionary<Guid, HashSet<string>>();
-            foreach (var session in fetched)
-            {
-                updatedSelections[session.SessionId] = sessionRoleSelections.TryGetValue(session.SessionId, out var existing)
-                    ? existing
-                    : ParseRoles(session.Roles);
-            }
-
             sessions.Clear();
             sessions.AddRange(fetched);
-            sessionRoleSelections.Clear();
-            foreach (var (id, roles) in updatedSelections)
-            {
-                sessionRoleSelections[id] = roles;
-            }
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -333,13 +355,13 @@ else
     private async Task ApproveAsync(PendingLoginRequestDto req)
     {
         var draft = GetOrCreateDraft(req);
-        if (string.IsNullOrWhiteSpace(draft.UserName))
+        if (!IsDraftValid(draft))
         {
-            errorMessage = "User Name is required before approving.";
+            errorMessage = "User and Device are required before approving.";
             return;
         }
 
-        isBusy = true;
+        busyRequests.Add(req.RequestId);
         statusMessage = null;
         errorMessage = null;
 
@@ -349,18 +371,13 @@ else
                 ? string.Join(',', draft.Roles.OrderBy(r => r))
                 : "User";
 
-            int? tokenMinutes = draft.ExpiryOption switch
-            {
-                "never" => null,
-                "custom" => Math.Max(5, Math.Min(87600 * 60, draft.CustomHours * 60)),
-                _ => int.Parse(draft.ExpiryOption)
-            };
+            var tokenMinutes = TokenExpiryOptions.ToTokenMinutes(draft.ExpiryOption, draft.CustomHours);
 
             await AdminApiClient.ApproveLoginAsync(req.RequestId, new ApproveLoginRequestDto(
-                draft.UserName.Trim(), roles, tokenMinutes));
+                draft.UserName.Trim(), roles, tokenMinutes, draft.DeviceName.Trim()));
 
             approvalDrafts.Remove(req.RequestId);
-            statusMessage = $"Approved login for {draft.UserName} on {req.DeviceName}.";
+            statusMessage = $"Approved login for {draft.UserName.Trim()} on {draft.DeviceName.Trim()}.";
             await Task.WhenAll(PollPendingAsync(), PollSessionsAsync());
         }
         catch (UnauthorizedAccessException ex)
@@ -373,19 +390,44 @@ else
         }
         finally
         {
-            isBusy = false;
+            busyRequests.Remove(req.RequestId);
         }
     }
 
-    private async Task DenyAsync(PendingLoginRequestDto req)
+    private void OpenDenyModal(PendingLoginRequestDto req)
     {
-        isBusy = true;
+        denyRequest = req;
+        denyReason = string.Empty;
+    }
+
+    private void CloseDenyModal()
+    {
+        denyRequest = null;
+        denyReason = string.Empty;
+    }
+
+    private async Task ConfirmDenyAsync()
+    {
+        if (denyRequest is null)
+        {
+            return;
+        }
+
+        var req = denyRequest;
+        var reason = string.IsNullOrWhiteSpace(denyReason) ? "Denied by admin user." : denyReason.Trim();
+        CloseDenyModal();
+        await DenyAsync(req, reason);
+    }
+
+    private async Task DenyAsync(PendingLoginRequestDto req, string reason)
+    {
+        busyRequests.Add(req.RequestId);
         statusMessage = null;
         errorMessage = null;
 
         try
         {
-            await AdminApiClient.DenyLoginAsync(req.RequestId, new DenyLoginRequestDto("Denied by admin user."));
+            await AdminApiClient.DenyLoginAsync(req.RequestId, new DenyLoginRequestDto(reason));
             approvalDrafts.Remove(req.RequestId);
             statusMessage = $"Denied login request from {req.DeviceName}.";
             await PollPendingAsync();
@@ -400,37 +442,34 @@ else
         }
         finally
         {
-            isBusy = false;
+            busyRequests.Remove(req.RequestId);
         }
     }
 
-    private async Task UpdateRolesAsync(AccessSessionDto session)
+    private void OpenRevokeModal(AccessSessionDto session)
     {
-        isBusy = true;
+        revokeSession = session;
         statusMessage = null;
         errorMessage = null;
+    }
 
-        try
+    private void CloseRevokeModal()
+    {
+        if (!isBusy)
         {
-            var selected = GetSelectedRolesCsv(session.SessionId);
-            var response = await AdminApiClient.UpdateSessionRolesAsync(
-                session.SessionId, selected, "Roles updated by admin user.");
+            revokeSession = null;
+        }
+    }
 
-            statusMessage = $"Updated roles for {session.UserName} on {session.DeviceName} to {response.Roles}.";
-            await PollSessionsAsync();
-        }
-        catch (UnauthorizedAccessException ex)
+    private async Task ConfirmRevokeAsync()
+    {
+        if (revokeSession is null)
         {
-            await HandleUnauthorizedAsync(ex.Message);
+            return;
         }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isBusy = false;
-        }
+
+        await RevokeSessionAsync(revokeSession);
+        revokeSession = null;
     }
 
     private async Task RevokeSessionAsync(AccessSessionDto session)
@@ -450,7 +489,7 @@ else
             if (session.IsCurrentSession)
             {
                 await AuthSession.ClearAsync();
-                Navigation.NavigateTo("/login", forceLoad: false);
+                Navigation.NavigateTo("/account", forceLoad: false);
                 return;
             }
 
@@ -471,47 +510,12 @@ else
         }
     }
 
-    private async Task RevokeByFilterAsync()
-    {
-        if (string.IsNullOrWhiteSpace(revokeUserName) && string.IsNullOrWhiteSpace(revokeDeviceName))
-        {
-            errorMessage = "Provide User Name and/or Device Name.";
-            statusMessage = null;
-            return;
-        }
-
-        isBusy = true;
-        statusMessage = null;
-        errorMessage = null;
-
-        try
-        {
-            var revokedCount = await AdminApiClient.RevokeByFilterAsync(
-                revokeUserName, revokeDeviceName, "Revoked by admin user.");
-
-            statusMessage = $"Revoked {revokedCount} session(s).";
-            await PollSessionsAsync();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            await HandleUnauthorizedAsync(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isBusy = false;
-        }
-    }
-
     private async Task HandleUnauthorizedAsync(string? message)
     {
-        errorMessage = message ?? "Access denied. Please log in again.";
+        errorMessage = message ?? "Access denied. Please request access again.";
         await AuthSession.ClearAsync();
         var returnUrl = Uri.EscapeDataString("/admin");
-        Navigation.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
+        Navigation.NavigateTo($"/account?returnUrl={returnUrl}", forceLoad: false);
     }
 
     private ApprovalDraft GetOrCreateDraft(PendingLoginRequestDto req)
@@ -520,7 +524,8 @@ else
         {
             draft = new ApprovalDraft
             {
-                UserName = string.IsNullOrWhiteSpace(req.RequestedUserName) ? string.Empty : req.RequestedUserName.Trim()
+                UserName = string.IsNullOrWhiteSpace(req.RequestedUserName) ? string.Empty : req.RequestedUserName.Trim(),
+                DeviceName = string.IsNullOrWhiteSpace(req.DeviceName) ? string.Empty : req.DeviceName.Trim()
             };
             approvalDrafts[req.RequestId] = draft;
         }
@@ -528,77 +533,48 @@ else
         return draft;
     }
 
-    private void OnApprovalRoleChanged(Guid requestId, ChangeEventArgs args)
+    private bool IsRowBusy(Guid requestId) => isBusy || busyRequests.Contains(requestId);
+
+    private static bool IsDraftValid(ApprovalDraft draft) =>
+        !string.IsNullOrWhiteSpace(draft.UserName) && !string.IsNullOrWhiteSpace(draft.DeviceName);
+
+    // Roles the UI has no control for are preserved so future add-in roles survive an approval.
+    private static void SetDraftAdmin(ApprovalDraft draft, ChangeEventArgs args)
     {
-        var roles = ExtractRoleValues(args);
-        if (approvalDrafts.TryGetValue(requestId, out var draft))
+        var isAdmin = args.Value is bool value && value;
+        if (isAdmin)
         {
-            draft.Roles = roles.Count > 0 ? roles : ["User"];
+            draft.Roles.Add("Admin");
         }
-    }
-
-    private void OnExpiryChanged(Guid requestId, ChangeEventArgs args)
-    {
-        if (approvalDrafts.TryGetValue(requestId, out var draft))
+        else
         {
-            draft.ExpiryOption = args.Value?.ToString() ?? "60";
-        }
-    }
-
-    private void OnSessionRoleChanged(Guid sessionId, ChangeEventArgs args)
-    {
-        var values = ExtractRoleValues(args);
-        sessionRoleSelections[sessionId] = values.Count > 0 ? values : ["User"];
-    }
-
-    private static HashSet<string> ExtractRoleValues(ChangeEventArgs args)
-    {
-        var raw = args.Value switch
-        {
-            string single => single.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
-            string[] many => many,
-            IEnumerable<string> enumerable => enumerable.ToArray(),
-            _ => []
-        };
-
-        return raw
-            .Select(NormalizeRole)
-            .Where(r => !string.IsNullOrWhiteSpace(r))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private bool IsSessionRoleSelected(Guid sessionId, string role) =>
-        sessionRoleSelections.TryGetValue(sessionId, out var sel) && sel.Contains(role);
-
-    private string GetSelectedRolesCsv(Guid sessionId)
-    {
-        if (!sessionRoleSelections.TryGetValue(sessionId, out var sel) || sel.Count == 0)
-        {
-            return "User";
+            draft.Roles.Remove("Admin");
         }
 
-        return string.Join(',', sel.OrderBy(r => r, StringComparer.OrdinalIgnoreCase));
+        draft.Roles.Add("User");
     }
 
     private static HashSet<string> ParseRoles(string csv) =>
         csv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-           .Select(NormalizeRole)
+           .Select(role => role.Equals("admin", StringComparison.OrdinalIgnoreCase) ? "Admin" :
+                          role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : role.Trim())
            .Where(r => !string.IsNullOrWhiteSpace(r))
            .ToHashSet(StringComparer.OrdinalIgnoreCase) is { Count: > 0 } set ? set : ["User"];
 
-    private static string NormalizeRole(string role) =>
-        role.Equals("admin", StringComparison.OrdinalIgnoreCase) ? "Admin" :
-        role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" :
-        string.Empty;
+    private static string GetRoleLabel(string rolesCsv)
+        => ParseRoles(rolesCsv).Contains("Admin") ? "Admin" : "User";
 
-    private static string GetSessionExpiryDisplay(DateTimeOffset? expiresAtUtc)
-        => expiresAtUtc?.ToString("u") ?? "Never";
+    private static string FormatFriendlyLocalDateTime(DateTimeOffset? value)
+        => value is null
+            ? "Never"
+            : value.Value.ToLocalTime().ToString("MMM d yyyy h:mmtt").ToLowerInvariant();
 
     private sealed class ApprovalDraft
     {
         public string UserName { get; set; } = string.Empty;
-        public HashSet<string> Roles { get; set; } = ["User"];
-        public string ExpiryOption { get; set; } = "60";
-        public int CustomHours { get; set; } = 24;
+        public string DeviceName { get; set; } = string.Empty;
+        public HashSet<string> Roles { get; init; } = new(StringComparer.OrdinalIgnoreCase) { "User" };
+        public string ExpiryOption { get; set; } = TokenExpiryOptions.DefaultValue;
+        public int CustomHours { get; set; } = TokenExpiryOptions.DefaultCustomHours;
     }
 }

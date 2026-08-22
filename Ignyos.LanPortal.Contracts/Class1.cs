@@ -154,7 +154,8 @@ public sealed record PendingLoginRequestDto(
 public sealed record ApproveLoginRequestDto(
     string UserName,
     string Roles,
-    int? TokenMinutes);
+    int? TokenMinutes,
+    string? DeviceName = null);
 
 public sealed record DenyLoginRequestDto(string? Reason);
 

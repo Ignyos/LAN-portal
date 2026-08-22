@@ -1,0 +1,45 @@
+@using Ignyos.LanPortal.Contracts
+
+<select value="@Option" @onchange="OnOptionChanged" disabled="@Disabled" aria-label="Token expiration">
+    @foreach (var option in TokenExpiryOptions.All)
+    {
+        <option value="@option.Value">@option.Label</option>
+    }
+</select>
+
+@if (Option == TokenExpiryOptions.CustomValue)
+{
+    <div class="field">
+        <input class="input" type="number" min="1" max="@TokenExpiryOptions.MaxHours"
+               value="@CustomHours"
+               @oninput="OnCustomHoursChanged"
+               disabled="@Disabled"
+               placeholder="hours"
+               aria-label="Custom expiration in hours" />
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Option { get; set; } = TokenExpiryOptions.DefaultValue;
+
+    [Parameter]
+    public EventCallback<string> OptionChanged { get; set; }
+
+    [Parameter]
+    public int CustomHours { get; set; } = TokenExpiryOptions.DefaultCustomHours;
+
+    [Parameter]
+    public EventCallback<int> CustomHoursChanged { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private Task OnOptionChanged(ChangeEventArgs args)
+        => OptionChanged.InvokeAsync(args.Value?.ToString() ?? TokenExpiryOptions.DefaultValue);
+
+    private Task OnCustomHoursChanged(ChangeEventArgs args)
+        => int.TryParse(args.Value?.ToString(), out var hours)
+            ? CustomHoursChanged.InvokeAsync(hours)
+            : Task.CompletedTask;
+}

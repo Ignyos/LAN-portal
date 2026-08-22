@@ -1,0 +1,51 @@
+LAN Portal Host - File Sharing Page (ASCII Mock)
+================================================
+
++----------------------------------------------------------------------------------+
+| FILE SHARING                                                                     |
+|                                                                                  |
+| (1) Choose a shared folder                                                       |
+| This is the folder/drive that all connected users can access.                    |
+|                                                                                  |
+| [ Path field showing selected folder.........................] [ Change folder ] |
+|                                                                                  |
+| ------------------------------------------------------------------------------   |
+|                                                                                  |
+| (2) Share folder link                                                            |
+| Share this link or QR code with anyone you want to give access to.               |
+|                                                                                  |
+|              [ http://lan.home.arpa:5014/account ] [ Copy link icon ]            |
+|                                                                                  |
+|                             +--------------------+                               |
+|                             |                    |                               |
+|                             |       QR CODE      |                               |
+|                             |                    |                               |
+|                             +--------------------+                               |
+|                                                                                  |
+| ------------------------------------------------------------------------------   |
+|                                                                                  |
+| (3) Grant access                                                                 |
+| As users request access, allow or deny them in the admin console.                |
+|                                                                                  |
+| [ Open admin console ]                                                           |
+|                                                                                  |
++----------------------------------------------------------------------------------+
+
+
+Reading guide
+-------------
+- Headings are plain text lines (no [ ]).
+- Interactive controls are inside [ ]:
+  - [ Path field ... ] = text field/path display
+  - [ Change folder ] = button
+  - [ Copy link icon ] = button
+  - [ Open admin console ] = button
+- The QR code is represented as a boxed area.
+- Horizontal divider lines separate the three instructional steps.
+
+
+Three-step flow (intended user journey)
+---------------------------------------
+1) Choose a shared folder
+2) Share folder link
+3) Grant access

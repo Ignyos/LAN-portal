@@ -121,7 +121,7 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
         }
     }
 
-    public bool Approve(Guid requestId, string userName, string roles, int? tokenMinutes)
+    public bool Approve(Guid requestId, string userName, string roles, int? tokenMinutes, string? deviceName = null)
     {
         PruneExpired();
 
@@ -135,6 +135,11 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
             if (request.Status != DeviceLoginStatus.Pending || request.ExpiresAtUtc <= DateTimeOffset.UtcNow)
             {
                 return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(deviceName))
+            {
+                request.DeviceName = deviceName.Trim();
             }
 
             request.Status = DeviceLoginStatus.Approved;

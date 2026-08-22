@@ -2,6 +2,9 @@
 
 Blazor + ASP.NET Core solution for LAN-only file upload and download.
 
+For the product direction and the planned path toward Apps and third-party extensions, see [Product Roadmap](docs/product-roadmap.md). This is the best starting point when asking, "What's next?"
+The active client-side UI/UX work is tracked in the [Client Navigation Implementation Checklist](docs/client-navigation-implementation-checklist.md).
+
 Runtime configuration is persisted in a local SQLite database (`Bootstrap:DatabasePath`).
 
 ## Projects

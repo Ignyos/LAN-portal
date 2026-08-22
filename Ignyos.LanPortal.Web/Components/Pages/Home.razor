@@ -1,4 +1,4 @@
-﻿@page "/"
+﻿@page "/home"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject Ignyos.LanPortal.Web.Services.PortalConfigClient PortalConfigClient
@@ -8,7 +8,6 @@
 
 <section class="view-header">
     <h1>@networkName</h1>
-    <p>Share this page with others on your network so they can request access from their own device.</p>
 </section>
 
 <section class="panel reveal" style="max-width: 40rem;">
@@ -18,16 +17,16 @@
 
     <img
         src="@qrCodeUrl"
-        alt="QR code for the LAN portal login link"
+		alt="QR code for the LAN Portal entry link"
         width="256"
         height="256"
         style="margin-top: 0.65rem; border: 1px solid var(--line); border-radius: 0.7rem; background: #fff; padding: 0.4rem;" />
 
-    <p class="text-muted">Scan this QR code to open the login page on your device and request access.</p>
+	<p class="text-muted">Scan this QR code to open LAN Portal and request access.</p>
 
     <div class="actions-row">
         <button class="btn btn-primary" @onclick="CopyShareLinkAsync">Copy Link</button>
-        <a class="btn btn-outline" href="login">Open Login</a>
+		<a class="btn btn-outline" href="account">Open Account</a>
         <a class="btn btn-outline" href="files">Go To Files</a>
     </div>
 
@@ -47,7 +46,7 @@
 	{
 		networkName = await PortalConfigClient.GetNetworkNameAsync();
 
-		shareUrl = Navigation.ToAbsoluteUri("/login").ToString();
+		shareUrl = Navigation.ToAbsoluteUri("/").ToString();
 		qrCodeUrl = BuildQrCodeUrl(shareUrl);
 	}
 

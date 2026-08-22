@@ -10,6 +10,7 @@ public sealed class FileEventsClient(
     IConfiguration configuration,
     FileClientTelemetry telemetry) : IAsyncDisposable
 {
+    private readonly SemaphoreSlim lifecycleGate = new(1, 1);
     private HubConnection? connection;
     private HashSet<string> subscribedPaths = new(StringComparer.OrdinalIgnoreCase);
 
@@ -17,85 +18,120 @@ public sealed class FileEventsClient(
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        await authSession.InitializeAsync();
-
-        if (connection is null)
+        await lifecycleGate.WaitAsync(cancellationToken);
+        try
         {
-            connection = BuildConnection();
-            connection.On<FileChangeEventDto>("fileChanged", change =>
-            {
-                var lagMs = (DateTimeOffset.UtcNow - change.OccurredAtUtc).TotalMilliseconds;
-                telemetry.RecordEventLag(change.EventType, Math.Max(0, lagMs));
-                FileChanged?.Invoke(change);
-            });
+            await authSession.InitializeAsync();
 
-            connection.Reconnecting += _ =>
+            if (connection is null)
             {
-                telemetry.RecordReconnect("reconnecting");
-                return Task.CompletedTask;
-            };
+                connection = BuildConnection();
+                connection.On<FileChangeEventDto>("fileChanged", change =>
+                {
+                    var lagMs = (DateTimeOffset.UtcNow - change.OccurredAtUtc).TotalMilliseconds;
+                    telemetry.RecordEventLag(change.EventType, Math.Max(0, lagMs));
+                    FileChanged?.Invoke(change);
+                });
 
-            connection.Reconnected += _ =>
-            {
-                telemetry.RecordReconnect("reconnected");
-                return Task.CompletedTask;
-            };
+                connection.Reconnecting += _ =>
+                {
+                    telemetry.RecordReconnect("reconnecting");
+                    return Task.CompletedTask;
+                };
 
-            connection.Closed += _ =>
+                connection.Reconnected += _ =>
+                {
+                    telemetry.RecordReconnect("reconnected");
+                    return Task.CompletedTask;
+                };
+
+                connection.Closed += _ =>
+                {
+                    telemetry.RecordReconnect("closed");
+                    return Task.CompletedTask;
+                };
+            }
+
+            if (connection.State is HubConnectionState.Connected or HubConnectionState.Connecting)
             {
-                telemetry.RecordReconnect("closed");
-                return Task.CompletedTask;
-            };
+                return;
+            }
+
+            try
+            {
+                await connection.StartAsync(cancellationToken);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                throw new SessionRevokedException();
+            }
         }
-
-        if (connection.State is HubConnectionState.Connected or HubConnectionState.Connecting)
+        finally
         {
-            return;
+            lifecycleGate.Release();
         }
-
-        await connection.StartAsync(cancellationToken);
     }
 
     public async Task SetSubscriptionsAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
     {
-        if (connection is null || connection.State != HubConnectionState.Connected)
+        await lifecycleGate.WaitAsync(cancellationToken);
+        try
         {
-            return;
+            if (connection is null || connection.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            var desiredPaths = paths
+                .Select(NormalizePath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var toUnsubscribe = subscribedPaths.Except(desiredPaths, StringComparer.OrdinalIgnoreCase).ToArray();
+            var toSubscribe = desiredPaths.Except(subscribedPaths, StringComparer.OrdinalIgnoreCase).ToArray();
+
+            if (toUnsubscribe.Length > 0)
+            {
+                await connection.InvokeAsync("UnsubscribePaths", toUnsubscribe, cancellationToken);
+            }
+
+            if (toSubscribe.Length > 0)
+            {
+                await connection.InvokeAsync("SubscribePaths", toSubscribe, cancellationToken);
+            }
+
+            subscribedPaths = desiredPaths;
         }
-
-        var desiredPaths = paths
-            .Select(NormalizePath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var toUnsubscribe = subscribedPaths.Except(desiredPaths, StringComparer.OrdinalIgnoreCase).ToArray();
-        var toSubscribe = desiredPaths.Except(subscribedPaths, StringComparer.OrdinalIgnoreCase).ToArray();
-
-        if (toUnsubscribe.Length > 0)
+        finally
         {
-            await connection.InvokeAsync("UnsubscribePaths", toUnsubscribe, cancellationToken);
+            lifecycleGate.Release();
         }
-
-        if (toSubscribe.Length > 0)
-        {
-            await connection.InvokeAsync("SubscribePaths", toSubscribe, cancellationToken);
-        }
-
-        subscribedPaths = desiredPaths;
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (connection is null)
-        {
-            return;
-        }
-
+        await lifecycleGate.WaitAsync();
         try
         {
-            await connection.DisposeAsync();
+            if (connection is null)
+            {
+                return;
+            }
+
+            var connectionToDispose = connection;
+            connection = null;
+            subscribedPaths.Clear();
+
+            try
+            {
+                await connectionToDispose.DisposeAsync();
+            }
+            catch
+            {
+            }
         }
-        catch
+        finally
         {
+            lifecycleGate.Release();
         }
     }
 

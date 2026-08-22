@@ -4,7 +4,7 @@
 @inject Ignyos.LanPortal.Web.Services.AuthApiClient AuthApiClient
 @inject NavigationManager Navigation
 
-<PageTitle>Logout</PageTitle>
+<PageTitle>Account</PageTitle>
 
 <p>Signing out...</p>
 
@@ -26,6 +26,6 @@
         }
 
         await AuthSession.ClearAsync();
-        Navigation.NavigateTo("/login", forceLoad: false);
+        Navigation.NavigateTo("/account", forceLoad: false);
     }
 }

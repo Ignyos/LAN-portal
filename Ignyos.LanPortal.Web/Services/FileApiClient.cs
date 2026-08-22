@@ -153,10 +153,7 @@ public sealed class FileApiClient(
         ApplyBearerToken(request);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
-        }
+        ThrowIfUnauthorized(response);
 
         response.EnsureSuccessStatusCode();
 
@@ -172,10 +169,7 @@ public sealed class FileApiClient(
         ApplyBearerToken(request);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
-        }
+        ThrowIfUnauthorized(response);
 
         response.EnsureSuccessStatusCode();
 
@@ -219,7 +213,7 @@ public sealed class FileApiClient(
     {
         if (string.IsNullOrWhiteSpace(authSession.AccessToken))
         {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+            throw new UnauthorizedAccessException("Your session is no longer valid. Please request access again.");
         }
 
         var encodedSegments = relativePath
@@ -253,7 +247,7 @@ public sealed class FileApiClient(
     {
         if (string.IsNullOrWhiteSpace(authSession.AccessToken))
         {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+            throw new UnauthorizedAccessException("Your session is no longer valid. Please request access again.");
         }
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authSession.AccessToken);
@@ -270,7 +264,7 @@ public sealed class FileApiClient(
 
         if (!authSession.CanRefresh || string.IsNullOrWhiteSpace(authSession.RefreshToken))
         {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+            throw new UnauthorizedAccessException("Your session is no longer valid. Please request access again.");
         }
 
         await RefreshAccessTokenAsync(cancellationToken);
@@ -306,15 +300,24 @@ public sealed class FileApiClient(
 
     private async Task RefreshAccessTokenAsync(CancellationToken cancellationToken)
     {
-        var payload = await authApiClient.RefreshTokenAsync(
-            new RefreshTokenRequestDto(authSession.RefreshToken ?? string.Empty),
-            cancellationToken);
+        try
+        {
+            var payload = await authApiClient.RefreshTokenAsync(
+                new RefreshTokenRequestDto(authSession.RefreshToken ?? string.Empty),
+                cancellationToken);
 
-        await authSession.SetTokensAsync(
-            payload.AccessToken,
-            payload.AccessTokenExpiresAtUtc,
-            payload.RefreshToken,
-            payload.RefreshTokenExpiresAtUtc);
+            await authSession.SetTokensAsync(
+                payload.AccessToken,
+                payload.AccessTokenExpiresAtUtc,
+                payload.RefreshToken,
+                payload.RefreshTokenExpiresAtUtc);
+        }
+        catch (SessionRevokedException)
+        {
+            // If refresh fails with revocation, clear the session and re-throw
+            await authSession.ClearAsync();
+            throw;
+        }
     }
 
     private static void AddCorrelationId(HttpRequestMessage request, string? correlationId)
@@ -329,7 +332,7 @@ public sealed class FileApiClient(
     {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
-            throw new UnauthorizedAccessException("Your session is no longer valid. Please log in again.");
+            throw new SessionRevokedException();
         }
     }
 

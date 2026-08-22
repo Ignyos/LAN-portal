@@ -34,8 +34,8 @@
 - Browser opens automatically to `http://localhost:5212/local/setup`.
 - User sets the storage root path and continues to the admin console.
 - Guests on the same Wi-Fi scan QR from setup page for immediate login access.
-- Default guest URL is host LAN IP with `/login` (shown in setup/admin and QR).
-- Router DNS can optionally map `lan.home.arpa` to host LAN IP for a custom URL (`http://lan.home.arpa/login`).
+- Default guest URL is the host LAN IP root (shown in setup/admin and QR).
+- Router DNS can optionally map `lan.home.arpa` to host LAN IP for a custom root URL (`http://lan.home.arpa/`).
 
 ## Security Notes
 
