@@ -8,6 +8,10 @@
     <ProjectReference Include="..\Ignyos.LanPortal.Contracts\Ignyos.LanPortal.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\assets\*.svg" Link="wwwroot\assets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>

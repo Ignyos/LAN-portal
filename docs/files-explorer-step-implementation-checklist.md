@@ -34,10 +34,10 @@ Acceptance gate:
 - [ ] Keep Read as an underlying prerequisite rather than a visible file action.
 - [ ] Grant Read and Search as basic internal permissions to the User role.
 - [ ] Grant Move only to the Admin role for now; keep it hidden from the User experience.
-- [ ] Show every permission in the status area, whether enabled or disabled.
-- [ ] Use stronger themed text for enabled permissions.
-- [ ] Use light gray text for disabled permissions.
-- [ ] Add tooltips for disabled permissions.
+- [x] Show every permission in the status area, whether enabled or disabled.
+- [x] Use stronger themed text for enabled permissions.
+- [x] Use light gray text for disabled permissions.
+- [x] Add tooltips for disabled permissions.
 - [ ] Confirm the final runtime default permission set for `User` after the File Explorer refactor; do not change it as part of the initial UI slice.
 - [ ] Keep API permission checks authoritative regardless of UI state.
 
@@ -51,17 +51,21 @@ Acceptance gate:
 
 ## 2. Build The Explorer Layout
 
-- [ ] Preserve the File Explorer page-level header and existing application shell.
-- [ ] Create a two-pane layout with folders on the left and contents on the right.
-- [ ] Add a top action area for file upload and navigation.
-- [ ] Add the file-only drop area text: `Drag and drop files or`.
-- [ ] Add a multi-file `Browse` button.
-- [ ] Add the explicit Search input and Search button.
+- [x] Preserve the File Explorer page-level header and existing application shell.
+- [x] Create a two-pane layout with folders on the left and contents on the right.
+- [x] Add a top action area for file upload and navigation.
+- [x] Add the file-only drop area text: `Drag and drop files`.
+- [x] Add a multi-file `Browse` button.
+- [ ] Add the explicit Search input and Search button in the later search UX slice.
 - [x] Confirm `file_explorer_ui.txt` is the source of truth for toolbar and section placement.
-- [ ] Keep the explorer content area dynamically sized.
-- [ ] Set a minimum usable explorer height.
-- [ ] Support vertical and horizontal scrolling without hiding the permissions area.
-- [ ] Keep the layout usable at narrow desktop and mobile widths.
+- [x] Confirm `file_explorer_ui.png` is the source of truth for the current visual layout and supplied navigation icons.
+- [x] Use the supplied Left-Arrow, Right-Arrow, Refresh, and Plus-Circle SVG assets for navigation and New Folder controls.
+- [x] Remove the separate `~/` entry from the Folders pane.
+- [x] Place icon navigation controls and breadcrumbs on the same row.
+- [x] Keep the explorer content area dynamically sized.
+- [x] Set a minimum usable explorer height.
+- [x] Support vertical and horizontal scrolling without hiding the permissions area.
+- [x] Keep the layout usable at narrow desktop and mobile widths.
 - [x] Confirm the first implementation slice is layout/navigation only, with existing upload/search behavior preserved temporarily.
 - [x] Confirm the permissions strip is a separate section below the explorer.
 
@@ -91,10 +95,11 @@ Acceptance gate:
 
 ## 4. Simplify The File List
 
-- [ ] Remove the visible Action column.
-- [ ] Display only Name, Type, and Size columns, plus selection controls as needed.
-- [ ] Display file extensions.
-- [ ] Display an empty Size value for folders.
+- [x] Remove the visible Action column.
+- [x] Display only Name, Type, and Size columns, plus selection controls as needed.
+- [x] Display file extensions.
+- [x] Display an empty Size value for folders.
+- [x] Remove visible search-result controls and file-list Action links from the current visual slice.
 - [ ] Sort folders before files.
 - [ ] Sort alphabetically within folders and files.
 - [ ] Keep multi-select with Ctrl/Command and Shift behavior.
@@ -116,7 +121,7 @@ Acceptance gate:
 - [ ] Disable Download for folders.
 - [ ] Disable actions that the current user lacks permission to use.
 - [ ] Provide accessible labels and tooltips for disabled actions.
-- [ ] Preserve confirmation for destructive deletion.
+- [x] Preserve confirmation for destructive deletion.
 - [ ] Preserve actionable success, failure, and conflict feedback.
 - [x] Confirm the first visual slice should simplify the experience according to `file_explorer_ui.txt`, rather than preserve redundant toolbar actions.
 - [x] Confirm New Folder should remain an inline form near the toolbar.
@@ -127,17 +132,17 @@ Acceptance gate:
 
 ## 6. Add The Context Menu
 
-- [ ] Open the context menu on right-click.
-- [ ] Open the context menu with the Context Menu keyboard key.
-- [ ] Open the context menu with Shift+F10.
-- [ ] Select an unselected row before opening its context menu.
-- [ ] Show Download, Rename, and Delete options.
+- [x] Open the context menu on right-click.
+- [x] Open the context menu with the Context Menu keyboard key.
+- [x] Open the context menu with Shift+F10.
+- [x] Select an unselected row before opening its context menu.
+- [x] Show Download, Rename, and Delete options.
 - [ ] Keep New Folder outside the item context menu as a current-folder action.
 - [ ] Do not show Move in the first user-facing context menu.
-- [ ] Disable Download for folders.
-- [ ] Disable options unavailable under the current permissions.
-- [ ] Add tooltips or accessible descriptions for disabled options.
-- [ ] Close the menu on outside click, Escape, or action completion.
+- [x] Disable Download for folders.
+- [x] Disable options unavailable under the current permissions.
+- [x] Add tooltips or accessible descriptions for disabled options.
+- [x] Close the menu on outside click, Escape, or action completion.
 - [ ] Do not add a touch overflow control in this milestone.
 - [x] Confirm pointer context menus should open at the pointer location and keyboard context menus at the focused row.
 

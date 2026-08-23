@@ -470,15 +470,30 @@ tr:last-child td {
 
 .breadcrumb-row {
     display: flex;
-    flex-wrap: wrap;
+    overflow-x: auto;
+    direction: rtl;
+    justify-content: flex-start;
     gap: 0.35rem;
     margin-top: 0.25rem;
     margin-bottom: 0.5rem;
+    padding-bottom: 0.15rem;
+    white-space: nowrap;
+}
+
+.breadcrumb-row > * {
+    direction: ltr;
 }
 
 .breadcrumb-row a {
     text-decoration: none;
     font-weight: 700;
+    color: #274351;
+}
+
+.breadcrumb-row a:hover,
+.breadcrumb-row a:focus-visible {
+    color: var(--accent);
+    text-decoration: underline;
 }
 
 .breadcrumb-current {
@@ -488,7 +503,8 @@ tr:last-child td {
 
 .drop-zone {
     position: relative;
-    min-width: 16rem;
+    width: 100%;
+    min-height: 5.5rem;
     border: 1px dashed #9eb5bf;
     border-radius: 0.7rem;
     background: rgba(255, 255, 255, 0.75);
@@ -497,8 +513,118 @@ tr:last-child td {
     font-weight: 600;
     display: inline-flex;
     align-items: center;
+    flex-direction: column;
     justify-content: center;
+    gap: 0.35rem;
     cursor: pointer;
+}
+
+.explorer-upload-area {
+    width: 100%;
+}
+
+.browse-link {
+    color: #008cff;
+    font-weight: 500;
+}
+
+.folder-navigation-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-top: 0.65rem;
+}
+
+.navigation-icons {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+}
+
+.icon-button,
+.new-folder-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: #5b6266;
+    cursor: pointer;
+}
+
+.icon-button {
+    width: 2rem;
+    height: 2rem;
+    padding: 0.25rem;
+}
+
+.icon-button img {
+    width: 1.55rem;
+    height: 1.55rem;
+}
+
+.new-folder-button {
+    gap: 0.25rem;
+    padding: 0.25rem 0.4rem;
+    font: inherit;
+    font-weight: 600;
+}
+
+.new-folder-button img {
+    width: 1.55rem;
+    height: 1.55rem;
+}
+
+.icon-button:not(:disabled):hover,
+.new-folder-button:not(:disabled):hover,
+.icon-button:focus-visible,
+.new-folder-button:focus-visible {
+    background: rgba(10, 143, 143, 0.1);
+}
+
+.icon-button:disabled,
+.new-folder-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.folder-navigation-row .breadcrumb-row {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid #c7b48d;
+    border-radius: 0.2rem;
+    background: #fffdf7;
+}
+
+.explorer-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.explorer-toolbar .drop-zone {
+    flex: 1 1 22rem;
+    justify-content: space-between;
+    gap: 0.7rem;
+}
+
+.search-bar {
+    position: relative;
+    margin-top: 0.8rem;
+}
+
+.search-controls {
+    display: flex;
+    gap: 0.55rem;
+}
+
+.search-controls .input {
+    flex: 1;
 }
 
 .drop-zone input[type="file"] {
@@ -526,6 +652,7 @@ tr:last-child td {
     display: grid;
     grid-template-columns: 18rem 1fr;
     gap: 0.85rem;
+    min-height: 24rem;
 }
 
 .tree-pane {
@@ -592,6 +719,75 @@ tr:last-child td {
 
 .content-pane {
     min-width: 0;
+    min-height: 24rem;
+}
+
+.file-context-menu {
+    position: fixed;
+    z-index: 900;
+    min-width: 10rem;
+    padding: 0.35rem;
+    border: 1px solid var(--line);
+    border-radius: 0.58rem;
+    background: var(--surface);
+    box-shadow: 0 10px 24px rgba(17, 34, 45, 0.18);
+}
+
+.file-context-menu button {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+    font-weight: 600;
+}
+
+.file-context-menu button:not(:disabled):hover,
+.file-context-menu button:focus-visible {
+    background: rgba(10, 143, 143, 0.12);
+}
+
+.file-context-menu button:disabled {
+    color: #9aa4a8;
+    cursor: not-allowed;
+}
+
+.permissions-panel {
+    margin-top: 0.8rem;
+}
+
+.permissions-heading {
+    color: #345464;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.permissions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-top: 0.7rem;
+}
+
+.permission-item {
+    padding: 0.35rem 0.65rem;
+    border-radius: 0.45rem;
+    font-weight: 700;
+}
+
+.permission-enabled {
+    color: var(--accent);
+    background: rgba(10, 143, 143, 0.1);
+}
+
+.permission-disabled {
+    color: #9aa4a8;
+    background: rgba(154, 164, 168, 0.08);
 }
 
 @media (max-width: 900px) {
@@ -617,5 +813,9 @@ tr:last-child td {
 
     .explorer-grid {
         grid-template-columns: 1fr;
+    }
+
+    .search-controls {
+        flex-direction: column;
     }
 }

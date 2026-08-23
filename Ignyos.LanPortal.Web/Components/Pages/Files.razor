@@ -13,7 +13,6 @@
 
 <section class="view-header">
     <h1>File Explorer</h1>
-    <p>Browse files and folders from Machine A storage.</p>
 </section>
 
 @if (!AuthSession.IsLoaded)
@@ -26,35 +25,13 @@ else if (!AuthSession.HasActiveSession)
 }
 else
 {
-    <section class="panel reveal stack">
-        <div class="actions-row">
+    <section class="panel reveal stack" @onclick="CloseContextMenu">
+        <div class="explorer-upload-area">
             <label class="drop-zone @(CanUpload ? string.Empty : "disabled")">
-                <span>Drop files here or choose files</span>
+                <span>Drag and drop files</span>
+                <span class="browse-link">Browse for files</span>
                 <InputFile OnChange="HandleUploadAsync" multiple disabled="@(!CanUpload || isBusy)" />
             </label>
-            <button class="btn btn-secondary" @onclick="LoadFilesAsync" disabled="@isBusy">Refresh</button>
-            <button class="btn btn-outline" @onclick="GoBackAsync" disabled="@(!CanGoBack || isBusy)">Back</button>
-            <button class="btn btn-outline" @onclick="GoForwardAsync" disabled="@(!CanGoForward || isBusy)">Forward</button>
-        </div>
-
-        <div class="actions-row" style="margin-top: 0.2rem;">
-            <button class="btn btn-outline" @onclick="BeginCreateFolder" disabled="@(!CanCreateFolder || isBusy)">New Folder</button>
-            <button class="btn btn-outline" @onclick="BeginRename" disabled="@(!CanRenameSelection || isBusy)">Rename</button>
-            <button class="btn btn-outline" @onclick="BeginMove" disabled="@(!CanMoveSelection || isBusy)">Move</button>
-            <button class="btn btn-danger-outline" @onclick="DeleteSelectedAsync" disabled="@(!CanDeleteSelection || isBusy)">Delete</button>
-            <button class="btn btn-secondary" @onclick="DownloadSelected" disabled="@(!CanDownloadSelection || isBusy)">Download</button>
-            <span class="text-muted">Selected: @selectedPaths.Count</span>
-        </div>
-
-        <div class="split" style="align-items: end;">
-            <div class="span-8">
-                <label for="search-query">Search in current path (explicit only)</label>
-                <input id="search-query" class="input" @bind="searchQuery" @bind:event="oninput" placeholder="Enter filename or folder name" />
-            </div>
-            <div class="span-4" style="display:flex; gap:0.55rem;">
-                <button class="btn btn-primary" @onclick="RunSearchAsync" disabled="@(isBusy || !CanSearch)">Search</button>
-                <button class="btn btn-secondary" @onclick="ClearSearch" disabled="@(isBusy || !showSearchResults)">Clear Search</button>
-            </div>
         </div>
 
         @if (showCreateFolderForm)
@@ -71,37 +48,25 @@ else
             </div>
         }
 
-        @if (showRenameForm)
-        {
-            <div class="split">
-                <div class="span-8">
-                    <label for="rename-item-name">New Name</label>
-                    <input id="rename-item-name" class="input" @bind="renameTargetName" />
-                </div>
-                <div class="span-4" style="display:flex; align-items:end; gap:0.55rem;">
-                    <button class="btn btn-primary" @onclick="RenameSelectedAsync" disabled="@isBusy">Apply Rename</button>
-                    <button class="btn btn-secondary" @onclick="CancelInlineAction" disabled="@isBusy">Cancel</button>
-                </div>
+        <div class="folder-navigation-row">
+            <div class="navigation-icons" aria-label="Folder navigation">
+                <button class="icon-button" title="Go back" aria-label="Go back" @onclick="GoBackAsync" disabled="@(!CanGoBack || isBusy)">
+                    <img src="assets/Left-Arrow.svg" alt="" />
+                </button>
+                <button class="icon-button" title="Go forward" aria-label="Go forward" @onclick="GoForwardAsync" disabled="@(!CanGoForward || isBusy)">
+                    <img src="assets/Right-Arrow.svg" alt="" />
+                </button>
+                <button class="icon-button" title="Refresh folder" aria-label="Refresh folder" @onclick="LoadFilesAsync" disabled="@isBusy">
+                    <img src="assets/Refresh.svg" alt="" />
+                </button>
+                <button class="new-folder-button" title="Create a new folder" aria-label="Create a new folder" @onclick="BeginCreateFolder" disabled="@(!CanCreateFolder || isBusy)">
+                    <img src="assets/Plus-Circle.svg" alt="" />
+                    <span>New Folder</span>
+                </button>
             </div>
-        }
 
-        @if (showMoveForm)
-        {
-            <div class="split">
-                <div class="span-8">
-                    <label for="move-destination-path">Destination Path (blank = Root)</label>
-                    <input id="move-destination-path" class="input" @bind="moveDestinationPath" placeholder="example: photos/2026" />
-                </div>
-                <div class="span-4" style="display:flex; align-items:end; gap:0.55rem;">
-                    <button class="btn btn-primary" @onclick="MoveSelectedAsync" disabled="@isBusy">Move Selected</button>
-                    <button class="btn btn-secondary" @onclick="CancelInlineAction" disabled="@isBusy">Cancel</button>
-                </div>
-            </div>
-        }
-
-        <div>
-            <div class="breadcrumb-row">
-                <a href="#" @onclick="() => NavigateToFolderAsync(string.Empty)">Root</a>
+            <div class="breadcrumb-row" aria-label="Current folder">
+                <a href="#" @onclick="() => NavigateToFolderAsync(string.Empty)">~/</a>
                 @foreach (var crumb in GetBreadcrumbs())
                 {
                     <span>/</span>
@@ -114,8 +79,7 @@ else
                         <a href="#" @onclick="() => NavigateToFolderAsync(crumb.Path)">@crumb.Name</a>
                     }
                 }
-            </div>
-            <div class="text-muted text-mono">Current folder: @(string.IsNullOrWhiteSpace(currentFolderPath) ? "Root" : currentFolderPath)</div>
+                    </div>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(statusMessage))
@@ -131,7 +95,6 @@ else
         <div class="explorer-grid">
             <aside class="tree-pane">
                 <div class="tree-header">Folders</div>
-                <button class="tree-link root-link" @onclick="() => NavigateToFolderAsync(string.Empty)">Root</button>
                 @if (rootTreeNodes.Count == 0)
                 {
                     <p class="text-muted">No folders</p>
@@ -157,10 +120,7 @@ else
                                     <tr>
                                         <th>Name</th>
                                         <th>Type</th>
-                                        <th>Path</th>
-                                        <th>Size (bytes)</th>
-                                        <th>Last Modified (Local)</th>
-                                        <th>Action</th>
+                                        <th>Size</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -168,20 +128,8 @@ else
                                     {
                                         <tr>
                                             <td>@entry.Name</td>
-                                            <td>@(entry.IsFolder ? "Folder" : "File")</td>
-                                            <td class="text-mono">@entry.Path</td>
+                                            <td>@GetFileTypeLabel(entry)</td>
                                             <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
-                                            <td>@FormatLocalDateTime(entry.LastModifiedUtc)</td>
-                                            <td>
-                                                @if (entry.IsFolder)
-                                                {
-                                                    <a href="#" @onclick="() => OpenFromSearchAsync(entry.Path)">Open</a>
-                                                }
-                                                else
-                                                {
-                                                    <a href="@FileApiClient.BuildDownloadUrl(entry.Path)">Download</a>
-                                                }
-                                            </td>
                                         </tr>
                                     }
                                 </tbody>
@@ -206,9 +154,7 @@ else
                                         </th>
                                         <th>Name</th>
                                         <th>Type</th>
-                                        <th>Size (bytes)</th>
-                                        <th>Last Modified (Local)</th>
-                                        <th>Action</th>
+                                        <th>Size</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -219,34 +165,27 @@ else
                                             <td><a href="#" @onclick="NavigateUpAsync">..</a></td>
                                             <td>Folder</td>
                                             <td></td>
-                                            <td></td>
-                                            <td><a href="#" @onclick="NavigateUpAsync">Open</a></td>
                                         </tr>
                                     }
 
                                     @foreach (var entry in folderItems)
                                     {
                                         <tr class="@(selectedPaths.Contains(entry.Path) ? "row-selected" : string.Empty)"
+                                            tabindex="0"
+                                            @onclick="() => SelectRow(entry.Path)"
+                                            @oncontextmenu="(e) => OpenContextMenu(entry, e)"
+                                            @oncontextmenu:preventDefault="true"
+                                            @onkeydown="(e) => HandleRowKeyDownAsync(entry, e)"
                                             @ondblclick="() => HandleRowDoubleClickAsync(entry)">
                                             <td>
                                                 <input type="checkbox"
                                                        checked="@selectedPaths.Contains(entry.Path)"
+                                                       @onclick:stopPropagation="true"
                                                        @onchange="(e) => ToggleSelection(entry.Path, e)" />
                                             </td>
                                             <td>@entry.Name</td>
-                                            <td>@(entry.IsFolder ? "Folder" : "File")</td>
+                                            <td>@GetFileTypeLabel(entry)</td>
                                             <td>@(entry.IsFolder ? string.Empty : entry.SizeBytes?.ToString())</td>
-                                            <td>@FormatLocalDateTime(entry.LastModifiedUtc)</td>
-                                            <td>
-                                                @if (entry.IsFolder)
-                                                {
-                                                    <a href="#" @onclick="() => NavigateToFolderAsync(entry.Path)">Open</a>
-                                                }
-                                                else
-                                                {
-                                                    <a href="@FileApiClient.BuildDownloadUrl(entry.Path)">Download</a>
-                                                }
-                                            </td>
                                         </tr>
                                     }
                                 </tbody>
@@ -255,6 +194,66 @@ else
                     }
                 }
             </section>
+        </div>
+    </section>
+
+    @if (contextMenuItem is not null)
+    {
+        <div class="file-context-menu" style="left: @contextMenuLeftPx; top: @contextMenuTopPx;"
+               role="menu" tabindex="-1" @onkeydown="HandleContextMenuKeyDown" @onclick:stopPropagation="true">
+            <button type="button" role="menuitem"
+                    @onclick="DownloadFromContextMenu"
+                    disabled="@(!CanContextDownload)">
+                Download
+            </button>
+            <button type="button" role="menuitem"
+                    @onclick="RenameFromContextMenu"
+                    disabled="@(!CanContextRename)">
+                Rename
+            </button>
+            <button type="button" role="menuitem"
+                    @onclick="OpenDeleteConfirmation"
+                    disabled="@(!CanContextDelete)">
+                Delete
+            </button>
+        </div>
+    }
+
+    @if (showDeleteConfirmation)
+    {
+        <div class="modal-backdrop" role="presentation" @onclick="CloseDeleteConfirmation">
+            <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-confirmation-title" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <div>
+                        <p class="eyebrow">Delete</p>
+                        <h2 id="delete-confirmation-title">@DeleteConfirmationTitle</h2>
+                    </div>
+                    <button type="button" class="modal-close" title="Close" aria-label="Close delete confirmation" @onclick="CloseDeleteConfirmation">&times;</button>
+                </div>
+
+                @if (SelectedFolderCount > 0)
+                {
+                    <div class="notice notice-warning" style="margin-top: 1rem;">
+                        The selected folder and everything inside it will be deleted.
+                    </div>
+                }
+
+                <div class="actions-row modal-actions">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDeleteConfirmation" disabled="@isBusy">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@isBusy">Delete</button>
+                </div>
+            </section>
+        </div>
+    }
+
+    <section class="panel reveal permissions-panel">
+        <div class="permissions-heading">Your permissions</div>
+        <div class="permissions-list">
+            <span class="permission-item @(CanUpload ? "permission-enabled" : "permission-disabled")" title="@(CanUpload ? "You can upload files." : "Upload is not available for your access.")">Upload</span>
+            <span class="permission-item @(AuthSession.HasPermission(PermissionKeys.Download) ? "permission-enabled" : "permission-disabled")" title="@(AuthSession.HasPermission(PermissionKeys.Download) ? "You can download files." : "Download is not available for your access.")">Download</span>
+            <span class="permission-item @(AuthSession.HasPermission(PermissionKeys.Rename) ? "permission-enabled" : "permission-disabled")" title="@(AuthSession.HasPermission(PermissionKeys.Rename) ? "You can rename files and folders." : "Rename is not available for your access.")">Rename</span>
+            <span class="permission-item @(AuthSession.HasPermission(PermissionKeys.Delete) ? "permission-enabled" : "permission-disabled")" title="@(AuthSession.HasPermission(PermissionKeys.Delete) ? "You can delete files and folders." : "Delete is not available for your access.")">Delete</span>
+            <span class="permission-item @(CanCreateFolder ? "permission-enabled" : "permission-disabled")" title="@(CanCreateFolder ? "You can create folders." : "New Folder is not available for your access.")">New Folder</span>
         </div>
     </section>
 }
@@ -283,6 +282,10 @@ else
     private string? statusMessage;
     private string? errorMessage;
     private bool hasPendingEventRefresh;
+    private FileNodeDto? contextMenuItem;
+    private string contextMenuLeftPx = "0px";
+    private string contextMenuTopPx = "0px";
+    private bool showDeleteConfirmation;
 
     private bool CanCreateFolder => AuthSession.HasPermission(PermissionKeys.NewFolder);
     private bool CanUpload => AuthSession.HasPermission(PermissionKeys.Upload);
@@ -298,6 +301,13 @@ else
     private bool AllVisibleSelected => folderItems.Count > 0 && folderItems.All(item => selectedPaths.Contains(item.Path));
     private bool CanGoBack => backHistory.Count > 0;
     private bool CanGoForward => forwardHistory.Count > 0;
+    private bool CanContextDownload => contextMenuItem is not null && !contextMenuItem.IsFolder && AuthSession.HasPermission(PermissionKeys.Download);
+    private bool CanContextRename => contextMenuItem is not null && AuthSession.HasPermission(PermissionKeys.Rename);
+    private bool CanContextDelete => contextMenuItem is not null && AuthSession.HasPermission(PermissionKeys.Delete);
+    private int SelectedFolderCount => folderItems.Count(item => selectedPaths.Contains(item.Path) && item.IsFolder);
+    private string DeleteConfirmationTitle => selectedPaths.Count == 1
+        ? $"Delete \"{folderItems.FirstOrDefault(item => selectedPaths.Contains(item.Path))?.Name}\"?"
+        : $"Delete {selectedPaths.Count} selected items?";
 
     private RenderFragment TreeBranch(IEnumerable<TreeNode> nodes) => __builder =>
     {
@@ -715,6 +725,99 @@ else
         }
     }
 
+    private void SelectRow(string path)
+    {
+        selectedPaths.Clear();
+        selectedPaths.Add(path);
+    }
+
+    private void OpenContextMenu(FileNodeDto item, MouseEventArgs args)
+    {
+        if (!selectedPaths.Contains(item.Path))
+        {
+            SelectRow(item.Path);
+        }
+
+        contextMenuItem = item;
+        contextMenuLeftPx = $"{Math.Max(0, args.ClientX)}px";
+        contextMenuTopPx = $"{Math.Max(0, args.ClientY)}px";
+    }
+
+    private Task HandleRowKeyDownAsync(FileNodeDto item, KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+        {
+            CloseContextMenu();
+            return Task.CompletedTask;
+        }
+
+        if (args.Key is "ContextMenu" or "F10" && (args.Key == "ContextMenu" || args.ShiftKey))
+        {
+            OpenContextMenu(item, new MouseEventArgs { ClientX = 24, ClientY = 24 });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task HandleContextMenuKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+        {
+            CloseContextMenu();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void CloseContextMenu() => contextMenuItem = null;
+
+    private void DownloadFromContextMenu()
+    {
+        if (!CanContextDownload)
+        {
+            return;
+        }
+
+        CloseContextMenu();
+        DownloadSelected();
+    }
+
+    private void RenameFromContextMenu()
+    {
+        if (!CanContextRename)
+        {
+            return;
+        }
+
+        CloseContextMenu();
+        BeginRename();
+    }
+
+    private void OpenDeleteConfirmation()
+    {
+        if (!CanContextDelete)
+        {
+            return;
+        }
+
+        CloseContextMenu();
+        showDeleteConfirmation = true;
+    }
+
+    private void CloseDeleteConfirmation()
+    {
+        if (!isBusy)
+        {
+            showDeleteConfirmation = false;
+        }
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        showDeleteConfirmation = false;
+        await DeleteSelectedAsync();
+    }
+
     private void ToggleSelectAll(ChangeEventArgs args)
     {
         var selected = IsChecked(args.Value);
@@ -1100,6 +1203,19 @@ else
 
     private static string FormatLocalDateTime(DateTimeOffset? value, string fallback = "n/a")
         => value is null ? fallback : value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    private static string GetFileTypeLabel(FileNodeDto entry)
+    {
+        if (entry.IsFolder)
+        {
+            return "Folder";
+        }
+
+        var extension = Path.GetExtension(entry.Name);
+        return string.IsNullOrWhiteSpace(extension)
+            ? "File"
+            : extension.TrimStart('.').ToUpperInvariant();
+    }
 
     private static string CreateCorrelationId()
         => Guid.NewGuid().ToString("N");
