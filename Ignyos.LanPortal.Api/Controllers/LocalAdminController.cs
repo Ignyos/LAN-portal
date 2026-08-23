@@ -38,6 +38,13 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
 </head>
 <body>
   <div class="shell">
+    <nav class="host-nav" aria-label="Host navigation">
+      <a href="/local/setup">File Sharing</a>
+      <a href="/local/admin" class="active" aria-current="page">Admin</a>
+      <span class="host-nav-separator" aria-hidden="true"></span>
+      <a href="/local/settings">Settings</a>
+      <a href="/local/advanced">Advanced</a>
+    </nav>
     <header class="page-header">
       <p class="eyebrow">Admin</p>
     </header>
@@ -533,6 +540,13 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
 </head>
 <body>
   <div class="shell">
+    <nav class="host-nav" aria-label="Host navigation">
+      <a href="/local/setup">File Sharing</a>
+      <a href="/local/admin">Admin</a>
+      <span class="host-nav-separator" aria-hidden="true"></span>
+      <a href="/local/settings">Settings</a>
+      <a href="/local/advanced">Advanced</a>
+    </nav>
     <div class="header">
       <p class="eyebrow">Access History</p>
     </div>

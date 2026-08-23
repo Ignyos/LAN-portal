@@ -41,6 +41,13 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 </head>
 <body>
     <div class="shell">
+        <nav class="host-nav" aria-label="Host navigation">
+            <a href="/local/setup" class="active" aria-current="page">File Sharing</a>
+            <a href="/local/admin">Admin</a>
+            <span class="host-nav-separator" aria-hidden="true"></span>
+            <a href="/local/settings">Settings</a>
+            <a href="/local/advanced">Advanced</a>
+        </nav>
         <header class="page-header">
             <p class="eyebrow">File Sharing</p>
         </header>
@@ -186,6 +193,44 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
         return Content(html, "text/html", Encoding.UTF8);
     }
 
+    [HttpGet("local/settings")]
+    public IActionResult SettingsPage()
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        var html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LAN Portal | Settings</title>
+    <link rel="stylesheet" href="/host.css?v=1" />
+</head>
+<body>
+    <div class="shell">
+        <nav class="host-nav" aria-label="Host navigation">
+            <a href="/local/setup">File Sharing</a>
+            <a href="/local/admin">Admin</a>
+            <span class="host-nav-separator" aria-hidden="true"></span>
+            <a href="/local/settings" class="active" aria-current="page">Settings</a>
+            <a href="/local/advanced">Advanced</a>
+        </nav>
+        <header class="page-header">
+            <p class="eyebrow">Settings</p>
+            <h1>Settings</h1>
+        </header>
+    </div>
+</body>
+</html>
+""";
+
+        return Content(html, "text/html", Encoding.UTF8);
+    }
+
     [HttpGet("local/advanced")]
     public IActionResult AdvancedPage()
     {
@@ -209,6 +254,13 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 </head>
 <body>
   <div class="shell">
+        <nav class="host-nav" aria-label="Host navigation">
+            <a href="/local/setup">File Sharing</a>
+            <a href="/local/admin">Admin</a>
+            <span class="host-nav-separator" aria-hidden="true"></span>
+            <a href="/local/settings">Settings</a>
+            <a href="/local/advanced" class="active" aria-current="page">Advanced</a>
+        </nav>
         <header class="page-header">
             <p class="eyebrow">Advanced</p>
             <h1>Guest URL settings</h1>

@@ -37,6 +37,36 @@ body {
     padding: 4px 0 2px;
 }
 
+.host-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.host-nav a {
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.45rem;
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.host-nav a:hover,
+.host-nav a:focus-visible,
+.host-nav a.active {
+    background: rgba(10, 143, 143, 0.1);
+    color: var(--accent);
+}
+
+.host-nav-separator {
+    width: 1px;
+    height: 1.5rem;
+    margin: 0 0.35rem;
+    background: var(--line);
+}
+
 .header {
     background: linear-gradient(145deg, var(--surface), var(--surface-2));
     border: 1px solid var(--line);

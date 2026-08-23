@@ -16,8 +16,8 @@ The settings inventory is intentionally separate from session data. `AccessSessi
 | `Jwt:Audience` | Token audience | string | No | `Ignyos.LanPortal.Clients` | No | Used when creating and validating access tokens. Changing it invalidates existing tokens. |
 | `Jwt:SigningKey` | Token signing key | protected string | Yes | Generated during first initialization | No | Must remain protected and should not be exposed through a settings UI. Changing it invalidates existing tokens. |
 | `Storage:RootPath` | Shared folder | string | No | Empty until setup | Yes | Physical host path used as the shared-folder boundary. Must retain strict validation. |
-| `DeviceLogin:RequestLifetimeSeconds` | Access request timeout | integer | No | `300` seconds (5 minutes) | Candidate | Controls how long a pending client access request remains available. Requires validation and should be displayed in friendly units. |
-| `DeviceLogin:PollIntervalSeconds` | Access request check interval | integer | No | `3` seconds | Candidate | Controls how often the client checks a pending request. May remain startup configuration if host control is not needed. |
+| `DeviceLogin:RequestLifetimeSeconds` | Access request timeout | integer | No | `300` seconds (5 minutes) | Yes | Controls how long a pending client access request remains available. Stored as seconds and displayed as minutes/seconds in the Host settings UI. |
+| `DeviceLogin:PollIntervalSeconds` | Access request check interval | integer | No | `3` seconds | Yes | Controls how often the client checks a pending request. Editable from the Host settings UI. |
 
 ## Strong Candidates For Later Addition
 
@@ -46,17 +46,96 @@ Not every configurable value belongs in the database. Keep these in `appsettings
 - Hosting pipeline settings such as HTTPS redirection when changing them requires application restart or process-level configuration.
 - Installer and deployment settings.
 
-## Request Timeout Migration Note
+## Runtime Access-Request Settings Migration Note
 
 The current `DeviceLogin:RequestLifetimeSeconds` value is still consumed through `IOptions<DeviceLoginOptions>` by `InMemoryDeviceLoginStore`. Moving it into `AppSettings` will require a deliberate migration:
 
-1. Add typed get/set methods to `IAppSettingsStore`.
-2. Seed the value into `AppSettings` when missing, using `300` seconds.
-3. Make the login store read the runtime value from the settings store.
-4. Validate a safe range, such as 5 seconds through 24 hours.
-5. Decide whether `PollIntervalSeconds` moves with it or remains startup configuration.
+1. Add typed get/set methods to `IAppSettingsStore` or a typed facade over it.
+2. Seed both values into `AppSettings` when missing, using 300 seconds and 3 seconds.
+3. Make the login store read the runtime values from the settings owner.
+4. Validate safe ranges, such as 5 seconds through 24 hours for timeout and 1 through 60 seconds for polling.
+5. Display timeout values as minutes/seconds in the Host UI while retaining seconds at the storage boundary.
 6. Remove the duplicate `DeviceLogin` options binding after all consumers migrate.
-7. Add tests for defaulting, validation, and runtime changes.
+7. Add tests for defaulting, validation, runtime changes, and concurrent reads.
+
+## Per-Setting Typed Behavior
+
+The proposed per-setting class approach is a good fit. The database boundary can remain string-based while each setting owns its key, type conversion, fallback, validation, and display rules.
+
+Conceptually:
+
+```csharp
+public interface IApplicationSetting<T>
+{
+        string Key { get; }
+        T DefaultValue { get; }
+        T Deserialize(string? storedValue);
+        string Serialize(T value);
+        void Validate(T value);
+}
+```
+
+Examples might include:
+
+```text
+RequestTimeoutSetting
+    Key: DeviceLogin:RequestLifetimeSeconds
+    Type: int
+    Default: 300
+    Validation: 5 seconds through 24 hours
+    Display: minutes/seconds
+
+PollIntervalSetting
+    Key: DeviceLogin:PollIntervalSeconds
+    Type: int
+    Default: 3
+    Validation: 1 through 60 seconds
+    Display: seconds
+```
+
+This approach keeps unique fallback behavior close to each setting and prevents controllers from duplicating parsing rules. `SqliteAppSettingsStore` should remain the only class that knows how to read and write the `AppSettings` table, while a typed settings facade coordinates setting definitions:
+
+```text
+Typed setting definition
+        |
+        v
+Typed application settings facade
+        |
+        v
+IAppSettingsStore / SqliteAppSettingsStore
+        |
+        v
+SQLite string value
+```
+
+The facade should validate before writing and return the setting's default when a value is missing or invalid. Invalid stored values should also be logged so a damaged configuration is visible without preventing the application from starting where a safe fallback exists.
+
+## Audit History And Logging
+
+Audit history and operational logging should be designed together before runtime settings are implemented.
+
+Recommended separation:
+
+- Audit history records who changed a setting, which key changed, the old and new values when safe, when it changed, and why.
+- Application logs record execution details such as validation failures, fallback use, database errors, and invalid configuration attempts.
+- Sensitive values such as `Jwt:SigningKey` must never appear in audit records or logs. Record that the value changed, optionally with a redacted fingerprint, not the value itself.
+- Audit records should be durable in SQLite; diagnostic logs should continue using `ILogger` and the configured logging providers.
+
+Proposed audit record:
+
+```text
+ApplicationSettingAudit
+    AuditId
+    Key
+    OldValueRedacted
+    NewValueRedacted
+    ChangedBy
+    Reason
+    ChangedAtUtc
+    RequiresRestart
+```
+
+The audit writer should be part of the settings service/store transaction so a successful setting change cannot be committed without its audit record. Logging should happen around the operation as structured events, without duplicating the audit record as the only source of diagnostics.
 
 ## Future Settings Page Direction
 
@@ -87,10 +166,8 @@ Sensitive and startup-only values should not appear as ordinary editable fields.
 
 ## Open Decisions
 
-- Whether Request Timeout and Poll Interval should both become runtime settings.
-- Whether a five-minute timeout should be stored as seconds internally or represented as minutes in the Admin UI.
-- Which Admin role/permission can change runtime settings.
-- Whether changing security-sensitive values should require a restart or invalidate sessions.
-- Whether settings need audit history, especially security and access-request settings.
+- Final design for the audit transaction boundary and audit retention/query UI.
+- Which application log events and structured fields accompany settings reads, writes, validation failures, and fallback use.
+- Confirm the operational behavior for JWT setting changes: invalidate all sessions when any `Jwt:*` value changes.
 - Whether add-ins receive their own settings namespace instead of using core `AppSettings` keys.
-- Whether settings values should remain string-based at the storage boundary while typed validation lives above it.
+- Whether add-in settings should use the same typed setting infrastructure with an add-in-owned namespace and isolated storage policy.
