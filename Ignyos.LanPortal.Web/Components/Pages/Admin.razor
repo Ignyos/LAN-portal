@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject AuthSession AuthSession
 @inject AdminApiClient AdminApiClient
+@inject ToastService Toasts
 
 <PageTitle>Admin</PageTitle>
 
@@ -29,11 +30,6 @@ else if (!AuthSession.HasRole("Admin"))
 }
 else
 {
-    @if (!string.IsNullOrWhiteSpace(statusMessage))
-    {
-        <div class="notice notice-success">@statusMessage</div>
-    }
-
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="notice notice-danger">@errorMessage</div>
@@ -242,7 +238,6 @@ else
     private AccessSessionDto? revokeSession;
     private PendingLoginRequestDto? denyRequest;
     private string denyReason = string.Empty;
-    private string? statusMessage;
     private string? errorMessage;
     private Timer? pendingTimer;
     private Timer? sessionsTimer;
@@ -361,7 +356,6 @@ else
         }
 
         busyRequests.Add(req.RequestId);
-        statusMessage = null;
         errorMessage = null;
 
         try
@@ -376,7 +370,7 @@ else
                 draft.UserName.Trim(), roles, tokenMinutes, draft.DeviceName.Trim()));
 
             approvalDrafts.Remove(req.RequestId);
-            statusMessage = $"Approved login for {draft.UserName.Trim()} on {draft.DeviceName.Trim()}.";
+            Toasts.Success($"Approved login for {draft.UserName.Trim()} on {draft.DeviceName.Trim()}.");
             await Task.WhenAll(PollPendingAsync(), PollSessionsAsync());
         }
         catch (UnauthorizedAccessException ex)
@@ -421,14 +415,13 @@ else
     private async Task DenyAsync(PendingLoginRequestDto req, string reason)
     {
         busyRequests.Add(req.RequestId);
-        statusMessage = null;
         errorMessage = null;
 
         try
         {
             await AdminApiClient.DenyLoginAsync(req.RequestId, new DenyLoginRequestDto(reason));
             approvalDrafts.Remove(req.RequestId);
-            statusMessage = $"Denied login request from {req.DeviceName}.";
+            Toasts.Info($"Denied login request from {req.DeviceName}.");
             await PollPendingAsync();
         }
         catch (UnauthorizedAccessException ex)
@@ -448,7 +441,6 @@ else
     private void OpenRevokeModal(AccessSessionDto session)
     {
         revokeSession = session;
-        statusMessage = null;
         errorMessage = null;
     }
 
@@ -474,7 +466,6 @@ else
     private async Task RevokeSessionAsync(AccessSessionDto session)
     {
         isBusy = true;
-        statusMessage = null;
         errorMessage = null;
 
         try
@@ -492,7 +483,7 @@ else
                 return;
             }
 
-            statusMessage = $"Revoked session for {session.UserName} on {session.DeviceName}.";
+            Toasts.Info($"Revoked session for {session.UserName} on {session.DeviceName}.");
             await PollSessionsAsync();
         }
         catch (UnauthorizedAccessException ex)

@@ -20,6 +20,7 @@ var useHttpsRedirection = builder.Configuration.GetValue("Hosting:UseHttpsRedire
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.Configure<BootstrapOptions>(builder.Configuration.GetSection(BootstrapOptions.SectionName));
+builder.Services.Configure<DeviceLoginOptions>(builder.Configuration.GetSection(DeviceLoginOptions.SectionName));
 builder.Services.Configure<UpdateChannelOptions>(builder.Configuration.GetSection(UpdateChannelOptions.SectionName));
 builder.Services.Configure<FormOptions>(options =>
 {

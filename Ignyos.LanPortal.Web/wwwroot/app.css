@@ -226,6 +226,95 @@ tr:last-child td {
     color: #7f2525;
 }
 
+.toast-host {
+    position: fixed;
+    z-index: 1100;
+    width: min(24rem, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.toast-host-topright {
+    top: 1rem;
+    right: 1rem;
+}
+
+.toast-host-topleft {
+    top: 1rem;
+    left: 1rem;
+}
+
+.toast-host-bottomright {
+    right: 1rem;
+    bottom: 1rem;
+}
+
+.toast-host-bottomleft {
+    bottom: 1rem;
+    left: 1rem;
+}
+
+.toast {
+    border: 1px solid var(--line);
+    border-radius: 0.58rem;
+    padding: 0.75rem 0.9rem;
+    background: var(--surface);
+    box-shadow: 0 10px 24px rgba(17, 34, 45, 0.18);
+    color: var(--ink);
+    font-weight: 600;
+    animation: toast-in 180ms ease-out;
+}
+
+.toast-success {
+    border-color: #7dc79f;
+    background: #e8f7ef;
+    color: #176b3f;
+}
+
+.toast-info {
+    border-color: #9eb5bf;
+    background: #eef7f8;
+    color: #245361;
+}
+
+.toast-warning {
+    border-color: #e0c07a;
+    background: #fff4dd;
+    color: #725000;
+}
+
+.toast-error {
+    border-color: #d9a2a2;
+    background: #fdeeee;
+    color: #7f2525;
+}
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(-0.35rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+    .toast-host-topright,
+    .toast-host-topleft {
+        top: 0.75rem;
+    }
+
+    .toast-host-bottomright,
+    .toast-host-bottomleft {
+        bottom: 0.75rem;
+    }
+
+    .toast-host-topright,
+    .toast-host-bottomright {
+        right: 0.75rem;
+    }
+
+    .toast-host-topleft,
+    .toast-host-bottomleft {
+        left: 0.75rem;
+    }
+}
+
 .approval-progress {
     position: relative;
     width: 100%;
@@ -471,7 +560,6 @@ tr:last-child td {
 .breadcrumb-row {
     display: flex;
     overflow-x: auto;
-    direction: rtl;
     justify-content: flex-start;
     gap: 0.35rem;
     margin-top: 0.25rem;
@@ -480,13 +568,9 @@ tr:last-child td {
     white-space: nowrap;
 }
 
-.breadcrumb-row > * {
-    direction: ltr;
-}
-
 .breadcrumb-row a {
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 500;
     color: #274351;
 }
 
@@ -498,7 +582,7 @@ tr:last-child td {
 
 .breadcrumb-current {
     color: #274351;
-    font-weight: 700;
+    font-weight: 500;
 }
 
 .drop-zone {
@@ -668,7 +752,7 @@ tr:last-child td {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #3a5d6c;
-    font-weight: 700;
+    font-weight: 600;
     margin-bottom: 0.35rem;
 }
 
@@ -710,7 +794,7 @@ tr:last-child td {
 }
 
 .tree-link {
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .root-link {

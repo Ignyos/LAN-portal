@@ -54,7 +54,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
                 <div class="field">
                     <div class="path-row">
                         <input id="storageRootPath" value="{{storageRootPath}}" placeholder="D:/Ignyos/LanPortal" aria-label="Shared folder" readonly />
-                        <button type="button" class="secondary" id="changeStorageRootButton">Change folder</button>
+                        <button type="button" class="secondary" id="changeStorageRootButton">Browse</button>
                     </div>
                 </div>
             </div>

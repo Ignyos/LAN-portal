@@ -1,0 +1,57 @@
+@using Ignyos.LanPortal.Web.Services
+@implements IDisposable
+@inject ToastService Toasts
+
+@foreach (var toast in visibleToasts)
+{
+    <div class="toast-host toast-host-@toast.Position.ToString().ToLowerInvariant()" role="status" aria-live="polite">
+        <div class="toast toast-@toast.Kind.ToString().ToLowerInvariant()">
+            @toast.Message
+        </div>
+    </div>
+}
+
+@code {
+    private readonly List<ToastMessage> visibleToasts = [];
+    private readonly Dictionary<Guid, CancellationTokenSource> dismissals = [];
+
+    protected override void OnInitialized()
+    {
+        Toasts.ToastShown += OnToastShown;
+    }
+
+    private void OnToastShown(ToastMessage toast)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            visibleToasts.Add(toast);
+            StateHasChanged();
+
+            var cancellation = new CancellationTokenSource();
+            dismissals[toast.Id] = cancellation;
+            try
+            {
+                await Task.Delay(toast.Duration, cancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            visibleToasts.RemoveAll(item => item.Id == toast.Id);
+            dismissals.Remove(toast.Id, out var source);
+            source?.Dispose();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        Toasts.ToastShown -= OnToastShown;
+        foreach (var source in dismissals.Values)
+        {
+            source.Cancel();
+            source.Dispose();
+        }
+    }
+}

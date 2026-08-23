@@ -7,6 +7,7 @@
 @inject FileApiClient FileApiClient
 @inject FileEventsClient FileEventsClient
 @inject AuthSession AuthSession
+@inject ToastService Toasts
 @implements IAsyncDisposable
 
 <PageTitle>Files</PageTitle>
@@ -81,11 +82,6 @@ else
                 }
                     </div>
         </div>
-
-        @if (!string.IsNullOrWhiteSpace(statusMessage))
-        {
-            <p class="text-success">@statusMessage</p>
-        }
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
@@ -279,7 +275,6 @@ else
     private bool showRenameForm;
     private bool showMoveForm;
     private bool showSearchResults;
-    private string? statusMessage;
     private string? errorMessage;
     private bool hasPendingEventRefresh;
     private FileNodeDto? contextMenuItem;
@@ -423,7 +418,6 @@ else
         }
 
         isBusy = true;
-        statusMessage = null;
         errorMessage = null;
 
         try
@@ -435,9 +429,9 @@ else
                 uploadedCount++;
             }
 
-            statusMessage = uploadedCount == 1
+            Toasts.Success(uploadedCount == 1
                 ? "Uploaded 1 file."
-                : $"Uploaded {uploadedCount} files.";
+                : $"Uploaded {uploadedCount} files.");
 
             await LoadCurrentFolderAsync();
             await EnsureTreeLoadedAsync(forceReload: true);
@@ -553,7 +547,7 @@ else
         try
         {
             hasPendingEventRefresh = false;
-            statusMessage = "Folder updated.";
+            Toasts.Info("Folder updated.");
             await LoadCurrentFolderAsync();
             await EnsureTreeLoadedAsync(forceReload: true);
             await EnsureTreePathExpandedAsync(currentFolderPath);
@@ -675,7 +669,6 @@ else
 
         isBusy = true;
         errorMessage = null;
-        statusMessage = null;
 
         try
         {
@@ -684,7 +677,7 @@ else
             searchResults.AddRange(response.Items);
             showSearchResults = true;
             selectedPaths.Clear();
-            statusMessage = $"Search returned {searchResults.Count} item(s).";
+            Toasts.Info($"Search returned {searchResults.Count} item(s).");
         }
         catch (SessionRevokedException ex)
         {
@@ -896,12 +889,11 @@ else
 
         isBusy = true;
         errorMessage = null;
-        statusMessage = null;
 
         try
         {
             await FileApiClient.CreateFolderAsync(currentFolderPath, folderName, CreateCorrelationId());
-            statusMessage = $"Created folder '{folderName}'.";
+            Toasts.Success($"Created folder '{folderName}'.");
             CancelInlineAction();
             await LoadCurrentFolderAsync();
             await EnsureTreeLoadedAsync(forceReload: true);
@@ -943,12 +935,11 @@ else
 
         isBusy = true;
         errorMessage = null;
-        statusMessage = null;
 
         try
         {
             await FileApiClient.RenameAsync(selectedPath, newName, CreateCorrelationId());
-            statusMessage = "Rename completed.";
+            Toasts.Success("Rename completed.");
             selectedPaths.Clear();
             CancelInlineAction();
             await LoadCurrentFolderAsync();
@@ -983,13 +974,12 @@ else
 
         isBusy = true;
         errorMessage = null;
-        statusMessage = null;
 
         try
         {
             var destination = NormalizePath(moveDestinationPath);
             await FileApiClient.MoveAsync(selectedPaths.ToArray(), destination, CreateCorrelationId());
-            statusMessage = "Move completed.";
+            Toasts.Success("Move completed.");
             selectedPaths.Clear();
             CancelInlineAction();
             await LoadCurrentFolderAsync();
@@ -1024,12 +1014,11 @@ else
 
         isBusy = true;
         errorMessage = null;
-        statusMessage = null;
 
         try
         {
             await FileApiClient.DeleteAsync(selectedPaths.ToArray(), CreateCorrelationId());
-            statusMessage = "Delete completed.";
+            Toasts.Success("Delete completed.");
             selectedPaths.Clear();
             CancelInlineAction();
             await LoadCurrentFolderAsync();

@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject Ignyos.LanPortal.Web.Services.PortalConfigClient PortalConfigClient
+@inject Ignyos.LanPortal.Web.Services.ToastService Toasts
 @inject IJSRuntime JS
 
 <PageTitle>@networkName - Home</PageTitle>
@@ -30,17 +31,12 @@
         <a class="btn btn-outline" href="files">Go To Files</a>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(copyStatusMessage))
-    {
-        <p class="text-success">@copyStatusMessage</p>
-    }
 </section>
 
 @code {
 	private string networkName = "My Home";
 	private string shareUrl = string.Empty;
 	private string qrCodeUrl = string.Empty;
-	private string? copyStatusMessage;
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -55,11 +51,11 @@
 		try
 		{
 			await JS.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
-			copyStatusMessage = "Link copied.";
+			Toasts.Success("Link copied.");
 		}
 		catch
 		{
-			copyStatusMessage = "Could not copy automatically. Please copy the link manually.";
+			Toasts.Warning("Could not copy automatically. Please copy the link manually.");
 		}
 	}
 

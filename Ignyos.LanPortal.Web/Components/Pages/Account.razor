@@ -7,6 +7,7 @@
 @inject Ignyos.LanPortal.Web.Services.AuthApiClient AuthApiClient
 @inject NavigationManager Navigation
 @inject PortalConfigClient PortalConfigClient
+@inject ToastService Toasts
 @inject IJSRuntime JS
 
 <PageTitle>@(AuthSession.HasActiveSession ? "Account" : $"{networkName} - Account")</PageTitle>
@@ -22,22 +23,6 @@
 else if (!AuthSession.HasActiveSession)
 {
     <section class="panel reveal">
-        @if (!string.IsNullOrWhiteSpace(revocationReason))
-        {
-            @if (revocationReason == "revoked")
-            {
-                <div class="notice notice-warning">
-                    <strong>Access Revoked:</strong> Your session has been revoked by the host administrator. To regain access, please request access again below.
-                </div>
-            }
-            else if (revocationReason == "expired")
-            {
-                <div class="notice notice-info">
-                    <strong>Session Expired:</strong> Your session has expired. To continue, please request access again below.
-                </div>
-            }
-        }
-
         <h2>Request access to @networkName</h2>
         <p>Enter your name and device to request access from the host.</p>
 
@@ -100,11 +85,6 @@ else
             <button class="btn btn-danger" @onclick="LogoutAsync" disabled="@isBusy">Log Out</button>
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(statusMessage))
-        {
-            <p class="text-success">@statusMessage</p>
-        }
-
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
             <p class="text-danger">@errorMessage</p>
@@ -118,9 +98,7 @@ else
     private string userName = string.Empty;
     private string deviceName = "Desktop";
     private string returnUrl = "/files";
-    private string? statusMessage;
     private string? errorMessage;
-    private string? revocationReason;
     private DeviceLoginStartResponseDto? pendingRequest;
     private DateTimeOffset? pendingStartedAtUtc;
     private bool requestExpired;
@@ -187,7 +165,15 @@ else
 
         if (query.TryGetValue("reason", out var reasonValue))
         {
-            revocationReason = reasonValue.ToString();
+            var reason = reasonValue.ToString();
+            if (reason == "revoked")
+            {
+                Toasts.Warning("Your access was revoked. Please request access again.");
+            }
+            else if (reason == "expired")
+            {
+                Toasts.Info("Your session expired. Please request access again.");
+            }
         }
 
         if (AuthSession.HasActiveSession)
@@ -220,7 +206,6 @@ else
 
         isBusy = true;
         var currentRequest = ++requestSequence;
-        statusMessage = null;
         errorMessage = null;
         pendingRequest = null;
         pendingStartedAtUtc = null;
@@ -273,7 +258,7 @@ else
                         poll.RefreshToken,
                         poll.RefreshTokenExpiresAtUtc);
                     await AuthSession.RememberPathAsync(returnUrl);
-                    statusMessage = "Access approved. Redirecting...";
+                    Toasts.Success("Access approved. Redirecting...");
                     Navigation.NavigateTo(returnUrl);
                     return;
                 }
@@ -317,7 +302,6 @@ else
     private async Task LogoutAsync()
     {
         isBusy = true;
-        statusMessage = null;
         errorMessage = null;
 
         try
@@ -329,7 +313,7 @@ else
             }
 
             await AuthSession.ClearAsync();
-            statusMessage = "Signed out.";
+            Toasts.Info("Signed out.");
             Navigation.NavigateTo("/account", forceLoad: false);
         }
         catch (Exception ex)

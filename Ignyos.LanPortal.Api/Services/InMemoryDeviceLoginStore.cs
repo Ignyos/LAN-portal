@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
 using Ignyos.LanPortal.Contracts;
+using Microsoft.Extensions.Options;
 
 namespace Ignyos.LanPortal.Api.Services;
 
-public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
+public sealed class InMemoryDeviceLoginStore(IOptions<DeviceLoginOptions> options) : IDeviceLoginStore
 {
-    private const int RequestLifetimeSeconds = 20;
     private const int MaxDecisionHistory = 100;
 
     private readonly ConcurrentDictionary<Guid, DeviceLoginRequestState> _requests = new();
@@ -21,7 +21,7 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
 
         var requestId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var expiresAtUtc = now.AddSeconds(RequestLifetimeSeconds);
+        var expiresAtUtc = now.AddSeconds(Math.Clamp(options.Value.RequestLifetimeSeconds, 5, 24 * 60 * 60));
         var userCode = BuildUserCode();
 
         var state = new DeviceLoginRequestState
@@ -39,7 +39,8 @@ public sealed class InMemoryDeviceLoginStore : IDeviceLoginStore
 
         _requests[requestId] = state;
 
-        return new DeviceLoginStartResponseDto(requestId, userCode, expiresAtUtc, PollIntervalSeconds: 3);
+        var pollIntervalSeconds = Math.Clamp(options.Value.PollIntervalSeconds, 1, 60);
+        return new DeviceLoginStartResponseDto(requestId, userCode, expiresAtUtc, pollIntervalSeconds);
     }
 
     public IReadOnlyList<PendingLoginRequestDto> GetPendingRequests()
