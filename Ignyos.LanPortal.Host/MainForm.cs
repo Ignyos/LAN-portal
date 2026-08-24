@@ -30,7 +30,7 @@ public sealed class MainForm : Form
     private const string SetupUrl = "http://localhost:5212/local/setup";
     private const string AdvancedUrl = "http://localhost:5212/local/advanced";
     private const string AdminUrl = "http://localhost:5212/local/admin";
-    private const string AccessHistoryUrl = "http://localhost:5212/local/access-history";
+    private const string SettingsUrl = "http://localhost:5212/local/settings";
     private const string UpdateStatusUrl = "http://localhost:5212/api/local/update/status";
     private const string UpdateCheckNowUrl = "http://localhost:5212/api/local/update/check-now";
     private const string AppTitlePrefix = "Ignyos LAN Portal";
@@ -369,11 +369,11 @@ public sealed class MainForm : Form
         };
         adminMenuItem.Click += (_, _) => NavigateTo(AdminUrl);
 
-        var accessHistoryMenuItem = new ToolStripMenuItem("Access History")
+        var settingsMenuItem = new ToolStripMenuItem("Settings")
         {
             ForeColor = HostInk
         };
-        accessHistoryMenuItem.Click += (_, _) => NavigateTo(AccessHistoryUrl);
+        settingsMenuItem.Click += (_, _) => NavigateTo(SettingsUrl);
 
         var advancedMenuItem = new ToolStripMenuItem("Advanced")
         {
@@ -390,8 +390,8 @@ public sealed class MainForm : Form
 
         fileMenu.DropDownItems.Add(setupMenuItem);
         fileMenu.DropDownItems.Add(adminMenuItem);
-        fileMenu.DropDownItems.Add(accessHistoryMenuItem);
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
+        fileMenu.DropDownItems.Add(settingsMenuItem);
         fileMenu.DropDownItems.Add(advancedMenuItem);
 
         menuStrip.Items.Add(fileMenu);

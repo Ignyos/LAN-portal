@@ -38,13 +38,6 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
 </head>
 <body>
   <div class="shell">
-    <nav class="host-nav" aria-label="Host navigation">
-      <a href="/local/setup">File Sharing</a>
-      <a href="/local/admin" class="active" aria-current="page">Admin</a>
-      <span class="host-nav-separator" aria-hidden="true"></span>
-      <a href="/local/settings">Settings</a>
-      <a href="/local/advanced">Advanced</a>
-    </nav>
     <header class="page-header">
       <p class="eyebrow">Admin</p>
     </header>
@@ -529,76 +522,7 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
             return NotFound();
         }
 
-        var html = $$"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Access History</title>
-  <link rel="stylesheet" href="/host.css?v=1" />
-</head>
-<body>
-  <div class="shell">
-    <nav class="host-nav" aria-label="Host navigation">
-      <a href="/local/setup">File Sharing</a>
-      <a href="/local/admin">Admin</a>
-      <span class="host-nav-separator" aria-hidden="true"></span>
-      <a href="/local/settings">Settings</a>
-      <a href="/local/advanced">Advanced</a>
-    </nav>
-    <div class="header">
-      <p class="eyebrow">Access History</p>
-    </div>
-
-    <section class="card">
-      <h2 style="margin-top:0;">Recent Decisions</h2>
-      <div id="recentContainer" class="muted">Loading...</div>
-    </section>
-  </div>
-<script>
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Request failed: ${url} (${res.status})`);
-  }
-  return await res.json();
-}
-
-async function loadRecent() {
-  const rows = await getJson('/api/local/approvals/recent');
-  const container = document.getElementById('recentContainer');
-
-  if (!rows.length) {
-    container.innerText = 'No recent decisions.';
-    return;
-  }
-
-  let html = '<table><thead><tr><th>Time (UTC)</th><th>Device</th><th>Decision</th><th>Details</th></tr></thead><tbody>';
-  for (const item of rows) {
-    html += `<tr>
-      <td>${formatLocalDateTime(item.decidedAtUtc)}</td>
-      <td>${item.deviceName}</td>
-      <td>${item.decision}</td>
-      <td>
-        <div>User: ${item.userName ?? '(n/a)'}</div>
-        <div>Roles: ${item.roles ?? '(n/a)'}</div>
-        <div>Reason: ${item.reason ?? '(n/a)'}</div>
-      </td>
-    </tr>`;
-  }
-  html += '</tbody></table>';
-  container.innerHTML = html;
-}
-
-setInterval(loadRecent, 3000);
-loadRecent();
-</script>
-</body>
-</html>
-""";
-
-        return Content(html, "text/html", Encoding.UTF8);
+        return Redirect("/local/advanced#access-history");
     }
 
     [HttpGet("api/local/admin/overview")]

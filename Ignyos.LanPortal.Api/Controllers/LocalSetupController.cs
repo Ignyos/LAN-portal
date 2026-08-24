@@ -11,7 +11,7 @@ using QRCoder;
 namespace Ignyos.LanPortal.Api.Controllers;
 
 [ApiController]
-public sealed class LocalSetupController(IAppSettingsStore settingsStore) : ControllerBase
+public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostUiStateStore hostUiStateStore) : ControllerBase
 {
     private const string GuestLoginHostName = "lan.home.arpa";
     private const int DevelopmentGuestLoginPort = 5014;
@@ -41,13 +41,6 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 </head>
 <body>
     <div class="shell">
-        <nav class="host-nav" aria-label="Host navigation">
-            <a href="/local/setup" class="active" aria-current="page">File Sharing</a>
-            <a href="/local/admin">Admin</a>
-            <span class="host-nav-separator" aria-hidden="true"></span>
-            <a href="/local/settings">Settings</a>
-            <a href="/local/advanced">Advanced</a>
-        </nav>
         <header class="page-header">
             <p class="eyebrow">File Sharing</p>
         </header>
@@ -212,16 +205,8 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 </head>
 <body>
     <div class="shell">
-        <nav class="host-nav" aria-label="Host navigation">
-            <a href="/local/setup">File Sharing</a>
-            <a href="/local/admin">Admin</a>
-            <span class="host-nav-separator" aria-hidden="true"></span>
-            <a href="/local/settings" class="active" aria-current="page">Settings</a>
-            <a href="/local/advanced">Advanced</a>
-        </nav>
         <header class="page-header">
             <p class="eyebrow">Settings</p>
-            <h1>Settings</h1>
         </header>
     </div>
 </body>
@@ -239,11 +224,11 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
             return NotFound();
         }
 
-        var guestLoginUrl = BuildGuestLoginUrl();
-        var customGuestLoginUrl = BuildCustomGuestLoginUrl();
-        var guestDnsStatus = EvaluateGuestDnsStatus();
+                var guestLoginUrl = BuildGuestLoginUrl();
+                var customGuestLoginUrl = BuildCustomGuestLoginUrl();
+                var guestDnsStatus = EvaluateGuestDnsStatus();
 
-        var html = $$"""
+                var html = $$"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -254,48 +239,181 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
 </head>
 <body>
   <div class="shell">
-        <nav class="host-nav" aria-label="Host navigation">
-            <a href="/local/setup">File Sharing</a>
-            <a href="/local/admin">Admin</a>
-            <span class="host-nav-separator" aria-hidden="true"></span>
-            <a href="/local/settings">Settings</a>
-            <a href="/local/advanced" class="active" aria-current="page">Advanced</a>
-        </nav>
         <header class="page-header">
             <p class="eyebrow">Advanced</p>
-            <h1>Guest URL settings</h1>
-            <p class="sub">Use these options only if you want to replace the default local URL with a custom LAN-friendly name.</p>
         </header>
 
-            <section class="section">
-        <div class="label">Recommended guest URL</div>
-        <div class="url">{{guestLoginUrl}}</div>
-        <div class="qr">
-          <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
-        </div>
-    </section>
-
-    <section class="section">
-        <div class="label">Optional custom URL</div>
-        <div class="url">{{customGuestLoginUrl}}</div>
-        <div class="status {{(guestDnsStatus.IsConfigured ? "ok" : "warn")}}">{{guestDnsStatus.Message}}</div>
-    </section>
-
-    <section class="section">
-        <div class="label">How to customize it</div>
-        <ol class="steps">
-          <li>Create a DHCP reservation so this host keeps the same LAN IP.</li>
-          <li>In your router DNS settings, add an A record: lan.home.arpa → this host LAN IP.</li>
-          <li>Reconnect guest devices to Wi‑Fi or toggle Wi‑Fi so they pick up updated DNS.</li>
-          <li>Share <span class="url">{{customGuestLoginUrl}}</span> instead of the default URL.</li>
-        </ol>
+        <main class="advanced-sections">
+            <section class="advanced-section" data-section="customize-url">
+                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="customize-url-content">
+                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
+                    <span>Customize URL</span>
+                </button>
+                <div id="customize-url-content" class="advanced-section-content" hidden>
+                    <p class="sub">Use these options only if you want to replace the default local URL with a custom LAN-friendly name.</p>
+                    <div class="section">
+                        <div class="label">Recommended guest URL</div>
+                        <div class="url">{{guestLoginUrl}}</div>
+                        <div class="qr">
+                            <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
+                        </div>
+                    </div>
+                    <div class="section">
+                        <div class="label">Optional custom URL</div>
+                        <div class="url">{{customGuestLoginUrl}}</div>
+                        <div class="status {{(guestDnsStatus.IsConfigured ? "ok" : "warn")}}">{{guestDnsStatus.Message}}</div>
+                    </div>
+                    <div class="section">
+                        <div class="label">How to customize it</div>
+                        <ol class="steps">
+                            <li>Create a DHCP reservation so this host keeps the same LAN IP.</li>
+                            <li>In your router DNS settings, add an A record: lan.home.arpa → this host LAN IP.</li>
+                            <li>Reconnect guest devices to Wi‑Fi or toggle Wi‑Fi so they pick up updated DNS.</li>
+                            <li>Share <span class="url">{{customGuestLoginUrl}}</span> instead of the default URL.</li>
+                        </ol>
+                    </div>
+                </div>
             </section>
+
+            <section class="advanced-section" data-section="access-history">
+                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="access-history-content">
+                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
+                    <span>Access History</span>
+                </button>
+                <div id="access-history-content" class="advanced-section-content" hidden>
+                    <div id="recentContainer" class="muted">Loading...</div>
+                </div>
+            </section>
+
+            <section class="advanced-section" data-section="logs">
+                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="logs-content">
+                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
+                    <span>Logs</span>
+                </button>
+                <div id="logs-content" class="advanced-section-content" hidden>
+                    <p class="sub">Logs will be available here.</p>
+                </div>
+            </section>
+
+            <section class="advanced-section" data-section="security">
+                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="security-content">
+                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
+                    <span>Security</span>
+                </button>
+                <div id="security-content" class="advanced-section-content" hidden>
+                    <p class="sub">Security controls will be available here.</p>
+                </div>
+            </section>
+        </main>
   </div>
+<script>
+const pageKey = 'advanced';
+
+async function loadSectionState() {
+    try {
+        const response = await fetch(`/api/local/ui-state?page=${encodeURIComponent(pageKey)}`);
+        if (!response.ok) return;
+        const state = await response.json();
+        for (const section of document.querySelectorAll('[data-section]')) {
+            const key = section.dataset.section;
+            if (state[key] === true) setSectionExpanded(section, true, false);
+        }
+    } catch {
+    }
+}
+
+async function saveSectionState(section, isExpanded) {
+    try {
+        await fetch('/api/local/ui-state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pageKey, sectionKey: section.dataset.section, isExpanded })
+        });
+    } catch {
+    }
+}
+
+function setSectionExpanded(section, isExpanded, persist) {
+    const header = section.querySelector('.advanced-section-header');
+    const content = section.querySelector('.advanced-section-content');
+    header.setAttribute('aria-expanded', String(isExpanded));
+    content.hidden = !isExpanded;
+    section.classList.toggle('expanded', isExpanded);
+    if (persist) saveSectionState(section, isExpanded);
+    if (section.dataset.section === 'access-history' && isExpanded) loadRecent();
+}
+
+for (const section of document.querySelectorAll('[data-section]')) {
+    section.querySelector('.advanced-section-header').addEventListener('click', () => {
+        const isExpanded = section.querySelector('.advanced-section-header').getAttribute('aria-expanded') === 'true';
+        setSectionExpanded(section, !isExpanded, true);
+    });
+}
+
+async function loadRecent() {
+    const container = document.getElementById('recentContainer');
+    if (container.dataset.loaded === 'true') return;
+    try {
+        const response = await fetch('/api/local/approvals/recent');
+        if (!response.ok) throw new Error('Request failed');
+        const rows = await response.json();
+        if (!rows.length) {
+            container.innerText = 'No recent decisions.';
+            container.dataset.loaded = 'true';
+            return;
+        }
+        let html = '<table><thead><tr><th>Time</th><th>Device</th><th>Decision</th><th>Details</th></tr></thead><tbody>';
+        for (const item of rows) {
+            html += `<tr><td>${formatLocalDateTime(item.decidedAtUtc)}</td><td>${item.deviceName}</td><td>${item.decision}</td><td><div>User: ${item.userName ?? '(n/a)'}</div><div>Roles: ${item.roles ?? '(n/a)'}</div><div>Reason: ${item.reason ?? '(n/a)'}</div></td></tr>`;
+        }
+        container.innerHTML = html + '</tbody></table>';
+        container.dataset.loaded = 'true';
+    } catch {
+        container.innerText = 'Access history is unavailable.';
+    }
+}
+
+function formatLocalDateTime(value) {
+    if (!value) return 'Never';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+loadSectionState();
+</script>
 </body>
 </html>
 """;
 
         return Content(html, "text/html", Encoding.UTF8);
+    }
+
+    [HttpGet("api/local/ui-state")]
+    public IActionResult GetHostUiState([FromQuery] string? page)
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        return Ok(hostUiStateStore.GetPageState(page ?? string.Empty));
+    }
+
+    [HttpPost("api/local/ui-state")]
+    public IActionResult SetHostUiState([FromBody] HostUiStateRequest request)
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.PageKey) || string.IsNullOrWhiteSpace(request.SectionKey))
+        {
+            return BadRequest("PageKey and SectionKey are required.");
+        }
+
+        hostUiStateStore.SetSectionState(request.PageKey, request.SectionKey, request.IsExpanded);
+        return Ok();
     }
 
     [HttpGet("api/local/setup/guest-login-qr.svg")]
@@ -506,6 +624,8 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore) : Cont
     public sealed record PickStorageRootRequest(string? CurrentPath);
 
     public sealed record PickStorageRootResponse(string StorageRootPath);
+
+    public sealed record HostUiStateRequest(string PageKey, string SectionKey, bool IsExpanded);
 
     private sealed record GuestDnsStatus(bool IsConfigured, string Message);
 

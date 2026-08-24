@@ -30,6 +30,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IValueProtector, DpapiValueProtector>();
 builder.Services.AddSingleton<IAppSettingsStore, SqliteAppSettingsStore>();
+builder.Services.AddSingleton<IHostUiStateStore, SqliteHostUiStateStore>();
 builder.Services.AddSingleton<IDeviceLoginStore, InMemoryDeviceLoginStore>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IUpdateManifestService, UpdateManifestService>();

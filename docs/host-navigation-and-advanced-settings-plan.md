@@ -30,13 +30,13 @@ Access History currently remains at `/local/access-history` until the Advanced r
 ## Milestone 1: Host Navigation Foundation
 
 - [x] Define the canonical Host menu labels and route map.
-- [x] Add the menu to File Sharing.
-- [x] Add the menu to Admin.
-- [x] Add the menu to Settings.
-- [x] Add the menu to Advanced.
+- [x] Add File Sharing to the Host WinForms menu.
+- [x] Add Admin to the Host WinForms menu.
+- [x] Add Settings to the Host WinForms menu.
+- [x] Add Advanced to the Host WinForms menu.
 - [x] Keep the standalone Access History route available while migration is pending; do not include it in the Host menu.
 - [x] Keep the separator between Admin and Settings.
-- [x] Use shared Host CSS for menu layout, spacing, typography, and active state.
+- [x] Use the Host application's menu for page navigation; use shared Host CSS for page content.
 - [ ] Verify navigation works on desktop and narrow windows.
 - [x] Verify local-request protection remains active for every Host page.
 
@@ -59,14 +59,66 @@ Acceptance gate:
 
 ## Milestone 3: Advanced Page Structure
 
-- [ ] Keep the Advanced page as the location for Host operational and security tools.
-- [ ] Add a page-level Advanced label/title outside content sections.
-- [ ] Split Advanced into independently styled sections.
-- [ ] Preserve existing Guest URL functionality while restructuring it.
-- [ ] Add an Access History section using the existing history data and endpoint behavior.
-- [ ] Decide whether Access History is embedded in Advanced or linked as an Advanced subsection.
-- [ ] Remove the standalone Access History menu destination only after the new Advanced section is validated.
-- [ ] Add an explicit migration/redirect from `/local/access-history` if the standalone route is retired.
+- [x] Keep the Advanced page as the location for Host operational and security tools.
+- [x] Add a page-level Advanced label/title outside content sections.
+- [x] Split Advanced into independently collapsible sections.
+- [x] Allow multiple Advanced sections to remain expanded at the same time.
+- [x] Make each entire section header clickable, keyboard accessible, and expose expanded/collapsed state.
+- [x] Use a CSS-rendered section marker that rotates from `>` when collapsed to `v` when expanded.
+- [x] Keep all Advanced sections collapsed by default.
+- [x] Persist each section's expanded/collapsed state in SQLite.
+- [x] Use a batch UI-state API: `GET /api/local/ui-state?page=advanced` and `POST /api/local/ui-state`.
+- [x] Use stable section keys independent of display labels: `customize-url`, `access-history`, `logs`, and `security`.
+- [x] Treat persisted section state as global to the Host installation for now.
+- [x] Keep persisted UI state in a dedicated `HostUiState` table rather than `AppSettings`.
+- [x] Use a dedicated `IHostUiStateStore` so `IAppSettingsStore` remains responsible only for `AppSettings`.
+- [x] Treat UI-state persistence failures as non-blocking and log them without interrupting the page.
+- [x] Default missing section-state records to collapsed.
+- [x] Leave room for a future optional operator key if Host operator identities are introduced.
+- [x] Preserve existing Guest URL functionality while restructuring it.
+- [x] Add an Access History section using the existing history data and endpoint behavior.
+- [x] Embed Access History as a section within Advanced rather than linking to a separate Advanced subpage.
+- [x] Preserve the existing Access History table and behavior during the initial move.
+- [x] Keep `/local/access-history` as a compatibility route that redirects to `/local/advanced#access-history` after migration.
+- [ ] Add a later configurable retention policy for Access History.
+- [x] Remove the standalone Access History menu destination after the new Advanced section was added.
+- [x] Add an explicit migration redirect from `/local/access-history` to `/local/advanced#access-history`.
+
+Initial Advanced sections:
+- `Customize URL` - existing guest URL settings and customization guidance.
+- `Access History` - existing recent decisions table, initially preserved functionally.
+- `Logs` - placeholder section until the logging design is complete.
+- `Security` - placeholder section until the security-controls design is complete.
+
+Presentation decisions:
+- Major section headings should be slightly smaller than the page title and consistent with one another.
+- `Customize URL` replaces the previous visible section title `URL`.
+- `Security` is the user-facing title; `Security Controls` remains a technical planning term.
+- Logs and Security should be visible as collapsed sections before their contents are implemented.
+- Logs should initially contain a neutral placeholder: `Logs will be available here.`
+- Security should initially be a collapsed placeholder with no JWT controls exposed.
+- JWT rotation and session invalidation remain part of the later Security milestone.
+
+Section-state persistence decision:
+- Persist expansion state in SQLite for resilience across Host restarts, WebView2 profile changes, and browser-storage cleanup.
+- Use a dedicated table with a shape equivalent to:
+
+```sql
+CREATE TABLE IF NOT EXISTS HostUiState (
+	PageKey TEXT NOT NULL,
+	SectionKey TEXT NOT NULL,
+	IsExpanded INTEGER NOT NULL,
+	UpdatedAtUtc TEXT NOT NULL,
+	PRIMARY KEY (PageKey, SectionKey)
+);
+```
+
+- The initial scope is installation-global because the Host does not yet have durable operator identities.
+- A future operator identity may add an optional operator key without changing the Advanced UI contract.
+- State writes should occur on user interaction, not every render.
+- A future reset-layout action may clear the state for a page and restore collapsed defaults.
+- The Advanced page should render collapsed defaults immediately and load persisted state asynchronously.
+- A failed UI-state write should be logged without preventing the section from opening or closing.
 
 Acceptance gate:
 - Advanced clearly presents multiple concerns without losing existing guest URL or history behavior.
@@ -129,10 +181,8 @@ Acceptance gate:
 
 ## Open Questions For Discussion
 
-- Should Access History be a full Advanced section or a link to a dedicated Advanced subpage?
 - Should Logs use SQLite durable records, standard file/event logging, or a hybrid?
 - What minimum log event set is useful to a Host operator?
 - What settings belong in Security Controls besides JWT issuer, audience, and signing-key rotation?
-- Should a new signing key invalidate sessions immediately or require a confirmation/restart sequence?
 - Should add-in settings share the typed setting mechanism while remaining isolated by add-in ID?
 - Should Settings use sections for File Sharing, Access Requests, Updates, and add-in management from its first content pass?
