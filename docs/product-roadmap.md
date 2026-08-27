@@ -18,11 +18,11 @@ The current client-side UI/UX implementation work is tracked in the [Client Navi
 
 These are the immediate priorities in order:
 
-1. Finish the wider Host Advanced validation pass.
-   - confirm saved section state behaves correctly
-   - verify access history still works after the redesign
-   - ensure local-only access checks remain enforced across the page
-   - keep the access-request flow stable and documented
+1. [x] Finish the wider Host Advanced validation pass.
+   - [x] confirm saved section state behaves correctly
+   - [x] verify access history still works after the redesign
+   - [x] ensure local-only access checks remain enforced across the page
+   - [x] keep the access-request flow stable and documented
 
 2. Complete automatic asset versioning for release readiness.
    - replace manual `?v=...` maintenance in controller-served HTML
