@@ -29,6 +29,7 @@ These are the immediate priorities in order:
    - cover all referenced JavaScript and CSS assets
    - verify changed assets are loaded after deployment and restart
    - this remains required before `v1.0.0.0` general release
+   - keep Host, API, Web, and published artifacts on the same release version
 
 3. Complete the runtime settings integration work.
    - define the typed settings model and validation pattern
@@ -48,6 +49,10 @@ The following item is medium importance during normal development but is require
    - remove manual query-string version maintenance as the release approach
    - verify that updated assets are loaded after deployment and application restart
    - do not declare the product ready for general release until this is complete
+- [ ] Verify version parity across local Dev-Test and dev/production publish outputs.
+   - use `Ignyos.LanPortal.Host/Ignyos.LanPortal.Host.csproj` as the single checked-in version source
+   - pass the resolved release version to every published project
+   - verify Host, API, Web, installer metadata, and release metadata do not report conflicting versions
 
 ## Apps and extensions
 

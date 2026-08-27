@@ -64,6 +64,8 @@ jobs:
           dotnet publish
           Ignyos.LanPortal.Api/Ignyos.LanPortal.Api.csproj
           --configuration ${{ env.CONFIGURATION }}
+          -p:Version=${{ env.INPUT_VERSION }}
+          -p:InformationalVersion=${{ env.INPUT_VERSION }}
           --no-restore
           --output artifacts/release/api
 
@@ -72,6 +74,8 @@ jobs:
           dotnet publish
           Ignyos.LanPortal.Web/Ignyos.LanPortal.Web.csproj
           --configuration ${{ env.CONFIGURATION }}
+          -p:Version=${{ env.INPUT_VERSION }}
+          -p:InformationalVersion=${{ env.INPUT_VERSION }}
           --no-restore
           --output artifacts/release/web
 
@@ -123,6 +127,7 @@ jobs:
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:InformationalVersion=$hostVersion `
+            -p:Version=$hostVersion `
             --output artifacts/release/staging/app/host
 
           $version = $hostVersion
