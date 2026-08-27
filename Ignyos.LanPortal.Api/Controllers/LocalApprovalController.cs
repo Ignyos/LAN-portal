@@ -72,19 +72,24 @@ public sealed class LocalApprovalController(IDeviceLoginStore loginStore) : Cont
             return NotFound();
         }
 
-        if (string.IsNullOrWhiteSpace(request.UserName))
+        if (AccessRequestValidation.ValidateUserName(request.UserName) is { } userNameError)
         {
-            return BadRequest("UserName is required.");
+            return BadRequest(userNameError);
         }
 
-        if (string.IsNullOrWhiteSpace(request.Roles))
+        if (AccessRequestValidation.ValidateRoles(request.Roles) is { } rolesError)
         {
-            return BadRequest("Roles is required.");
+            return BadRequest(rolesError);
         }
 
         if (request.DeviceName is not null && string.IsNullOrWhiteSpace(request.DeviceName))
         {
             return BadRequest("DeviceName cannot be blank.");
+        }
+
+        if (request.DeviceName is not null && request.DeviceName.Trim().Length > AccessRequestValidation.MaxDeviceNameLength)
+        {
+            return BadRequest($"DeviceName cannot exceed {AccessRequestValidation.MaxDeviceNameLength} characters.");
         }
 
         const int maxTokenMinutes = 87600 * 60;
@@ -103,6 +108,11 @@ public sealed class LocalApprovalController(IDeviceLoginStore loginStore) : Cont
         if (!IsLocalRequest(HttpContext))
         {
             return NotFound();
+        }
+
+        if (AccessRequestValidation.ValidateReason(request.Reason) is { } reasonError)
+        {
+            return BadRequest(reasonError);
         }
 
         var denied = loginStore.Deny(requestId, request.Reason);

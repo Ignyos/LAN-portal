@@ -13,7 +13,8 @@ namespace Ignyos.LanPortal.Api.Controllers;
 public sealed class DeviceAuthController(
     IDeviceLoginStore loginStore,
     IJwtTokenService jwtTokenService,
-    IAppSettingsStore settingsStore) : ControllerBase
+    IAppSettingsStore settingsStore,
+    ISessionLifecycleService sessionLifecycleService) : ControllerBase
 {
     private const int DefaultRefreshTokenMinutes = 60;
     private const int DefaultAccessTokenMinutes = 15;
@@ -21,14 +22,14 @@ public sealed class DeviceAuthController(
     [HttpPost("request")]
     public ActionResult<DeviceLoginStartResponseDto> Start([FromBody] DeviceLoginStartRequestDto request)
     {
-        if (string.IsNullOrWhiteSpace(request.UserName))
+        if (AccessRequestValidation.ValidateUserName(request.UserName) is { } userNameError)
         {
-            return BadRequest("UserName is required.");
+            return BadRequest(userNameError);
         }
 
-        if (string.IsNullOrWhiteSpace(request.DeviceName))
+        if (AccessRequestValidation.ValidateDeviceName(request.DeviceName) is { } deviceNameError)
         {
-            return BadRequest("DeviceName is required.");
+            return BadRequest(deviceNameError);
         }
 
         var created = loginStore.CreateRequest(
@@ -195,7 +196,7 @@ public sealed class DeviceAuthController(
             return BadRequest("Token is missing jti claim.");
         }
 
-        var revoked = settingsStore.RevokeAccessSessionByJti(jti, "User logged out.");
+        var revoked = sessionLifecycleService.Logout(jti, "User logged out.");
         if (revoked is not null)
         {
             loginStore.RecordLogoutEvent(revoked.DeviceName, revoked.UserName, revoked.Roles);

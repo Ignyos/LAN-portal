@@ -4,7 +4,50 @@
 
 LAN Portal's primary product promise is simple LAN file sharing for people who should not need much technical knowledge. That remains the center of the product. Future extensibility should expand that experience without making the first-use workflow feel like an app platform.
 
-The current client-side UI/UX implementation work is tracked in the [Client Navigation Implementation Checklist](client-navigation-implementation-checklist.md).
+Current status:
+
+- Access-request / Account polish is complete.
+- Signed-out and signed-in route behavior is stable.
+- Apps management is intentionally deferred.
+- Host Advanced Logs and the focused Security control are complete for the accepted scope.
+- The active current work is Host Advanced validation and release-readiness work.
+
+The current client-side UI/UX implementation work is tracked in the [Client Navigation Implementation Checklist](client-navigation-implementation-checklist.md). The current Host-side operational work is tracked in the [Host Navigation And Advanced Settings Plan](host-navigation-and-advanced-settings-plan.md).
+
+## Next tasks
+
+These are the immediate priorities in order:
+
+1. Finish the wider Host Advanced validation pass.
+   - confirm saved section state behaves correctly
+   - verify access history still works after the redesign
+   - ensure local-only access checks remain enforced across the page
+   - keep the access-request flow stable and documented
+
+2. Complete automatic asset versioning for release readiness.
+   - replace manual `?v=...` maintenance in controller-served HTML
+   - cover all referenced JavaScript and CSS assets
+   - verify changed assets are loaded after deployment and restart
+   - this remains required before `v1.0.0.0` general release
+
+3. Complete the runtime settings integration work.
+   - define the typed settings model and validation pattern
+   - keep direct DB access inside the settings store
+   - connect the remaining settings surfaces to the typed facade
+
+4. Revisit Apps management only after the Advanced work is complete.
+   - keep the current focus on Host operations and file-sharing stability
+   - do not make app management the near-term priority while Advanced remains open
+
+## Release Requirements
+
+The following item is medium importance during normal development but is required before the `v1.0.0.0` general release:
+
+- [ ] Add automatic cache-busting or content-based versioning for every referenced JavaScript and CSS asset in controller-served HTML.
+   - cover all Host and API-served HTML pages
+   - remove manual query-string version maintenance as the release approach
+   - verify that updated assets are loaded after deployment and application restart
+   - do not declare the product ready for general release until this is complete
 
 ## Apps and extensions
 
@@ -75,15 +118,19 @@ A useful product rule is: **Apps may extend Portal, but they do not redefine Por
 
 Preserve File Sharing as the unmistakable primary experience. Do not expose an empty app ecosystem just to signal future plans.
 
-### Stage 2: Add Apps management
+### Stage 2: Complete Host Advanced and settings maturity
+
+The current work is the Host Advanced page, including the operational settings structure, persisted UI state, and the refined Advanced organization. This work is the immediate priority before broader platform additions are reconsidered.
+
+### Stage 3: Add Apps management
 
 When there is a real app-management experience, add Apps under Portal. The first version can support built-in or locally packaged apps while establishing the navigation, package, and lifecycle concepts.
 
-### Stage 3: Add controlled app integration
+### Stage 4: Add controlled app integration
 
 Allow installed apps to contribute pages or features through a stable contract. Add permissions, compatibility checks, update handling, and clear failure isolation before opening distribution to third parties.
 
-### Stage 4: Consider broader discovery
+### Stage 5: Consider broader discovery
 
 Only consider a separate top-level Apps area or an app catalog after several useful apps exist and users regularly discover, install, update, or manage them.
 

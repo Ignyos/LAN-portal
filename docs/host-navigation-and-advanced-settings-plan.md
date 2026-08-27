@@ -2,6 +2,17 @@
 
 Purpose: define the Host-side navigation and the staged plan for introducing Settings and expanding Advanced before moving Access History.
 
+## Current implementation status
+
+The Host Advanced page has already been redesigned into distinct sections: Customize URL, Access History, Logs, and Security. The structure is implemented and persisted, and the section state is stored in SQLite. In the current codebase:
+
+- Customize URL is live and functional.
+- Access History is embedded in the Advanced page and loads from the existing history endpoint.
+- Logs is complete for the accepted first pass: it has a working read-only shell, endpoint integration, SQLite persistence, severity/category filtering, redaction, retention cleanup, centralized access-request and maintenance capture, and focused tests.
+- Security now contains the focused JWT signing-key rotation action. The Host operator is warned that rotation immediately invalidates all currently logged-in sessions, and is told why rotation may be needed. Issuer/audience editing and other security controls remain intentionally out of scope.
+
+This document should be read as the current source of truth for the remaining Host Advanced work, not as a future plan for an unbuilt redesign.
+
 ## Target Host Navigation
 
 The Host menu should contain:
@@ -25,7 +36,7 @@ Initial routes:
 | Settings | `/local/settings` | New empty page |
 | Advanced | `/local/advanced` | Existing page, expanded over milestones |
 
-Access History currently remains at `/local/access-history` until the Advanced refactor is implemented.
+`/local/access-history` remains available as a compatibility route and redirects to `/local/advanced#access-history`.
 
 ## Milestone 1: Host Navigation Foundation
 
@@ -87,15 +98,15 @@ Acceptance gate:
 Initial Advanced sections:
 - `Customize URL` - existing guest URL settings and customization guidance.
 - `Access History` - existing recent decisions table, initially preserved functionally.
-- `Logs` - placeholder section until the logging design is complete.
+- `Logs` - active read-only operational log view backed by the durable application log store.
 - `Security` - placeholder section until the security-controls design is complete.
 
 Presentation decisions:
 - Major section headings should be slightly smaller than the page title and consistent with one another.
 - `Customize URL` replaces the previous visible section title `URL`.
 - `Security` is the user-facing title; `Security Controls` remains a technical planning term.
-- Logs and Security should be visible as collapsed sections before their contents are implemented.
-- Logs should initially contain a neutral placeholder: `Logs will be available here.`
+- Logs and Security should remain visible as independently collapsible sections.
+- Logs should remain read-only and operator-focused while capture coverage and filtering are completed.
 - Security should initially be a collapsed placeholder with no JWT controls exposed.
 - JWT rotation and session invalidation remain part of the later Security milestone.
 
@@ -125,31 +136,190 @@ Acceptance gate:
 
 ## Milestone 4: Logs Section
 
-- [ ] Define the operational logging goals before implementing the UI.
-- [ ] Decide which events are retained in durable storage versus standard `ILogger` output.
-- [ ] Define log severity, category, timestamp, correlation, and redaction rules.
-- [ ] Ensure secrets and JWT signing keys never appear in logs.
-- [ ] Define retention and cleanup behavior.
-- [ ] Decide whether Logs is a read-only viewer, export tool, or both.
-- [ ] Define paging/filtering for large log sets.
-- [ ] Add a Logs section to Advanced.
-- [ ] Add tests for redaction, access boundaries, and retention.
+Current status: complete for the accepted first pass. The Advanced page loads redacted application log data from `/api/local/logs`. The SQLite store, retention cleanup, severity/category filtering, maintenance events, access-request lifecycle events, and focused tests are in place. More detailed time-range, correlation-ID, and broader lifecycle capture can be considered later if operator usage demonstrates a need.
+
+Recommended design: use a hybrid model rather than relying on one log stream.
+
+### Logs Design Recommendation
+
+- Standard `ILogger` remains the diagnostic system for application execution, warnings, and unhandled exceptions.
+- Durable log records in SQLite are reserved for Host-operator useful events and internal errors that need to be reviewable in the UI.
+- AccessHistory remains separate and only captures user-visible lifecycle decisions; it does not become a general-purpose log stream.
+- Internal application errors are included in the logs by default. This includes exceptions, validation failures, maintenance failures, failed database writes, failed background tasks, and unexpected API behavior.
+- Log entries should be structured, not free-form paragraphs, so the UI can show a consistent table and the system can filter by severity, category, correlation ID, and time range.
+
+### Log Entry Model
+
+Each durable log entry should include:
+
+```text
+LogId
+OccurredAtUtc
+Severity (Trace, Debug, Information, Warning, Error, Critical)
+Category (Host, DeviceAuth, Maintenance, App, Security, Admin)
+Source (controller, service, background worker, UI, etc.)
+CorrelationId (request or operation ID when available)
+UserName (optional, if directly tied to the action)
+DeviceName (optional)
+Message (human-readable summary)
+ExceptionType (optional)
+ExceptionMessage (optional, redacted)
+DetailsJson (optional, redacted JSON payload)
+IsRedacted (boolean)
+```
+
+The UI should not display raw secrets. Any log field that may contain sensitive data should be redacted or excluded before storage or display.
+
+### Log Categories
+
+Recommended first-pass categories:
+
+- Host UI
+- Device Authentication
+- Access Requests
+- Maintenance / Cleanup
+- Security / JWT
+- App / Startup / Shutdown
+- Admin Actions
+- Background Jobs
+
+This keeps the operator-facing log stream understandable while still capturing application failures.
+
+### Internal Error Strategy
+
+The log stream should capture all internal application errors, including:
+
+- unhandled exceptions
+- validation failures that block a request
+- database errors or write failures
+- configuration fallback or invalid-value events
+- maintenance jobs that fail or partially succeed
+- session or token lifecycle failures
+- API calls that fail after local-request validation
+
+These records belong in the log stream because operators need to diagnose failures without searching raw application output or event logs.
+
+### Redaction and Security Rules
+
+- Never log raw JWT signing keys, JWT values, refresh tokens, access tokens, or password material.
+- Redact any payload field containing the above values before it reaches the UI or durable storage.
+- Store a stable redacted token fingerprint only when there is a real operational need to show a value changed or was reused.
+- Log only the fact that a secret was rejected, invalid, or rotated, not the secret itself.
+- If a payload is too sensitive to keep in a durable record, log a redacted summary plus the failure reason.
+
+### Durable Storage vs. ILogger
+
+Recommended split:
+
+- Use `ILogger` for runtime diagnostics, structured provider output, and exception details needed by developers.
+- Use SQLite durable records for a host-operator UI with retention and filters.
+- Keep AccessHistory focused on user-facing lifecycle decisions; do not mix it with application error events.
+
+### Retention and Cleanup
+
+- Default durable retention: 30 days.
+- Extendable up to 365 days if the Host needs longer review windows.
+- Purge by `OccurredAtUtc` to avoid excessive storage use.
+- Maintenance should also prune failed or orphaned log rows while preserving the most important recent errors.
+- The UI should allow both time filtering and severity filtering without reading the entire log table.
+
+### UI Behavior
+
+The initial Logs section should be read-only and operator-facing:
+
+- summary cards for recent warnings and errors
+- filtered table view with severity and time-range controls
+- request or correlation ID search
+- expandable detail panel for the selected record
+
+This is a safe first pass and avoids building an export or data-editing surface before the system is stable.
+
+### Minimum Useful Log Set
+
+For the first iteration, record these events if they occur:
+
+- startup and shutdown status
+- maintenance run start/finish and result counts
+- auth failures and request validation failures
+- approval/denial failures and retries
+- session revoke/logout failures
+- configuration fallback and invalid-value warnings
+- background job failures and partial success
+- any unexpected exception with redacted context
+
+### Implementation Sequence
+
+- [x] Define the exact durable log schema and retention default.
+- [x] Decide which logger categories are enabled by default.
+- [x] Decide which events are stored durably versus only emitted through `ILogger`.
+- [x] Define redaction rules and dependencies on the shared sanitization layer.
+- [x] Implement a durable log table with a validation-safe schema.
+- [x] Add a read-only Logs section to Advanced.
+- [x] Add the accepted first-pass filters for severity and category.
+- [x] Add host-side access checks so only local operators can view logs.
+- [x] Add tests for redaction, retention, and log entry creation.
+- [x] Complete operator-focused validation of the accepted Logs workflow.
 
 Acceptance gate:
-- Host operators can inspect useful operational events without exposing secrets or overwhelming the page.
+- Host operators can inspect useful operational events and internal application errors without exposing secrets or overwhelming the page.
 
 ## Milestone 5: Security Controls Section
 
-- [ ] Define the security settings that belong in the Host UI.
-- [ ] Define which settings are startup-only and which can change at runtime.
-- [ ] Add JWT issuer/audience controls only if their operational behavior is fully defined.
-- [ ] Add a safe action for generating a new signing key.
-- [ ] Require confirmation before security-sensitive changes.
-- [ ] Invalidate all sessions when any JWT setting changes, including signing-key rotation.
-- [ ] Record security-setting changes in durable audit history.
-- [ ] Never display or log the signing-key value.
-- [ ] Define restart requirements for settings that cannot be safely reloaded.
-- [ ] Add tests for session invalidation and secret redaction.
+Current status: focused first action implemented. The Security section provides a confirmed JWT signing-key rotation action, invalidates active sessions, returns only a safe key fingerprint and impact count, and records the action in the durable Security log. Broader security settings remain out of scope until they are needed.
+
+Recommended design: keep Security as a tightly-scoped operational view, not a full security administration console.
+
+### Security Controls Design Recommendation
+
+- Security section should be read-mostly and confirmation-heavy.
+- It should show only settings that are explicitly needed for Host operator visibility and safe runtime action.
+- It should never display JWT signing keys or raw secret material.
+- Security-sensitive changes should require a clear confirmation step and should invalidate all active sessions when the JWT configuration changes.
+
+### Intended UI Surface
+
+The current Security section includes only:
+
+- a clear explanation that rotating the JWT signing key immediately signs out every currently logged-in user
+- a concise explanation of appropriate reasons to rotate, such as suspected credential compromise or invalidating all existing tokens
+- a rotation action that generates a fresh signing key and saves it via `IAppSettingsStore`
+- a clear confirmation dialog before the action is executed
+- a status area showing when rotation completed, how many sessions were invalidated, and a safe fingerprint
+
+Issuer/audience display, generic security settings, and additional controls are intentionally deferred.
+
+### Security-Sensitive Settings
+
+The only currently required security operation is JWT signing-key rotation. Do not expose generic runtime settings, issuer/audience editing, or low-level secret values that are not required for this action.
+
+### Change Behavior
+
+When any security setting changes,
+
+- all active sessions should be invalidated immediately
+- refresh tokens should be invalidated and reissued as needed
+- any dependent token validation state should be reloaded from the database
+- the change should be recorded in a dedicated durable audit record, separate from AccessHistory and separate from ApplicationLogs
+
+This should be treated as a security event, not a normal configuration change.
+
+### Safety Rules
+
+- Never log the signing key value.
+- Never echo the signing key back to the UI or API response.
+- If a value is displayed at all, show only a redacted fingerprint or metadata such as rotation date.
+- Require a confirm step before rotating a signing key.
+- Treat all key and issuer changes as high-risk, no-undo actions with explicit operator acknowledgment.
+
+### Implementation Sequence
+
+- [ ] Define the exact Security UI fields and safety text.
+- [ ] Add a server-side security settings model using `IAppSettingsStore` and typed validation.
+- [ ] Build a rotation endpoint that writes a new key, invalidates sessions, and records the event.
+- [ ] Add confirmation-handling and a warning banner in the UI.
+- [ ] Add audit records for issuer/audience/key changes.
+- [ ] Add tests for key rotation, session invalidation, and redaction.
+- [ ] Expose only masked metadata in the UI, never the raw value.
 
 Acceptance gate:
 - Security controls are explicit, auditable, and cannot accidentally expose or preserve sessions after a JWT security change.

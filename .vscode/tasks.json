@@ -46,12 +46,20 @@
     },
     {
       "label": "dev-test-prelaunch",
-      "dependsOn": [
-        "stop-stale-dev-processes",
-        "build-solution"
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/dev-test.ps1",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
       ],
-      "dependsOrder": "sequence",
-      "problemMatcher": []
+      "problemMatcher": [
+        "$msCompile"
+      ]
     }
   ]
 }

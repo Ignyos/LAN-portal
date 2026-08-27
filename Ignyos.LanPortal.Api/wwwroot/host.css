@@ -171,7 +171,7 @@ h2 {
 
 .step-label {
     font-size: clamp(2rem, 2.5vw, 2.5rem);
-    font-weight: 700;
+    font-weight: 400;
 }
 
 .step-body {
@@ -298,7 +298,8 @@ button:hover {
 }
 
 .guest-url {
-    font-size: 14px;
+    margin-top: 1rem;
+    font-size: 2rem;
 }
 
 label {

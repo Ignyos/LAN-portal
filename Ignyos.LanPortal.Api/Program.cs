@@ -20,7 +20,6 @@ var useHttpsRedirection = builder.Configuration.GetValue("Hosting:UseHttpsRedire
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.Configure<BootstrapOptions>(builder.Configuration.GetSection(BootstrapOptions.SectionName));
-builder.Services.Configure<DeviceLoginOptions>(builder.Configuration.GetSection(DeviceLoginOptions.SectionName));
 builder.Services.Configure<UpdateChannelOptions>(builder.Configuration.GetSection(UpdateChannelOptions.SectionName));
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -29,8 +28,15 @@ builder.Services.Configure<FormOptions>(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IValueProtector, DpapiValueProtector>();
+builder.Services.AddSingleton<ISqliteConnectionFactory, SqliteConnectionFactory>();
 builder.Services.AddSingleton<IAppSettingsStore, SqliteAppSettingsStore>();
 builder.Services.AddSingleton<IHostUiStateStore, SqliteHostUiStateStore>();
+builder.Services.AddSingleton<IAccessHistoryStore, SqliteAccessHistoryStore>();
+builder.Services.AddSingleton<IApplicationLogStore, SqliteApplicationLogStore>();
+builder.Services.AddSingleton<ApplicationEventLogger>();
+builder.Services.AddSingleton<IAccessRequestStore, SqliteAccessRequestStore>();
+builder.Services.AddHostedService<AccessHistoryMaintenanceService>();
+builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
 builder.Services.AddSingleton<IDeviceLoginStore, InMemoryDeviceLoginStore>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IUpdateManifestService, UpdateManifestService>();

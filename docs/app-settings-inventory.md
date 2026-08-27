@@ -16,8 +16,9 @@ The settings inventory is intentionally separate from session data. `AccessSessi
 | `Jwt:Audience` | Token audience | string | No | `Ignyos.LanPortal.Clients` | No | Used when creating and validating access tokens. Changing it invalidates existing tokens. |
 | `Jwt:SigningKey` | Token signing key | protected string | Yes | Generated during first initialization | No | Must remain protected and should not be exposed through a settings UI. Changing it invalidates existing tokens. |
 | `Storage:RootPath` | Shared folder | string | No | Empty until setup | Yes | Physical host path used as the shared-folder boundary. Must retain strict validation. |
-| `DeviceLogin:RequestLifetimeSeconds` | Access request timeout | integer | No | `300` seconds (5 minutes) | Yes | Controls how long a pending client access request remains available. Stored as seconds and displayed as minutes/seconds in the Host settings UI. |
-| `DeviceLogin:PollIntervalSeconds` | Access request check interval | integer | No | `3` seconds | Yes | Controls how often the client checks a pending request. Editable from the Host settings UI. |
+| `DeviceLogin:RequestLifetimeSeconds` | Access request timeout | integer | No | `300` seconds (5 minutes) | Yes | Stored in AppSettings and read at request creation time; display as minutes/seconds in the Host Settings UI. |
+| `DeviceLogin:PollIntervalSeconds` | Access request check interval | integer | No | `3` seconds | Yes | Stored in AppSettings and read when a request is created; display as seconds in the Host Settings UI. |
+| `AccessHistory:RetentionDays` | Access history retention | integer | No | `365` days (1 year) | Yes | Now seeded and read from AppSettings; valid range is 7 through 3650 days and Never is not offered. |
 
 ## Strong Candidates For Later Addition
 
@@ -46,57 +47,36 @@ Not every configurable value belongs in the database. Keep these in `appsettings
 - Hosting pipeline settings such as HTTPS redirection when changing them requires application restart or process-level configuration.
 - Installer and deployment settings.
 
-## Runtime Access-Request Settings Migration Note
+## Completed Settings Migrations
 
-The current `DeviceLogin:RequestLifetimeSeconds` value is still consumed through `IOptions<DeviceLoginOptions>` by `InMemoryDeviceLoginStore`. Moving it into `AppSettings` will require a deliberate migration:
+The following settings have been migrated from startup configuration to SQLite `AppSettings`:
 
-1. Add typed get/set methods to `IAppSettingsStore` or a typed facade over it.
-2. Seed both values into `AppSettings` when missing, using 300 seconds and 3 seconds.
-3. Make the login store read the runtime values from the settings owner.
-4. Validate safe ranges, such as 5 seconds through 24 hours for timeout and 1 through 60 seconds for polling.
-5. Display timeout values as minutes/seconds in the Host UI while retaining seconds at the storage boundary.
-6. Remove the duplicate `DeviceLogin` options binding after all consumers migrate.
-7. Add tests for defaulting, validation, runtime changes, and concurrent reads.
+### AccessHistory Retention
+- Key: `AccessHistory:RetentionDays`
+- Storage: integer seconds
+- Default: 365 days
+- Validation: 7 days minimum, 3650 days maximum
+- Consumer: `AccessHistoryMaintenanceService`
 
-## Per-Setting Typed Behavior
+### Request Timeout and Poll Interval
+- Keys: `DeviceLogin:RequestLifetimeSeconds` and `DeviceLogin:PollIntervalSeconds`
+- Storage: integer seconds
+- Defaults: 300 seconds (Request Timeout) and 3 seconds (Poll Interval)
+- Validation: 5-86400 seconds (Request Timeout) and 1-60 seconds (Poll Interval)
+- Consumer: `InMemoryDeviceLoginStore` reads through `IAppSettingsStore`
+- Removed: `DeviceLoginOptions` class and `DeviceLogin` configuration binding
 
-The proposed per-setting class approach is a good fit. The database boundary can remain string-based while each setting owns its key, type conversion, fallback, validation, and display rules.
+Future Host Settings UI will display Request Timeout as minutes/seconds and Poll Interval as seconds while storage remains in seconds at the boundary.
 
-Conceptually:
+## Future Typed Settings Architecture
 
-```csharp
-public interface IApplicationSetting<T>
-{
-        string Key { get; }
-        T DefaultValue { get; }
-        T Deserialize(string? storedValue);
-        string Serialize(T value);
-        void Validate(T value);
-}
-```
-
-Examples might include:
+When Host Settings adds the ability to edit these values at runtime, the following pattern should be followed. The database boundary remains string-based while each setting owns its key, type conversion, fallback, validation, and display rules.
 
 ```text
-RequestTimeoutSetting
-    Key: DeviceLogin:RequestLifetimeSeconds
-    Type: int
-    Default: 300
-    Validation: 5 seconds through 24 hours
-    Display: minutes/seconds
-
-PollIntervalSetting
-    Key: DeviceLogin:PollIntervalSeconds
-    Type: int
-    Default: 3
-    Validation: 1 through 60 seconds
-    Display: seconds
-```
-
-This approach keeps unique fallback behavior close to each setting and prevents controllers from duplicating parsing rules. `SqliteAppSettingsStore` should remain the only class that knows how to read and write the `AppSettings` table, while a typed settings facade coordinates setting definitions:
-
-```text
-Typed setting definition
+Host Settings UI
+        |
+        v
+Typed setting definition (RequestTimeoutSetting, PollIntervalSetting, etc.)
         |
         v
 Typed application settings facade
@@ -105,10 +85,23 @@ Typed application settings facade
 IAppSettingsStore / SqliteAppSettingsStore
         |
         v
-SQLite string value
+SQLite AppSettings string value
 ```
 
 The facade should validate before writing and return the setting's default when a value is missing or invalid. Invalid stored values should also be logged so a damaged configuration is visible without preventing the application from starting where a safe fallback exists.
+
+Example setting class:
+
+```csharp
+public class RequestTimeoutSetting
+{
+    public string Key => "DeviceLogin:RequestLifetimeSeconds";
+    public int DefaultValue => 300;
+    public int Deserialize(string? value) => int.TryParse(value, out var seconds) 
+        ? Math.Clamp(seconds, 5, 24 * 60 * 60) : DefaultValue;
+    public string Serialize(int value) => Math.Clamp(value, 5, 24 * 60 * 60).ToString();
+}
+```
 
 ## Audit History And Logging
 

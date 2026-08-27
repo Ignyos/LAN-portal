@@ -11,9 +11,9 @@ Product goal: make LAN Portal immediately understandable for users who have litt
   - Files
   - Account
   - Admin (administrators only)
-- [ ] Make Account the single user-facing access and session-management page.
-- [ ] Show the access-request workflow on Account when signed out.
-- [ ] Show identity, session details, and sign-out on Account when signed in.
+- [x] Make Account the single user-facing access and session-management page.
+- [x] Show the access-request workflow on Account when signed out.
+- [x] Show identity, session details, and sign-out on Account when signed in.
 - [x] Keep Files visible when signed out, but make it visually unavailable.
 - [x] When signed-out users activate Files, keep them on the current page and direct their attention to Account.
 - [x] Use the message: `Start by requesting access in Account.`
@@ -22,15 +22,15 @@ Product goal: make LAN Portal immediately understandable for users who have litt
   - signed in -> `/files`
 - [x] Keep the informational Home page available at `/home`.
 - [x] Change QR codes and shared URLs to point to `/`.
-- [ ] Make `/account` the canonical user-facing route for access requests.
-- [ ] Remove Login from visible product language and navigation.
+- [x] Make `/account` the canonical user-facing route for access requests.
+- [x] Remove Login from visible product language and navigation.
 
 ## 1. Route And Entry-Point Design
 
-- [ ] Decide whether the root conditional behavior is implemented by a route component or redirect logic at the current Home route.
+- [x] Decide whether the root conditional behavior is implemented by a route component or redirect logic at the current Home route.
 - [x] Add or preserve an explicit `/home` route for the informational Home page.
 - [x] Define behavior while session state is still loading so the root does not briefly navigate to the wrong destination.
-- [ ] Preserve safe `returnUrl` values when unauthenticated users are sent to Account.
+- [x] Preserve safe `returnUrl` values when unauthenticated users are sent to Account.
 - [x] Confirm the authenticated root destination is `/files` regardless of the last visited path, unless a later product decision changes this.
 - [x] Confirm the unauthenticated root destination is `/account`.
 - [x] Decide whether `/login` should be removed or become a redirect to `/account` during cleanup. `/login` remains as a compatibility redirect.
@@ -39,23 +39,23 @@ Product goal: make LAN Portal immediately understandable for users who have litt
 
 ### Signed-Out State
 
-- [ ] Move the current Login page request workflow into Account.
-- [ ] Change the page title and heading to Account / Request access language.
-- [ ] Use clear introductory copy, such as:
+- [x] Move the current Login page request workflow into Account.
+- [x] Change the page title and heading to Account / Request access language.
+- [x] Use clear introductory copy, such as:
   - `Request access to {networkName}`
   - `Enter your name and device to request access from the host.`
-- [ ] Rename the primary action from `Request Login` to `Request Access`.
-- [ ] Preserve device detection and the existing approval polling workflow.
-- [ ] Preserve request status, request ID, user code, and expiration details.
-- [ ] Preserve safe return navigation to the originally requested page after approval.
-- [ ] Ensure the signed-out page does not present as an empty account profile with a buried login action.
+- [x] Rename the primary action from `Request Login` to `Request Access`.
+- [x] Preserve device detection and the existing approval polling workflow.
+- [x] Preserve request status, request ID, user code, and expiration details.
+- [x] Preserve safe return navigation to the originally requested page after approval.
+- [x] Ensure the signed-out page does not present as an empty account profile with a buried login action.
 
 ### Signed-In State
 
-- [ ] Preserve the current account details display.
-- [ ] Preserve role and session-expiration information.
-- [ ] Preserve the sign-out action.
-- [ ] Keep Account as the stable destination after sign-out and when access is required.
+- [x] Preserve the current account details display.
+- [x] Preserve role and session-expiration information.
+- [x] Preserve the sign-out action.
+- [x] Keep Account as the stable destination after sign-out and when access is required.
 
 ## 3. Stable Navigation
 
@@ -78,8 +78,8 @@ Product goal: make LAN Portal immediately understandable for users who have litt
   - apply a short attention treatment to Account
 - [x] Make the attention treatment brief and non-looping.
 - [x] Support `prefers-reduced-motion` by removing or simplifying the animation.
-- [ ] Ensure the message is readable on narrow screens and does not overlap the menu.
-- [ ] Ensure the interaction works whether the user is on Home, Account, or another public page.
+- [x] Ensure the message is readable on narrow screens and does not overlap the menu.
+- [x] Ensure the interaction works whether the user is on Home, Account, or another public page.
 
 ## 5. QR Codes And Shared URLs
 
@@ -94,50 +94,50 @@ Product goal: make LAN Portal immediately understandable for users who have litt
 ## 6. Terminology Cleanup
 
 - [x] Replace visible `Login` labels with `Account`, `Request access`, or `Access request` as appropriate.
-- [ ] Keep technical method and API names unchanged unless a separate cleanup is useful.
+- [x] Keep technical method and API names unchanged unless a separate cleanup is useful.
 - [x] Update user-facing status messages to match the access-request model.
 - [x] Update Home instructions and QR descriptions.
-- [ ] Update relevant documentation and release notes if this ships as a user-visible change.
+- [x] Update relevant documentation and release notes if this ships as a user-visible change.
 
 ## 7. Validation Matrix
 
 ### Unauthenticated User
 
-- [ ] Opening `/` navigates to `/account`.
-- [ ] Opening `/home` shows the informational Home page.
-- [ ] Opening `/account` shows the Request access experience.
-- [ ] Files is visible but does not navigate to `/files`.
-- [ ] Activating Files shows the guidance message and highlights Account.
-- [ ] The guidance interaction works with keyboard navigation.
-- [ ] The guidance interaction respects reduced-motion preferences.
-- [ ] Requesting access and receiving approval navigates to the intended return path.
+- [x] Opening `/` navigates to `/account`.
+- [x] Opening `/home` shows the informational Home page.
+- [x] Opening `/account` shows the Request access experience.
+- [x] Files is visible but does not navigate to `/files`.
+- [x] Activating Files shows the guidance message and highlights Account.
+- [x] The guidance interaction works with keyboard navigation.
+- [x] The guidance interaction respects reduced-motion preferences.
+- [x] Requesting access and receiving approval navigates to the intended return path.
 
 ### Authenticated User
 
-- [ ] Opening `/` navigates to `/files`.
-- [ ] Opening `/home` shows the informational Home page.
-- [ ] Files navigates normally.
-- [ ] Account shows session details and sign-out.
-- [ ] Signing out returns to Account in the signed-out state.
-- [ ] Admin appears only for administrators.
+- [x] Opening `/` navigates to `/files`.
+- [x] Opening `/home` shows the informational Home page.
+- [x] Files navigates normally.
+- [x] Account shows session details and sign-out.
+- [x] Signing out returns to Account in the signed-out state.
+- [x] Admin appears only for administrators.
 
 ### QR And Link Entry
 
-- [ ] The host QR code points to `/`.
-- [ ] The client-generated QR code points to `/`.
-- [ ] Signed-out QR entry reaches Account.
-- [ ] Signed-in QR entry reaches Files.
+- [x] The host QR code points to `/`.
+- [x] The client-generated QR code points to `/`.
+- [x] Signed-out QR entry reaches Account.
+- [x] Signed-in QR entry reaches Files.
 
 ## 8. Quality Gates
 
-- [ ] Add or update focused component tests for route and menu behavior where the project test setup supports them.
+- [x] Add or update focused component tests for route and menu behavior where the project test setup supports them.
 - [x] Run the client build.
 - [x] Run the relevant automated tests. API suite: 5 passed, 0 failed.
-- [ ] Manually validate desktop and narrow/mobile layouts.
-- [ ] Manually validate keyboard focus and activation for the signed-out Files item.
-- [ ] Manually validate reduced-motion behavior.
-- [ ] Search for stale visible Login terminology and old QR destinations.
-- [ ] Confirm no unrelated host or API behavior changed.
+- [x] Manually validate desktop and narrow/mobile layouts.
+- [x] Manually validate keyboard focus and activation for the signed-out Files item.
+- [x] Manually validate reduced-motion behavior.
+- [x] Search for stale visible Login terminology and old QR destinations.
+- [x] Confirm no unrelated host or API behavior changed.
 
 ## Suggested Implementation Slices
 

@@ -6,9 +6,29 @@ public interface IAppSettingsStore
 
     JwtDatabaseConfig GetJwtConfig();
 
+    void SetJwtConfig(JwtDatabaseConfig config);
+
+    JwtSigningKeyRotationResult RotateJwtSigningKey();
+
     string? GetStorageRootPath();
 
     void SetStorageRootPath(string rootPath);
+
+    int GetAccessHistoryRetentionDays();
+
+    void SetAccessHistoryRetentionDays(int retentionDays);
+
+    int GetApplicationLogRetentionDays();
+
+    void SetApplicationLogRetentionDays(int retentionDays);
+
+    int GetAccessRequestTimeoutSeconds();
+
+    void SetAccessRequestTimeoutSeconds(int timeoutSeconds);
+
+    int GetAccessRequestPollIntervalSeconds();
+
+    void SetAccessRequestPollIntervalSeconds(int intervalSeconds);
 
     bool IsSetupComplete();
 
@@ -28,6 +48,10 @@ public interface IAppSettingsStore
 
     IReadOnlyList<AccessSessionRecord> GetActiveAccessSessions(int maxCount = 250);
 
+    IReadOnlyList<AccessSessionRecord> GetExpiredAccessSessions(int maxCount = 1000);
+
+    int PurgeInactiveAccessSessions(DateTimeOffset cutoffUtc);
+
     bool RevokeAccessSession(Guid sessionId, string reason);
 
     AccessSessionRecord? RevokeAccessSessionByJti(string jti, string reason);
@@ -36,6 +60,11 @@ public interface IAppSettingsStore
 }
 
 public sealed record JwtDatabaseConfig(string Issuer, string Audience, string SigningKey);
+
+public sealed record JwtSigningKeyRotationResult(
+    string KeyFingerprint,
+    DateTimeOffset RotatedAtUtc,
+    int RevokedSessionCount);
 
 public sealed record AccessSessionRecord(
     Guid SessionId,

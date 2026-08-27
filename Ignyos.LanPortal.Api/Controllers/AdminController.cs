@@ -9,7 +9,10 @@ namespace Ignyos.LanPortal.Api.Controllers;
 [ApiController]
 [Route("api/admin")]
 [Authorize(Roles = "Admin")]
-public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLoginStore loginStore) : ControllerBase
+public sealed class AdminController(
+    IAppSettingsStore settingsStore,
+    IDeviceLoginStore loginStore,
+    ISessionLifecycleService sessionLifecycleService) : ControllerBase
 {
     [HttpGet("whoami")]
     public IActionResult WhoAmI()
@@ -42,19 +45,24 @@ public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLogi
     [HttpPost("approvals/{requestId:guid}/approve")]
     public IActionResult ApproveLogin(Guid requestId, [FromBody] ApproveLoginRequestDto request)
     {
-        if (string.IsNullOrWhiteSpace(request.UserName))
+        if (AccessRequestValidation.ValidateUserName(request.UserName) is { } userNameError)
         {
-            return BadRequest("UserName is required.");
+            return BadRequest(userNameError);
         }
 
-        if (string.IsNullOrWhiteSpace(request.Roles))
+        if (AccessRequestValidation.ValidateRoles(request.Roles) is { } rolesError)
         {
-            return BadRequest("Roles is required.");
+            return BadRequest(rolesError);
         }
 
         if (request.DeviceName is not null && string.IsNullOrWhiteSpace(request.DeviceName))
         {
             return BadRequest("DeviceName cannot be blank.");
+        }
+
+        if (request.DeviceName is not null && request.DeviceName.Trim().Length > AccessRequestValidation.MaxDeviceNameLength)
+        {
+            return BadRequest($"DeviceName cannot exceed {AccessRequestValidation.MaxDeviceNameLength} characters.");
         }
 
         const int maxTokenMinutes = 87600 * 60;
@@ -70,6 +78,11 @@ public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLogi
     [HttpPost("approvals/{requestId:guid}/deny")]
     public IActionResult DenyLogin(Guid requestId, [FromBody] DenyLoginRequestDto request)
     {
+        if (AccessRequestValidation.ValidateReason(request.Reason) is { } reasonError)
+        {
+            return BadRequest(reasonError);
+        }
+
         var denied = loginStore.Deny(requestId, request.Reason);
         return denied ? Ok() : NotFound();
     }
@@ -103,8 +116,7 @@ public sealed class AdminController(IAppSettingsStore settingsStore, IDeviceLogi
             ? $"Revoked by admin user '{GetActorName()}'."
             : request.Reason.Trim();
 
-        var revoked = settingsStore.RevokeAccessSession(sessionId, reason);
-        return revoked ? Ok() : NotFound();
+        return sessionLifecycleService.Revoke(sessionId, reason) is not null ? Ok() : NotFound();
     }
 
     [HttpPost("sessions/revoke-by-filter")]

@@ -11,7 +11,11 @@ using QRCoder;
 namespace Ignyos.LanPortal.Api.Controllers;
 
 [ApiController]
-public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostUiStateStore hostUiStateStore) : ControllerBase
+public sealed class LocalSetupController(
+    IAppSettingsStore settingsStore,
+    IHostUiStateStore hostUiStateStore,
+    IApplicationLogStore applicationLogStore,
+    ApplicationEventLogger applicationEventLogger) : ControllerBase
 {
     private const string GuestLoginHostName = "lan.home.arpa";
     private const int DevelopmentGuestLoginPort = 5014;
@@ -37,7 +41,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LAN Portal | File Sharing</title>
-    <link rel="stylesheet" href="/host.css?v=1" />
+    <link rel="stylesheet" href="/host.css?v=5" />
 </head>
 <body>
     <div class="shell">
@@ -48,7 +52,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
         <section class="card">
             <div class="step-title">
                 <span class="step-badge">1</span>
-                <h1 class="step-label">Choose a folder or drive to share</h1>
+                <h3 class="step-label">Choose a folder or drive to share</h3>
             </div>
             <div class="step-body">
                 <div class="field">
@@ -63,10 +67,10 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
         <section class="card">
                 <div class="step-title">
                     <span class="step-badge">2</span>
-                    <h2 class="step-label">Share the link or QR Code</h2>
+                    <h3 class="step-label">Share the link or QR Code</h3>
                 </div>
                 <div class="step-body">
-                    <div class="guest-url" style="margin-top:1.25rem;">{{guestLoginUrl}}</div>
+                    <div class="guest-url">{{guestLoginUrl}}</div>
                     <div class="guest-qr">
                         <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
                     </div>
@@ -76,7 +80,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
         <section class="card">
                 <div class="step-title">
                     <span class="step-badge">3</span>
-                    <h2 class="step-label">Securely grant access to the shared folder or drive</h2>
+                    <h3 class="step-label">Securely grant access to the shared folder or drive</h3>
                 </div>
                 <div class="step-body">
                     <div class="actions">
@@ -201,7 +205,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LAN Portal | Settings</title>
-    <link rel="stylesheet" href="/host.css?v=1" />
+    <link rel="stylesheet" href="/host.css?v=2" />
 </head>
 <body>
     <div class="shell">
@@ -235,7 +239,7 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LAN Portal | Advanced</title>
-    <link rel="stylesheet" href="/host.css?v=1" />
+    <link rel="stylesheet" href="/host.css?v=2" />
 </head>
 <body>
   <div class="shell">
@@ -291,7 +295,32 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
                     <span>Logs</span>
                 </button>
                 <div id="logs-content" class="advanced-section-content" hidden>
-                    <p class="sub">Logs will be available here.</p>
+                    <div class="log-toolbar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+                        <label>
+                            Severity
+                            <select id="logsSeverityFilter">
+                                <option value="">All</option>
+                                <option value="Information">Information</option>
+                                <option value="Warning">Warning</option>
+                                <option value="Error">Error</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                        </label>
+                        <label>
+                            Category
+                            <select id="logsCategoryFilter">
+                                <option value="">All</option>
+                                <option value="Host">Host</option>
+                                <option value="DeviceAuth">DeviceAuth</option>
+                                <option value="Security">Security</option>
+                                <option value="Admin">Admin</option>
+                                <option value="Maintenance">Maintenance</option>
+                                <option value="App">App</option>
+                            </select>
+                        </label>
+                        <button id="logsRefreshButton" type="button">Refresh</button>
+                    </div>
+                    <div id="logsContainer" class="muted">Loading...</div>
                 </div>
             </section>
 
@@ -301,7 +330,10 @@ public sealed class LocalSetupController(IAppSettingsStore settingsStore, IHostU
                     <span>Security</span>
                 </button>
                 <div id="security-content" class="advanced-section-content" hidden>
-                    <p class="sub">Security controls will be available here.</p>
+                    <p class="sub">Rotating the JWT signing key immediately signs out every currently logged-in user. Use this after a suspected credential compromise or when you need to invalidate all existing access tokens.</p>
+                    <p class="sub">Users will need to request access again after rotation. This does not change the portal address or user permissions.</p>
+                    <button id="rotateSigningKeyButton" type="button">Rotate JWT signing key</button>
+                    <div id="securityStatus" class="muted" role="status" aria-live="polite"></div>
                 </div>
             </section>
         </main>
@@ -341,6 +373,7 @@ function setSectionExpanded(section, isExpanded, persist) {
     section.classList.toggle('expanded', isExpanded);
     if (persist) saveSectionState(section, isExpanded);
     if (section.dataset.section === 'access-history' && isExpanded) loadRecent();
+    if (section.dataset.section === 'logs' && isExpanded) loadLogs();
 }
 
 for (const section of document.querySelectorAll('[data-section]')) {
@@ -350,11 +383,24 @@ for (const section of document.querySelectorAll('[data-section]')) {
     });
 }
 
+const logsSeverityFilter = document.getElementById('logsSeverityFilter');
+const logsCategoryFilter = document.getElementById('logsCategoryFilter');
+const logsRefreshButton = document.getElementById('logsRefreshButton');
+if (logsSeverityFilter) {
+    logsSeverityFilter.addEventListener('change', () => loadLogs());
+}
+if (logsCategoryFilter) {
+    logsCategoryFilter.addEventListener('change', () => loadLogs());
+}
+if (logsRefreshButton) {
+    logsRefreshButton.addEventListener('click', () => loadLogs());
+}
+
 async function loadRecent() {
     const container = document.getElementById('recentContainer');
     if (container.dataset.loaded === 'true') return;
     try {
-        const response = await fetch('/api/local/approvals/recent');
+            const response = await fetch('/api/local/access-history');
         if (!response.ok) throw new Error('Request failed');
         const rows = await response.json();
         if (!rows.length) {
@@ -362,14 +408,44 @@ async function loadRecent() {
             container.dataset.loaded = 'true';
             return;
         }
-        let html = '<table><thead><tr><th>Time</th><th>Device</th><th>Decision</th><th>Details</th></tr></thead><tbody>';
+        let html = '<table><thead><tr><th>Time</th><th>User</th><th>Device</th><th>Action</th><th>Reason</th></tr></thead><tbody>';
         for (const item of rows) {
-            html += `<tr><td>${formatLocalDateTime(item.decidedAtUtc)}</td><td>${item.deviceName}</td><td>${item.decision}</td><td><div>User: ${item.userName ?? '(n/a)'}</div><div>Roles: ${item.roles ?? '(n/a)'}</div><div>Reason: ${item.reason ?? '(n/a)'}</div></td></tr>`;
+            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${item.userName ?? '(n/a)'}</td><td>${item.deviceName}</td><td>${item.eventType}</td><td>${item.reason ?? '(n/a)'}</td></tr>`;
         }
         container.innerHTML = html + '</tbody></table>';
         container.dataset.loaded = 'true';
     } catch {
         container.innerText = 'Access history is unavailable.';
+    }
+}
+
+async function loadLogs() {
+    const container = document.getElementById('logsContainer');
+    const severity = document.getElementById('logsSeverityFilter')?.value ?? '';
+    const category = document.getElementById('logsCategoryFilter')?.value ?? '';
+    const params = new URLSearchParams({ maxCount: '50' });
+    if (severity) params.set('severity', severity);
+    if (category) params.set('category', category);
+
+    try {
+        const response = await fetch(`/api/local/logs?${params.toString()}`);
+        if (!response.ok) throw new Error('Request failed');
+        const rows = await response.json();
+        if (!rows.length) {
+            container.innerText = 'No application logs yet.';
+            container.dataset.loaded = 'true';
+            return;
+        }
+        let html = '<table><thead><tr><th>Time</th><th>Severity</th><th>Category</th><th>Source</th><th>Message</th></tr></thead><tbody>';
+        for (const item of rows) {
+            const message = item.message ?? '(no message)';
+            const source = item.source ?? 'unknown';
+            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${item.severity}</td><td>${item.category}</td><td>${source}</td><td>${message}</td></tr>`;
+        }
+        container.innerHTML = html + '</tbody></table>';
+        container.dataset.loaded = 'true';
+    } catch {
+        container.innerText = 'Application logs are unavailable.';
     }
 }
 
@@ -379,6 +455,26 @@ function formatLocalDateTime(value) {
     return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+async function rotateSigningKey() {
+    const status = document.getElementById('securityStatus');
+    if (!confirm('Rotate the JWT signing key? This will immediately sign out all currently logged-in users, who will need to request access again.')) return;
+    const button = document.getElementById('rotateSigningKeyButton');
+    button.disabled = true;
+    status.innerText = 'Rotating signing key...';
+    try {
+        const response = await fetch('/api/local/security/rotate-signing-key', { method: 'POST' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result?.message || 'Rotation failed.');
+        status.innerText = `Signing key rotated at ${formatLocalDateTime(result.rotatedAtUtc)}. ${result.revokedSessionCount} active session(s) invalidated. Fingerprint: ${result.keyFingerprint}`;
+    } catch (error) {
+        status.innerText = error.message || 'Signing key rotation failed.';
+    } finally {
+        button.disabled = false;
+    }
+}
+
+document.getElementById('rotateSigningKeyButton')?.addEventListener('click', rotateSigningKey);
+
 loadSectionState();
 </script>
 </body>
@@ -386,6 +482,46 @@ loadSectionState();
 """;
 
         return Content(html, "text/html", Encoding.UTF8);
+    }
+
+    [HttpGet("api/local/logs")]
+    public ActionResult<IReadOnlyList<ApplicationLogRecord>> Logs(
+        [FromQuery] string? severity,
+        [FromQuery] string? category,
+        [FromQuery] int maxCount = 50)
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        ApplicationLogSeverity? minimumSeverity = null;
+        if (Enum.TryParse<ApplicationLogSeverity>(severity, true, out var parsedSeverity))
+        {
+            minimumSeverity = parsedSeverity;
+        }
+
+        ApplicationLogCategory? selectedCategory = null;
+        if (Enum.TryParse<ApplicationLogCategory>(category, true, out var parsedCategory))
+        {
+            selectedCategory = parsedCategory;
+        }
+
+        var safeMaxCount = Math.Clamp(maxCount, 1, 200);
+        return Ok(applicationLogStore.GetRecent(safeMaxCount, minimumSeverity, selectedCategory));
+    }
+
+    [HttpPost("api/local/security/rotate-signing-key")]
+    public IActionResult RotateSigningKey()
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        var result = settingsStore.RotateJwtSigningKey();
+        applicationEventLogger.LogSigningKeyRotated(result.RevokedSessionCount, result.KeyFingerprint);
+        return Ok(result);
     }
 
     [HttpGet("api/local/ui-state")]

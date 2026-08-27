@@ -9,7 +9,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace Ignyos.LanPortal.Api.Controllers;
 
 [ApiController]
-public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDeviceLoginStore loginStore) : ControllerBase
+public sealed class LocalAdminController(
+  IAppSettingsStore settingsStore,
+  IDeviceLoginStore loginStore,
+  IAccessHistoryStore accessHistoryStore,
+  ISessionLifecycleService sessionLifecycleService) : ControllerBase
 {
     private const string GuestLoginHostName = "lan.home.arpa";
   private const int DevelopmentGuestLoginPort = 5014;
@@ -34,7 +38,7 @@ public sealed class LocalAdminController(IAppSettingsStore settingsStore, IDevic
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin</title>
-  <link rel="stylesheet" href="/host.css?v=1" />
+  <link rel="stylesheet" href="/host.css?v=2" />
 </head>
 <body>
   <div class="shell">
@@ -525,6 +529,17 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
         return Redirect("/local/advanced#access-history");
     }
 
+      [HttpGet("api/local/access-history")]
+      public ActionResult<IReadOnlyList<AccessHistoryRecord>> AccessHistory()
+      {
+        if (!IsLocalRequest(HttpContext))
+        {
+          return NotFound();
+        }
+
+        return Ok(accessHistoryStore.GetRecent());
+      }
+
     [HttpGet("api/local/admin/overview")]
     public IActionResult Overview()
     {
@@ -568,8 +583,7 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
           ? "Revoked by local admin operator."
           : request.Reason.Trim();
 
-        var revoked = settingsStore.RevokeAccessSession(sessionId, reason);
-        return revoked ? Ok() : NotFound();
+        return sessionLifecycleService.Revoke(sessionId, reason) is not null ? Ok() : NotFound();
     }
 
     [HttpPost("api/local/admin/sessions/revoke-by-filter")]
@@ -589,7 +603,7 @@ Promise.all([pollPendingApprovals(), pollActiveSessions()]);
           ? "Revoked by local admin operator."
           : request.Reason.Trim();
 
-        var revokedCount = settingsStore.RevokeAccessByUserDevice(request.UserName, request.DeviceName, reason);
+        var revokedCount = sessionLifecycleService.RevokeByFilter(request.UserName, request.DeviceName, reason).Count;
         return Ok(new { RevokedCount = revokedCount });
     }
 

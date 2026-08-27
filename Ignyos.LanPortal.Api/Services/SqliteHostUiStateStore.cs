@@ -88,7 +88,7 @@ ON CONFLICT(PageKey, SectionKey) DO UPDATE SET
             Directory.CreateDirectory(directory);
         }
 
-        var connection = new SqliteConnection($"Data Source={databasePath}");
+        var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False");
         connection.Open();
         return connection;
     }

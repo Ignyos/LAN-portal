@@ -12,6 +12,10 @@ public sealed class SqliteAppSettingsStore(
     private const string JwtAudienceKey = "Jwt:Audience";
     private const string JwtSigningKeyKey = "Jwt:SigningKey";
     private const string StorageRootPathKey = "Storage:RootPath";
+    private const string AccessHistoryRetentionDaysKey = "AccessHistory:RetentionDays";
+    private const string ApplicationLogRetentionDaysKey = "ApplicationLogs:RetentionDays";
+    private const string AccessRequestTimeoutSecondsKey = "DeviceLogin:RequestLifetimeSeconds";
+    private const string AccessRequestPollIntervalSecondsKey = "DeviceLogin:PollIntervalSeconds";
 
     private readonly object _sync = new();
     private bool _initialized;
@@ -107,6 +111,10 @@ CREATE INDEX IF NOT EXISTS IX_RoleChangeAudits_ChangedAtUtc ON RoleChangeAudits(
             SeedIfMissing(connection, JwtAudienceKey, "Ignyos.LanPortal.Clients", isSensitive: false);
             SeedIfMissing(connection, JwtSigningKeyKey, GenerateSigningKey(), isSensitive: true);
             SeedIfMissing(connection, StorageRootPathKey, string.Empty, isSensitive: false);
+            SeedIfMissing(connection, AccessHistoryRetentionDaysKey, "365", isSensitive: false);
+            SeedIfMissing(connection, ApplicationLogRetentionDaysKey, "30", isSensitive: false);
+            SeedIfMissing(connection, AccessRequestTimeoutSecondsKey, "300", isSensitive: false);
+            SeedIfMissing(connection, AccessRequestPollIntervalSecondsKey, "3", isSensitive: false);
 
             _initialized = true;
         }
@@ -121,6 +129,47 @@ CREATE INDEX IF NOT EXISTS IX_RoleChangeAudits_ChangedAtUtc ON RoleChangeAudits(
         var signingKey = GetRequiredValue(JwtSigningKeyKey);
 
         return new JwtDatabaseConfig(issuer, audience, signingKey);
+    }
+
+    public void SetJwtConfig(JwtDatabaseConfig config)
+    {
+        if (config is null)
+        {
+            throw new ArgumentNullException(nameof(config));
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Issuer) ||
+            string.IsNullOrWhiteSpace(config.Audience) ||
+            string.IsNullOrWhiteSpace(config.SigningKey))
+        {
+            throw new ArgumentException("JWT issuer, audience, and signing key are required.", nameof(config));
+        }
+
+        Initialize();
+        SetValue(JwtIssuerKey, config.Issuer.Trim(), isSensitive: false);
+        SetValue(JwtAudienceKey, config.Audience.Trim(), isSensitive: false);
+        SetValue(JwtSigningKeyKey, config.SigningKey.Trim(), isSensitive: true);
+
+        foreach (var session in GetActiveAccessSessions(1000))
+        {
+            RevokeAccessSession(session.SessionId, "JWT configuration changed.");
+        }
+    }
+
+    public JwtSigningKeyRotationResult RotateJwtSigningKey()
+    {
+        Initialize();
+        var signingKey = GenerateSigningKey();
+        SetValue(JwtSigningKeyKey, signingKey, isSensitive: true);
+
+        var activeSessions = GetActiveAccessSessions(1000);
+        foreach (var session in activeSessions)
+        {
+            RevokeAccessSession(session.SessionId, "JWT signing key rotated.");
+        }
+
+        var fingerprint = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(signingKey)))[..16];
+        return new JwtSigningKeyRotationResult(fingerprint, DateTimeOffset.UtcNow, activeSessions.Count);
     }
 
     public string? GetStorageRootPath()
@@ -144,6 +193,58 @@ CREATE INDEX IF NOT EXISTS IX_RoleChangeAudits_ChangedAtUtc ON RoleChangeAudits(
     public bool IsSetupComplete()
     {
         return !string.IsNullOrWhiteSpace(GetStorageRootPath());
+    }
+
+    public int GetAccessHistoryRetentionDays()
+    {
+        Initialize();
+        var value = GetValue(AccessHistoryRetentionDaysKey);
+        return int.TryParse(value, out var days) ? Math.Clamp(days, 7, 3650) : 365;
+    }
+
+    public void SetAccessHistoryRetentionDays(int retentionDays)
+    {
+        Initialize();
+        SetValue(AccessHistoryRetentionDaysKey, Math.Clamp(retentionDays, 7, 3650).ToString(), isSensitive: false);
+    }
+
+    public int GetApplicationLogRetentionDays()
+    {
+        Initialize();
+        var value = GetValue(ApplicationLogRetentionDaysKey);
+        return int.TryParse(value, out var days) ? Math.Clamp(days, 7, 365) : 30;
+    }
+
+    public void SetApplicationLogRetentionDays(int retentionDays)
+    {
+        Initialize();
+        SetValue(ApplicationLogRetentionDaysKey, Math.Clamp(retentionDays, 7, 365).ToString(), isSensitive: false);
+    }
+
+    public int GetAccessRequestTimeoutSeconds()
+    {
+        Initialize();
+        var value = GetValue(AccessRequestTimeoutSecondsKey);
+        return int.TryParse(value, out var seconds) ? Math.Clamp(seconds, 5, 24 * 60 * 60) : 300;
+    }
+
+    public void SetAccessRequestTimeoutSeconds(int timeoutSeconds)
+    {
+        Initialize();
+        SetValue(AccessRequestTimeoutSecondsKey, Math.Clamp(timeoutSeconds, 5, 24 * 60 * 60).ToString(), isSensitive: false);
+    }
+
+    public int GetAccessRequestPollIntervalSeconds()
+    {
+        Initialize();
+        var value = GetValue(AccessRequestPollIntervalSecondsKey);
+        return int.TryParse(value, out var seconds) ? Math.Clamp(seconds, 1, 60) : 3;
+    }
+
+    public void SetAccessRequestPollIntervalSeconds(int intervalSeconds)
+    {
+        Initialize();
+        SetValue(AccessRequestPollIntervalSecondsKey, Math.Clamp(intervalSeconds, 1, 60).ToString(), isSensitive: false);
     }
 
     public void RecordIssuedAccessSession(AccessSessionRecord record)
@@ -525,6 +626,43 @@ LIMIT $maxCount;
         return sessions;
     }
 
+    public IReadOnlyList<AccessSessionRecord> GetExpiredAccessSessions(int maxCount = 1000)
+    {
+        Initialize();
+        if (maxCount <= 0) return [];
+
+        using var connection = CreateOpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+SELECT SessionId, Jti, UserName, DeviceName, Roles, IssuedAtUtc, ExpiresAtUtc, RevokedAtUtc, RevokedReason, LastSeenAtUtc
+FROM AccessSessions
+WHERE RevokedAtUtc IS NULL AND ExpiresAtUtc IS NOT NULL AND ExpiresAtUtc <= $now
+ORDER BY ExpiresAtUtc
+LIMIT $maxCount;
+""";
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("$maxCount", maxCount);
+
+        using var reader = command.ExecuteReader();
+        var sessions = new List<AccessSessionRecord>();
+        while (reader.Read()) sessions.Add(ReadSession(reader));
+        return sessions;
+    }
+
+    public int PurgeInactiveAccessSessions(DateTimeOffset cutoffUtc)
+    {
+        Initialize();
+        using var connection = CreateOpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+DELETE FROM AccessSessions
+WHERE (RevokedAtUtc IS NOT NULL AND RevokedAtUtc < $cutoff)
+   OR (RevokedAtUtc IS NULL AND ExpiresAtUtc IS NOT NULL AND ExpiresAtUtc < $cutoff);
+""";
+        command.Parameters.AddWithValue("$cutoff", cutoffUtc.ToString("O"));
+        return command.ExecuteNonQuery();
+    }
+
     public bool RevokeAccessSession(Guid sessionId, string reason)
     {
         Initialize();
@@ -780,7 +918,7 @@ VALUES ($key, $value, $isSensitive, $updatedAtUtc);
 
     private SqliteConnection CreateOpenConnection()
     {
-        var connection = new SqliteConnection($"Data Source={ResolveDatabasePath()}");
+        var connection = new SqliteConnection($"Data Source={ResolveDatabasePath()};Pooling=False");
         connection.Open();
         return connection;
     }

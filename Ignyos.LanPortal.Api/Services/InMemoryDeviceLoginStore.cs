@@ -1,15 +1,15 @@
 using System.Collections.Concurrent;
 using Ignyos.LanPortal.Contracts;
-using Microsoft.Extensions.Options;
 
 namespace Ignyos.LanPortal.Api.Services;
 
-public sealed class InMemoryDeviceLoginStore(IOptions<DeviceLoginOptions> options) : IDeviceLoginStore
+public sealed class InMemoryDeviceLoginStore(
+    IAppSettingsStore settingsStore,
+    IAccessRequestStore accessRequestStore,
+    ApplicationEventLogger applicationEventLogger) : IDeviceLoginStore
 {
     private const int MaxDecisionHistory = 100;
-
-    private readonly ConcurrentDictionary<Guid, DeviceLoginRequestState> _requests = new();
-    private readonly ConcurrentQueue<LoginDecisionDto> _decisions = new();
+    private readonly ConcurrentQueue<LoginDecisionDto> decisions = new();
 
     public DeviceLoginStartResponseDto CreateRequest(
         string requestedUserName,
@@ -17,38 +17,28 @@ public sealed class InMemoryDeviceLoginStore(IOptions<DeviceLoginOptions> option
         string? sourceIp,
         string? userAgent)
     {
-        PruneExpired();
-
         var requestId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var expiresAtUtc = now.AddSeconds(Math.Clamp(options.Value.RequestLifetimeSeconds, 5, 24 * 60 * 60));
-        var userCode = BuildUserCode();
+        var expiresAtUtc = now.AddSeconds(settingsStore.GetAccessRequestTimeoutSeconds());
+        var request = accessRequestStore.Create(
+            requestId,
+            requestedUserName,
+            deviceName,
+            sourceIp,
+            userAgent,
+            now,
+            expiresAtUtc,
+            BuildUserCode(),
+            new AccessHistoryRecord(Guid.NewGuid(), $"request:{requestId}:requested", AccessHistoryEventTypes.AccessRequested, null, null, requestedUserName, deviceName, null, null, now, now));
 
-        var state = new DeviceLoginRequestState
-        {
-            RequestId = requestId,
-            UserCode = userCode,
-            RequestedUserName = requestedUserName,
-            DeviceName = deviceName,
-            SourceIp = sourceIp,
-            UserAgent = userAgent,
-            CreatedAtUtc = now,
-            ExpiresAtUtc = expiresAtUtc,
-            Status = DeviceLoginStatus.Pending
-        };
+        applicationEventLogger.LogAccessRequestCreated(requestId, requestedUserName, deviceName, sourceIp);
 
-        _requests[requestId] = state;
-
-        var pollIntervalSeconds = Math.Clamp(options.Value.PollIntervalSeconds, 1, 60);
-        return new DeviceLoginStartResponseDto(requestId, userCode, expiresAtUtc, pollIntervalSeconds);
+        var pollIntervalSeconds = settingsStore.GetAccessRequestPollIntervalSeconds();
+        return new DeviceLoginStartResponseDto(request.RequestId, request.UserCode, request.ExpiresAtUtc, pollIntervalSeconds);
     }
 
     public IReadOnlyList<PendingLoginRequestDto> GetPendingRequests()
-    {
-        PruneExpired();
-
-        return _requests.Values
-            .Where(request => request.Status == DeviceLoginStatus.Pending)
+        => accessRequestStore.GetPending()
             .OrderBy(request => request.CreatedAtUtc)
             .Select(request => new PendingLoginRequestDto(
                 request.RequestId,
@@ -59,270 +49,134 @@ public sealed class InMemoryDeviceLoginStore(IOptions<DeviceLoginOptions> option
                 request.CreatedAtUtc,
                 request.ExpiresAtUtc))
             .ToArray();
-    }
 
     public DeviceLoginPollSnapshot Poll(Guid requestId, string userCode)
     {
-        PruneExpired();
-
-        if (!_requests.TryGetValue(requestId, out var request))
+        var request = accessRequestStore.Get(requestId, userCode);
+        if (request is null)
         {
             return new DeviceLoginPollSnapshot("not_found", "Request not found.");
         }
 
-        lock (request.SyncRoot)
+        if (request.Status == AccessRequestStatus.Pending && request.ExpiresAtUtc <= DateTimeOffset.UtcNow)
         {
-            if (!string.Equals(request.UserCode, userCode, StringComparison.OrdinalIgnoreCase))
-            {
-                return new DeviceLoginPollSnapshot("not_found", "Request not found.");
-            }
+            accessRequestStore.MarkExpired(
+                request.RequestId,
+                request.ExpiresAtUtc,
+                new AccessHistoryRecord(Guid.NewGuid(), $"request:{request.RequestId}:expired", AccessHistoryEventTypes.AccessRequestExpired, request.RequestId, null, request.RequestedUserName, request.DeviceName, null, "Access request expired.", request.ExpiresAtUtc, DateTimeOffset.UtcNow));
 
-            if (request.ExpiresAtUtc <= DateTimeOffset.UtcNow)
-            {
-                request.Status = DeviceLoginStatus.Expired;
-                return new DeviceLoginPollSnapshot("expired", "Request expired.");
-            }
+            applicationEventLogger.LogAccessRequestExpired(request.RequestId, request.RequestedUserName, request.DeviceName);
 
-            if (request.Status == DeviceLoginStatus.Pending)
-            {
-                return new DeviceLoginPollSnapshot("pending", "Waiting for approval.");
-            }
+            return new DeviceLoginPollSnapshot("expired", "Request expired.");
+        }
 
-            if (request.Status == DeviceLoginStatus.Denied)
-            {
-                var reason = string.IsNullOrWhiteSpace(request.DenyReason) ? "Request denied." : request.DenyReason;
-                return new DeviceLoginPollSnapshot("denied", reason);
-            }
-
-            if (request.Status != DeviceLoginStatus.Approved)
-            {
-                return new DeviceLoginPollSnapshot("error", "Unknown request state.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.IssuedAccessToken) && request.IssuedAccessTokenExpiresAtUtc is not null)
-            {
-                return new DeviceLoginPollSnapshot(
+        return request.Status switch
+        {
+            AccessRequestStatus.Pending => new DeviceLoginPollSnapshot("pending", "Waiting for approval."),
+            AccessRequestStatus.Denied => new DeviceLoginPollSnapshot(
+                "denied",
+                string.IsNullOrWhiteSpace(request.DecisionReason) ? "Request denied." : request.DecisionReason),
+            AccessRequestStatus.Approved when !string.IsNullOrWhiteSpace(request.IssuedAccessToken) && request.IssuedAccessTokenExpiresAtUtc is not null
+                => new DeviceLoginPollSnapshot(
                     "approved",
                     "Approved.",
                     DeviceName: request.DeviceName,
                     ExistingAccessToken: request.IssuedAccessToken,
                     ExistingAccessTokenExpiresAtUtc: request.IssuedAccessTokenExpiresAtUtc,
                     ExistingRefreshToken: request.IssuedRefreshToken,
-                    ExistingRefreshTokenExpiresAtUtc: request.IssuedRefreshTokenExpiresAtUtc);
-            }
-
-            return new DeviceLoginPollSnapshot(
+                    ExistingRefreshTokenExpiresAtUtc: request.IssuedRefreshTokenExpiresAtUtc),
+            AccessRequestStatus.Approved => new DeviceLoginPollSnapshot(
                 "approved",
                 "Approved.",
                 RequestId: request.RequestId,
                 DeviceName: request.DeviceName,
                 UserName: request.ApprovedUserName,
-                Roles: request.ApprovedRoles,
-                TokenMinutes: request.ApprovedTokenMinutes);
-        }
+                Roles: request.ApprovedRoles?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
+                TokenMinutes: request.ApprovedTokenMinutes),
+            AccessRequestStatus.Expired => new DeviceLoginPollSnapshot("expired", "Request expired."),
+            _ => new DeviceLoginPollSnapshot("error", "Unknown request state.")
+        };
     }
 
     public bool Approve(Guid requestId, string userName, string roles, int? tokenMinutes, string? deviceName = null)
     {
-        PruneExpired();
-
-        if (!_requests.TryGetValue(requestId, out var request))
+        var request = accessRequestStore.Get(requestId, FindUserCode(requestId));
+        if (request is null || request.Status != AccessRequestStatus.Pending || request.ExpiresAtUtc <= DateTimeOffset.UtcNow)
         {
             return false;
         }
 
-        lock (request.SyncRoot)
+        var approved = accessRequestStore.Approve(
+            requestId,
+            userName,
+            roles,
+            tokenMinutes,
+            string.IsNullOrWhiteSpace(deviceName) ? request.DeviceName : deviceName.Trim(),
+            DateTimeOffset.UtcNow,
+            new AccessHistoryRecord(Guid.NewGuid(), $"request:{requestId}:approved", AccessHistoryEventTypes.AccessApproved, requestId, null, userName, string.IsNullOrWhiteSpace(deviceName) ? request.DeviceName : deviceName.Trim(), roles, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+        if (!approved)
         {
-            if (request.Status != DeviceLoginStatus.Pending || request.ExpiresAtUtc <= DateTimeOffset.UtcNow)
-            {
-                return false;
-            }
-
-            if (!string.IsNullOrWhiteSpace(deviceName))
-            {
-                request.DeviceName = deviceName.Trim();
-            }
-
-            request.Status = DeviceLoginStatus.Approved;
-            request.ApprovedUserName = userName;
-            request.ApprovedRoles = roles
-                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            request.ApprovedTokenMinutes = tokenMinutes;
-            _decisions.Enqueue(new LoginDecisionDto(
-                request.RequestId,
-                request.DeviceName,
-                "approved",
-                userName,
-                roles,
-                null,
-                DateTimeOffset.UtcNow));
-            TrimDecisions();
-            return true;
+            return false;
         }
+
+        applicationEventLogger.LogAccessRequestApproved(requestId, userName, string.IsNullOrWhiteSpace(deviceName) ? request.DeviceName : deviceName.Trim(), roles);
+
+        var updated = accessRequestStore.Get(requestId, request.UserCode)!;
+        var now = DateTimeOffset.UtcNow;
+        decisions.Enqueue(new LoginDecisionDto(requestId, updated.DeviceName, "approved", userName, roles, null, now));
+        TrimDecisions();
+        return true;
     }
 
     public bool Deny(Guid requestId, string? reason)
     {
-        PruneExpired();
-
-        if (!_requests.TryGetValue(requestId, out var request))
+        var request = accessRequestStore.Get(requestId, FindUserCode(requestId));
+        if (request is null || request.Status != AccessRequestStatus.Pending || request.ExpiresAtUtc <= DateTimeOffset.UtcNow)
         {
             return false;
         }
 
-        lock (request.SyncRoot)
+        var now = DateTimeOffset.UtcNow;
+        var denied = accessRequestStore.Deny(requestId, reason, now,
+            new AccessHistoryRecord(Guid.NewGuid(), $"request:{requestId}:denied", AccessHistoryEventTypes.AccessDenied, requestId, null, request.RequestedUserName, request.DeviceName, null, reason, now, now));
+        if (!denied)
         {
-            if (request.Status != DeviceLoginStatus.Pending)
-            {
-                return false;
-            }
-
-            request.Status = DeviceLoginStatus.Denied;
-            request.DenyReason = reason;
-            _decisions.Enqueue(new LoginDecisionDto(
-                request.RequestId,
-                request.DeviceName,
-                "denied",
-                null,
-                null,
-                reason,
-                DateTimeOffset.UtcNow));
-            TrimDecisions();
-            return true;
+            return false;
         }
+
+        applicationEventLogger.LogAccessRequestDenied(requestId, request.RequestedUserName, request.DeviceName, reason);
+
+        decisions.Enqueue(new LoginDecisionDto(requestId, request.DeviceName, "denied", null, null, reason, now));
+        TrimDecisions();
+        return true;
     }
 
-    public void SaveIssuedToken(
-        Guid requestId,
-        string accessToken,
-        DateTimeOffset accessTokenExpiresAtUtc,
-        string refreshToken,
-        DateTimeOffset? refreshTokenExpiresAtUtc)
-    {
-        if (!_requests.TryGetValue(requestId, out var request))
-        {
-            return;
-        }
-
-        lock (request.SyncRoot)
-        {
-            request.IssuedAccessToken = accessToken;
-            request.IssuedAccessTokenExpiresAtUtc = accessTokenExpiresAtUtc;
-            request.IssuedRefreshToken = refreshToken;
-            request.IssuedRefreshTokenExpiresAtUtc = refreshTokenExpiresAtUtc;
-        }
-    }
+    public void SaveIssuedToken(Guid requestId, string accessToken, DateTimeOffset accessTokenExpiresAtUtc, string refreshToken, DateTimeOffset? refreshTokenExpiresAtUtc)
+        => accessRequestStore.SaveIssuedToken(requestId, accessToken, accessTokenExpiresAtUtc, refreshToken, refreshTokenExpiresAtUtc);
 
     public IReadOnlyList<LoginDecisionDto> GetRecentDecisions(int maxCount = 25)
-    {
-        if (maxCount <= 0)
-        {
-            return [];
-        }
-
-        return _decisions
-            .Reverse()
-            .Take(maxCount)
-            .ToArray();
-    }
+        => maxCount <= 0 ? [] : decisions.Reverse().Take(maxCount).ToArray();
 
     public void RecordLogoutEvent(string deviceName, string userName, string? roles)
     {
-        _decisions.Enqueue(new LoginDecisionDto(
-            Guid.NewGuid(),
-            deviceName,
-            "logout",
-            userName,
-            roles,
-            "User logged out.",
-            DateTimeOffset.UtcNow));
+        decisions.Enqueue(new LoginDecisionDto(Guid.NewGuid(), deviceName, "logout", userName, roles, "User logged out.", DateTimeOffset.UtcNow));
         TrimDecisions();
     }
 
-    private void PruneExpired()
-    {
-        var now = DateTimeOffset.UtcNow;
-
-        foreach (var request in _requests)
-        {
-            if (request.Value.ExpiresAtUtc < now.AddMinutes(-5))
-            {
-                _requests.TryRemove(request.Key, out _);
-            }
-        }
-    }
+    private string FindUserCode(Guid requestId)
+        => accessRequestStore.GetPending().FirstOrDefault(request => request.RequestId == requestId)?.UserCode
+            ?? string.Empty;
 
     private static string BuildUserCode()
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        var random = Random.Shared;
-
-        var left = new char[3];
-        var right = new char[3];
-
-        for (var i = 0; i < 3; i++)
-        {
-            left[i] = chars[random.Next(chars.Length)];
-            right[i] = chars[random.Next(chars.Length)];
-        }
-
-        return $"{new string(left)}-{new string(right)}";
+        Span<char> code = stackalloc char[7];
+        for (var i = 0; i < code.Length; i++) code[i] = i == 3 ? '-' : chars[Random.Shared.Next(chars.Length)];
+        return new string(code);
     }
 
     private void TrimDecisions()
     {
-        while (_decisions.Count > MaxDecisionHistory)
-        {
-            _decisions.TryDequeue(out _);
-        }
-    }
-
-    private sealed class DeviceLoginRequestState
-    {
-        public Guid RequestId { get; set; }
-
-        public string UserCode { get; set; } = string.Empty;
-
-        public string DeviceName { get; set; } = string.Empty;
-
-        public string RequestedUserName { get; set; } = string.Empty;
-
-        public string? SourceIp { get; set; }
-
-        public string? UserAgent { get; set; }
-
-        public DateTimeOffset CreatedAtUtc { get; set; }
-
-        public DateTimeOffset ExpiresAtUtc { get; set; }
-
-        public DeviceLoginStatus Status { get; set; }
-
-        public string? ApprovedUserName { get; set; }
-
-        public string[] ApprovedRoles { get; set; } = [];
-
-        public int? ApprovedTokenMinutes { get; set; }
-
-        public string? DenyReason { get; set; }
-
-        public string? IssuedAccessToken { get; set; }
-
-        public DateTimeOffset? IssuedAccessTokenExpiresAtUtc { get; set; }
-
-        public string? IssuedRefreshToken { get; set; }
-
-        public DateTimeOffset? IssuedRefreshTokenExpiresAtUtc { get; set; }
-
-        public object SyncRoot { get; } = new();
-    }
-
-    private enum DeviceLoginStatus
-    {
-        Pending,
-        Approved,
-        Denied,
-        Expired
+        while (decisions.Count > MaxDecisionHistory) decisions.TryDequeue(out _);
     }
 }
