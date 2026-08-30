@@ -5,8 +5,13 @@ var builder = WebApplication.CreateBuilder(args);
 var useHttpsRedirection = builder.Configuration.GetValue("Hosting:UseHttpsRedirection", false);
 
 // Add services to the container.
+// Blazor Server streams uploads over the SignalR circuit, so the default 32 KB frame is too small.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        options.MaximumReceiveMessageSize = 1024L * 1024L;
+    });
 
 builder.Services.AddScoped<AuthSession>();
 builder.Services.AddScoped<FileEventsClient>();
@@ -17,6 +22,16 @@ builder.Services.AddHttpClient<FileApiClient>(client =>
 {
     var apiBaseUrl = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5212/";
     client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute);
+
+    // Large transfers must not be cut short by the default 100 second timeout.
+    client.Timeout = Timeout.InfiniteTimeSpan;
+});
+
+builder.Services.AddHttpClient<ClientLogClient>(client =>
+{
+    var apiBaseUrl = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5212/";
+    client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(10);
 });
 
 builder.Services.AddHttpClient<AuthApiClient>(client =>

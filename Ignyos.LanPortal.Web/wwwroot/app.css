@@ -45,12 +45,8 @@ p {
     margin: 0.5rem 0 0;
 }
 
-.view-header {
+.page-header {
     margin-bottom: 1rem;
-}
-
-.view-header p {
-    color: var(--muted);
 }
 
 .panel {
@@ -231,6 +227,9 @@ tr:last-child td {
     z-index: 1100;
     width: min(24rem, calc(100vw - 2rem));
     pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .toast-host-topright {
@@ -262,6 +261,34 @@ tr:last-child td {
     color: var(--ink);
     font-weight: 600;
     animation: toast-in 180ms ease-out;
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.toast-message {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.toast-close {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    opacity: 0.65;
+    cursor: pointer;
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: 0 0.15rem;
+    border-radius: 0.3rem;
+}
+
+.toast-close:hover,
+.toast-close:focus-visible {
+    opacity: 1;
 }
 
 .toast-success {
@@ -398,7 +425,7 @@ tr:last-child td {
 }
 
 .eyebrow {
-    margin: 0 0 0.35rem;
+    margin: 0 0 0.35rem 1rem;
     color: var(--accent);
     font-size: 1rem;
     font-weight: 700;
@@ -726,6 +753,158 @@ tr:last-child td {
 
 .drop-zone.disabled input[type="file"] {
     cursor: not-allowed;
+}
+
+.drop-zone.drag-active {
+    border-color: var(--accent);
+    border-style: solid;
+    background: #e4f4f4;
+    color: #0d6060;
+    box-shadow: 0 0 0 3px rgba(10, 143, 143, 0.18);
+}
+
+.progress-track {
+    width: 100%;
+    height: 0.6rem;
+    margin-top: 0.85rem;
+    border-radius: 999px;
+    background: rgba(17, 34, 45, 0.12);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), #0b7070);
+    transition: width 140ms linear;
+}
+
+.transfer-status {
+    margin-top: 0.9rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.transfer-hint {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+}
+
+.transfer-list {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0 0.25rem 0 0;
+    /* Roughly four transfer cards before the list starts scrolling. */
+    max-height: 21rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.transfer-item {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    background: rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
+    transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.transfer-leaving {
+    animation: transfer-row-leave 420ms ease forwards;
+}
+
+@keyframes transfer-row-leave {
+    0% {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 12rem;
+    }
+
+    45% {
+        opacity: 0;
+        transform: translateY(-0.35rem);
+        max-height: 12rem;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-0.35rem);
+        max-height: 0;
+        margin-bottom: -0.75rem;
+        padding-top: 0;
+        padding-bottom: 0;
+        border-width: 0;
+    }
+}
+
+.transfer-actions {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.transfer-item-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-weight: 600;
+}
+
+.transfer-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.transfer-size {
+    flex-shrink: 0;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.transfer-item-status {
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.progress-track-slim {
+    height: 0.35rem;
+    margin-top: 0.45rem;
+}
+
+.transfer-completed {
+    border-color: #7dc79f;
+    background: #f2fbf6;
+}
+
+.transfer-cancelled {
+    border-color: var(--line);
+    background: rgba(17, 34, 45, 0.04);
+}
+
+.transfer-failed {
+    border-color: #d9a2a2;
+    background: #fdf4f4;
+}
+
+.text-success {
+    color: #176b3f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .progress-bar {
+        transition: none;
+    }
+
+    .transfer-item {
+        transition: none;
+    }
+
+    .transfer-leaving {
+        animation-duration: 1ms;
+    }
 }
 
 .row-selected td {

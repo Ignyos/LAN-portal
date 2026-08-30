@@ -80,7 +80,7 @@ public sealed class LocalSetupController(
         <section class="card">
                 <div class="step-title">
                     <span class="step-badge">3</span>
-                    <h3 class="step-label">Securely grant access to the shared folder or drive</h3>
+                    <h3 class="step-label">Securely control access</h3>
                 </div>
                 <div class="step-body">
                     <div class="actions">
@@ -316,6 +316,7 @@ public sealed class LocalSetupController(
                                 <option value="Admin">Admin</option>
                                 <option value="Maintenance">Maintenance</option>
                                 <option value="App">App</option>
+                                <option value="Client">Client</option>
                             </select>
                         </label>
                         <button id="logsRefreshButton" type="button">Refresh</button>
@@ -410,7 +411,7 @@ async function loadRecent() {
         }
         let html = '<table><thead><tr><th>Time</th><th>User</th><th>Device</th><th>Action</th><th>Reason</th></tr></thead><tbody>';
         for (const item of rows) {
-            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${item.userName ?? '(n/a)'}</td><td>${item.deviceName}</td><td>${item.eventType}</td><td>${item.reason ?? '(n/a)'}</td></tr>`;
+            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${escapeHtml(item.userName ?? '(n/a)')}</td><td>${escapeHtml(item.deviceName)}</td><td>${escapeHtml(item.eventType)}</td><td>${escapeHtml(item.reason ?? '(n/a)')}</td></tr>`;
         }
         container.innerHTML = html + '</tbody></table>';
         container.dataset.loaded = 'true';
@@ -436,11 +437,12 @@ async function loadLogs() {
             container.dataset.loaded = 'true';
             return;
         }
-        let html = '<table><thead><tr><th>Time</th><th>Severity</th><th>Category</th><th>Source</th><th>Message</th></tr></thead><tbody>';
+        let html = '<table><thead><tr><th>Time</th><th>Severity</th><th>Category</th><th>Source</th><th>Message</th><th>Details</th></tr></thead><tbody>';
         for (const item of rows) {
-            const message = item.message ?? '(no message)';
-            const source = item.source ?? 'unknown';
-            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${item.severity}</td><td>${item.category}</td><td>${source}</td><td>${message}</td></tr>`;
+            const message = escapeHtml(item.message ?? '(no message)');
+            const source = escapeHtml(item.source ?? 'unknown');
+            const details = escapeHtml(formatLogDetails(item));
+            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${escapeHtml(item.severity)}</td><td>${escapeHtml(item.category)}</td><td>${source}</td><td>${message}</td><td>${details}</td></tr>`;
         }
         container.innerHTML = html + '</tbody></table>';
         container.dataset.loaded = 'true';
@@ -453,6 +455,26 @@ function formatLocalDateTime(value) {
     if (!value) return 'Never';
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+// Log and history rows can contain client-supplied text, so never inject them as markup.
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function formatLogDetails(item) {
+    const parts = [];
+    if (item.exceptionType) parts.push(item.exceptionType);
+    if (item.exceptionMessage) parts.push(item.exceptionMessage);
+    if (item.detailsJson) parts.push(item.detailsJson);
+    if (item.correlationId) parts.push('correlation: ' + item.correlationId);
+    return parts.length ? parts.join(' | ') : '';
 }
 
 async function rotateSigningKey() {

@@ -14,8 +14,17 @@ using Ignyos.LanPortal.Api.Services;
 // This breaks our custom short-name claims, so we disable it to preserve claim names as-is.
 JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 
+const string BrowserDirectPolicy = "BrowserDirect";
+
 var builder = WebApplication.CreateBuilder(args);
 var useHttpsRedirection = builder.Configuration.GetValue("Hosting:UseHttpsRedirection", false);
+
+// Kestrel defaults to ~28.6 MB, which aborts larger uploads before the controller runs.
+var maxUploadBytes = builder.Configuration.GetValue("Storage:MaxUploadBytes", 10L * 1024L * 1024L * 1024L);
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = maxUploadBytes;
+});
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -23,7 +32,7 @@ builder.Services.Configure<BootstrapOptions>(builder.Configuration.GetSection(Bo
 builder.Services.Configure<UpdateChannelOptions>(builder.Configuration.GetSection(UpdateChannelOptions.SectionName));
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 10L * 1024L * 1024L * 1024L;
+    options.MultipartBodyLengthLimit = maxUploadBytes;
 });
 builder.Services.AddHttpClient();
 builder.Services.AddSignalR();
@@ -110,6 +119,18 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
+// Uploads and downloads go straight from the browser to this API, which is a
+// different origin than the web app. Auth is bearer-token only, so no cookies
+// or credentials are shared cross-origin.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(BrowserDirectPolicy, policy => policy
+        .AllowAnyOrigin()
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .WithExposedHeaders("Content-Disposition"));
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -124,6 +145,7 @@ if (useHttpsRedirection)
 
 app.UseStaticFiles();
 app.UseMiddleware<FilesRequestMetricsMiddleware>();
+app.UseCors(BrowserDirectPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

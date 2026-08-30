@@ -1,13 +1,9 @@
-﻿@inject Ignyos.LanPortal.Web.Services.PortalConfigClient PortalConfigClient
-@inject Ignyos.LanPortal.Web.Services.AuthSession AuthSession
+﻿@inject Ignyos.LanPortal.Web.Services.AuthSession AuthSession
 @implements IDisposable
 
 <div class="nav-root">
     <div class="brand-shell">
-        <div class="brand-title-wrap">
-            <a class="brand-title" href="home">@networkName</a>
-            <p class="brand-subtitle">LAN Portal</p>
-        </div>
+        <a class="brand-subtitle" href="home">LAN Portal</a>
     </div>
 
     <input type="checkbox" title="Navigation menu" class="nav-toggle" />
@@ -58,7 +54,6 @@
 </div>
 
 @code {
-    private string networkName = "My Home";
     private bool hasActiveSession;
     private bool showAdminLink;
     private bool showFilesGuidance;
@@ -66,7 +61,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        networkName = await PortalConfigClient.GetNetworkNameAsync();
         AuthSession.SessionStateChanged += OnSessionStateChanged;
         await AuthSession.InitializeAsync();
         SyncSessionState();

@@ -48,12 +48,35 @@ function Get-DevSuggestedVersion {
     return "$major.$minor.$patch.$($build + 1)"
 }
 
+function Set-LocalVersion {
+    param(
+        [string]$ProjectPath,
+        [string]$TargetVersion
+    )
+
+    $projectXml = Get-Content -Path $ProjectPath -Raw
+    $updatedProjectXml = [regex]::Replace($projectXml, '<Version>\s*[^<\s]+\s*</Version>', "<Version>$TargetVersion</Version>", 1)
+    if ($updatedProjectXml -match '<InformationalVersion>\s*[^<]*\s*</InformationalVersion>') {
+        $updatedProjectXml = [regex]::Replace($updatedProjectXml, '<InformationalVersion>\s*[^<]*\s*</InformationalVersion>', "<InformationalVersion>$TargetVersion</InformationalVersion>", 1)
+    }
+    elseif ($updatedProjectXml -ne $projectXml) {
+        $updatedProjectXml = [regex]::Replace($updatedProjectXml, '(<Version>\s*[^<\s]+\s*</Version>)', "$1`r`n    <InformationalVersion>$TargetVersion</InformationalVersion>", 1)
+    }
+
+    if ($updatedProjectXml -ne $projectXml) {
+        Set-Content -Path $ProjectPath -Value $updatedProjectXml
+        Write-Host "Updated local version source to $TargetVersion."
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $currentVersion = Get-CurrentVersion -ProjectPath $versionProjectPath
     $suggestedVersion = Get-DevSuggestedVersion -CurrentVersion $currentVersion
     $enteredVersion = Read-Host "Enter dev publish version (current $currentVersion) [$suggestedVersion]: "
     $Version = if ([string]::IsNullOrWhiteSpace($enteredVersion)) { $suggestedVersion } else { $enteredVersion.Trim() }
 }
+
+Set-LocalVersion -ProjectPath $versionProjectPath -TargetVersion $Version
 
 $branchName = git rev-parse --abbrev-ref HEAD 2>$null
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branchName)) {

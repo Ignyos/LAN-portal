@@ -8,13 +8,15 @@
 @inject FileEventsClient FileEventsClient
 @inject AuthSession AuthSession
 @inject ToastService Toasts
+@inject ClientLogClient ClientLog
+@inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<PageTitle>Files</PageTitle>
+<PageTitle>File Explorer</PageTitle>
 
-<section class="view-header">
-    <h1>File Explorer</h1>
-</section>
+<header class="page-header">
+    <p class="eyebrow">File Explorer</p>
+</header>
 
 @if (!AuthSession.IsLoaded)
 {
@@ -28,10 +30,17 @@ else
 {
     <section class="panel reveal stack" @onclick="CloseContextMenu">
         <div class="explorer-upload-area">
-            <label class="drop-zone @(CanUpload ? string.Empty : "disabled")">
-                <span>Drag and drop files</span>
+            <label class="drop-zone @(CanUpload ? string.Empty : "disabled") @(isDragActive ? "drag-active" : string.Empty)"
+                   @ondragenter="HandleDragEnter"
+                   @ondragleave="HandleDragLeave"
+                   @ondrop="HandleDragDrop">
+                <span>@(isDragActive ? "Drop files to upload" : "Drag and drop files")</span>
                 <span class="browse-link">Browse for files</span>
-                <InputFile OnChange="HandleUploadAsync" multiple disabled="@(!CanUpload || isBusy)" />
+                <input type="file"
+                       multiple
+                       @ref="fileInputElement"
+                       disabled="@(!CanUpload || isBusy)"
+                       @onchange="HandleFilesSelectedAsync" />
             </label>
         </div>
 
@@ -82,11 +91,6 @@ else
                 }
                     </div>
         </div>
-
-        @if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            <p class="text-danger">@errorMessage</p>
-        }
 
         <div class="explorer-grid">
             <aside class="tree-pane">
@@ -242,6 +246,73 @@ else
         </div>
     }
 
+    @if (showTransferModal)
+    {
+        <div class="modal-backdrop" role="presentation">
+            <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="transfer-title" aria-busy="true">
+                <div class="modal-header">
+                    <div>
+                        <p class="eyebrow">Transfer</p>
+                        <h2 id="transfer-title">@transferStatus</h2>
+                    </div>
+                </div>
+
+                <div class="progress-track"
+                     role="progressbar"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     aria-valuenow="@BatchPercent"
+                     aria-label="Overall upload progress">
+                    <div class="progress-bar" style="width:@(BatchPercent)%"></div>
+                </div>
+                <p class="text-muted transfer-hint">@FormatBytes(BatchSentBytes) of @FormatBytes(BatchTotalBytes) — @BatchPercent%</p>
+
+                <ul class="transfer-list">
+                    @foreach (var item in VisibleUploads)
+                    {
+                        <li @key="item.Index" class="transfer-item transfer-@item.State.ToString().ToLowerInvariant() @(item.IsLeaving ? "transfer-leaving" : string.Empty)">
+                            <div class="transfer-item-row">
+                                <span class="transfer-name" title="@item.Name">@item.Name</span>
+                                <span class="transfer-size">@FormatBytes(item.SizeBytes)</span>
+                            </div>
+                            @if (item.State != UploadState.Pending)
+                            {
+                                <div class="progress-track progress-track-slim">
+                                    <div class="progress-bar" style="width:@(item.Percent)%"></div>
+                                </div>
+                                <div class="transfer-item-status">
+                                    @switch (item.State)
+                                    {
+                                        case UploadState.Uploading:
+                                            <span>@item.Percent% — @FormatBytes(item.SentBytes) sent</span>
+                                            break;
+                                        case UploadState.Completed:
+                                            <span class="text-success">Completed</span>
+                                            break;
+                                        case UploadState.Cancelled:
+                                            <span class="text-muted">Cancelled</span>
+                                            break;
+                                        case UploadState.Failed:
+                                            <span class="text-danger">@item.Error</span>
+                                            break;
+                                    }
+                                </div>
+                            }
+                        </li>
+                    }
+                </ul>
+
+                <p class="text-muted transfer-hint">Keep this page open until the transfer finishes.</p>
+
+                <div class="modal-actions transfer-actions">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelUploadAsync" disabled="@isCancellingUpload">
+                        @(isCancellingUpload ? "Cancelling..." : "Cancel transfer")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+
     <section class="panel reveal permissions-panel">
         <div class="permissions-heading">Your permissions</div>
         <div class="permissions-list">
@@ -255,8 +326,6 @@ else
 }
 
 @code {
-    private const long MaxUploadSizeBytes = 10L * 1024L * 1024L * 1024L;
-
     private readonly List<FileNodeDto> folderItems = [];
     private readonly List<FileNodeDto> searchResults = [];
     private readonly HashSet<string> selectedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -275,12 +344,20 @@ else
     private bool showRenameForm;
     private bool showMoveForm;
     private bool showSearchResults;
-    private string? errorMessage;
     private bool hasPendingEventRefresh;
     private FileNodeDto? contextMenuItem;
     private string contextMenuLeftPx = "0px";
     private string contextMenuTopPx = "0px";
     private bool showDeleteConfirmation;
+    private bool isDragActive;
+    private int dragDepth;
+    private bool showTransferModal;
+    private string transferStatus = string.Empty;
+    private bool isCancellingUpload;
+    private string uploadBatchId = string.Empty;
+    private ElementReference fileInputElement;
+    private DotNetObjectReference<Files>? selfReference;
+    private readonly List<UploadItem> uploadQueue = [];
 
     private bool CanCreateFolder => AuthSession.HasPermission(PermissionKeys.NewFolder);
     private bool CanUpload => AuthSession.HasPermission(PermissionKeys.Upload);
@@ -404,56 +481,347 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = $"Unable to initialize Files view. {ex.Message}";
+            await ReportErrorAsync("Unable to initialize Files view.", ex);
             StateHasChanged();
         }
     }
 
-    private async Task HandleUploadAsync(InputFileChangeEventArgs args)
+    private async Task HandleFilesSelectedAsync()
     {
-        var selectedFiles = args.GetMultipleFiles();
-        if (selectedFiles.Count == 0)
+        ResetDragState();
+
+        if (!CanUpload)
         {
             return;
         }
 
+        SelectedFileInfo[] selected;
+        try
+        {
+            selected = await JS.InvokeAsync<SelectedFileInfo[]>("lanPortalUpload.getSelectedFiles", fileInputElement);
+        }
+        catch (Exception ex)
+        {
+            await ReportErrorAsync("Could not read the selected files.", ex);
+            return;
+        }
+
+        if (selected.Length == 0)
+        {
+            return;
+        }
+
+        if (!await PassesPreflightAsync(selected))
+        {
+            await JS.InvokeVoidAsync("lanPortalUpload.clearSelection", fileInputElement);
+            return;
+        }
+
+        uploadQueue.Clear();
+        uploadQueue.AddRange(selected.Select((file, index) => new UploadItem
+        {
+            Index = index,
+            Name = file.Name,
+            SizeBytes = file.Size
+        }));
+
         isBusy = true;
-        errorMessage = null;
+        isCancellingUpload = false;
+        uploadBatchId = Guid.NewGuid().ToString("N");
+        showTransferModal = true;
+        transferStatus = uploadQueue.Count == 1 ? "Uploading 1 file" : $"Uploading {uploadQueue.Count} files";
+        selfReference ??= DotNetObjectReference.Create(this);
+
+        StateHasChanged();
+        await Task.Yield();
 
         try
         {
-            var uploadedCount = 0;
-            foreach (var selectedFile in selectedFiles)
+            var options = new
             {
-                await FileApiClient.UploadAsync(selectedFile, MaxUploadSizeBytes, currentFolderPath, CreateCorrelationId());
-                uploadedCount++;
+                apiBaseUrl = FileApiClient.GetApiBaseUrl(),
+                accessToken = AuthSession.AccessToken,
+                currentPath = currentFolderPath,
+                correlationId = CreateCorrelationId(),
+                batchId = uploadBatchId,
+                stopOnError = false
+            };
+
+            // An explicit token opts out of the 1 minute default JS interop timeout,
+            // which would otherwise abandon the await while the browser is still uploading.
+            var results = await JS.InvokeAsync<UploadResult[]>(
+                "lanPortalUpload.uploadFiles",
+                CancellationToken.None,
+                fileInputElement,
+                options,
+                selfReference);
+
+            ApplyUploadResults(results);
+
+            var succeeded = results.Count(result => result.Succeeded);
+            var cancelled = results.Count(result => result.Cancelled);
+            var failed = results.Length - succeeded - cancelled;
+
+            if (cancelled > 0)
+            {
+                Toasts.Warning(succeeded == 0
+                    ? "Transfer cancelled."
+                    : $"Transfer cancelled. {succeeded} file(s) finished before cancelling.");
             }
 
-            Toasts.Success(uploadedCount == 1
-                ? "Uploaded 1 file."
-                : $"Uploaded {uploadedCount} files.");
+            if (failed == 0)
+            {
+                if (cancelled == 0)
+                {
+                    Toasts.Success(succeeded == 1 ? "Uploaded 1 file." : $"Uploaded {succeeded} files.");
+                }
+            }
+            else
+            {
+                var firstError = results.FirstOrDefault(result => !result.Succeeded && !result.Cancelled)?.Error;
+                await ReportUploadFailuresAsync(succeeded, failed, firstError);
+            }
 
             await LoadCurrentFolderAsync();
             await EnsureTreeLoadedAsync(forceReload: true);
             await EnsureTreePathExpandedAsync(currentFolderPath);
         }
-        catch (SessionRevokedException ex)
-        {
-            var reason = await AuthSession.HandleUnauthorizedAccessAsync();
-            await HandleUnauthorizedAsync("Your session has ended. Please request access again.", reason);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            await HandleUnauthorizedAsync(ex.Message);
-        }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            await ReportErrorAsync("Upload failed.", ex);
         }
         finally
         {
+            showTransferModal = false;
+            uploadQueue.Clear();
+            transferStatus = string.Empty;
+            uploadBatchId = string.Empty;
+            isCancellingUpload = false;
             isBusy = false;
         }
+    }
+
+    private async Task CancelUploadAsync()
+    {
+        if (isCancellingUpload || string.IsNullOrEmpty(uploadBatchId))
+        {
+            return;
+        }
+
+        isCancellingUpload = true;
+        transferStatus = "Cancelling transfer";
+
+        try
+        {
+            await JS.InvokeVoidAsync("lanPortalUpload.cancel", uploadBatchId);
+        }
+        catch (Exception ex)
+        {
+            await ClientLog.ReportErrorAsync("Could not cancel the transfer.", ex, source: "Files.razor");
+        }
+    }
+
+    private async Task<bool> PassesPreflightAsync(IReadOnlyList<SelectedFileInfo> selected)
+    {
+        var emptyFiles = selected.Where(file => file.Size <= 0).ToArray();
+        if (emptyFiles.Length == selected.Count)
+        {
+            Toasts.Warning("The selected file(s) are empty and cannot be uploaded.");
+            return false;
+        }
+
+        var totalBytes = selected.Sum(file => file.Size);
+
+        try
+        {
+            var storage = await FileApiClient.GetStorageInfoAsync();
+            if (totalBytes > storage.AvailableFreeSpaceBytes)
+            {
+                Toasts.Error(
+                    $"Not enough space on the host. This transfer needs {FormatBytes(totalBytes)} but only {FormatBytes(storage.AvailableFreeSpaceBytes)} is free.");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            // A failed space check should not block an otherwise valid transfer.
+            await ClientLog.ReportErrorAsync("Storage pre-flight check failed.", ex, source: "Files.razor");
+        }
+
+        return true;
+    }
+
+    private void ApplyUploadResults(IReadOnlyList<UploadResult> results)
+    {
+        for (var index = 0; index < results.Count && index < uploadQueue.Count; index++)
+        {
+            var item = uploadQueue[index];
+            item.Error = results[index].Error;
+
+            if (results[index].Succeeded)
+            {
+                item.State = UploadState.Completed;
+                item.SentBytes = item.SizeBytes;
+            }
+            else
+            {
+                item.State = results[index].Cancelled ? UploadState.Cancelled : UploadState.Failed;
+            }
+        }
+    }
+
+    private async Task ReportUploadFailuresAsync(int succeeded, int failed, string? firstError)
+    {
+        var summary = succeeded == 0
+            ? $"Upload failed for {failed} file(s)."
+            : $"Uploaded {succeeded} file(s); {failed} failed.";
+
+        Toasts.Error(string.IsNullOrWhiteSpace(firstError) ? summary : $"{summary} {firstError}");
+
+        await ClientLog.ReportErrorAsync(
+            summary,
+            source: "Files.razor",
+            correlationId: CreateCorrelationId(),
+            detailsJson: firstError);
+    }
+
+    [JSInvokable]
+    public Task OnUploadProgress(int index, long sentBytes, long totalBytes)
+    {
+        if (index < 0 || index >= uploadQueue.Count)
+        {
+            return Task.CompletedTask;
+        }
+
+        var item = uploadQueue[index];
+        item.State = UploadState.Uploading;
+        item.SentBytes = Math.Min(sentBytes, item.SizeBytes);
+
+        for (var earlier = 0; earlier < index; earlier++)
+        {
+            if (uploadQueue[earlier].State == UploadState.Uploading)
+            {
+                uploadQueue[earlier].State = UploadState.Completed;
+                uploadQueue[earlier].SentBytes = uploadQueue[earlier].SizeBytes;
+                _ = FadeOutCompletedAsync(uploadQueue[earlier]);
+            }
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    // Completed rows fade out, then drop from the list so the active upload rises to the top.
+    private async Task FadeOutCompletedAsync(UploadItem item)
+    {
+        item.IsLeaving = true;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(TransferRowFadeOut);
+
+        item.IsRemoved = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static readonly TimeSpan TransferRowFadeOut = TimeSpan.FromMilliseconds(420);
+
+    private IEnumerable<UploadItem> VisibleUploads => uploadQueue.Where(item => !item.IsRemoved);
+
+    private long BatchTotalBytes => uploadQueue.Sum(item => item.SizeBytes);
+    private long BatchSentBytes => uploadQueue.Sum(item => item.SentBytes);
+    private int BatchPercent => BatchTotalBytes <= 0
+        ? 0
+        : (int)Math.Clamp(BatchSentBytes * 100 / BatchTotalBytes, 0, 100);
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unitIndex = 0;
+
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return unitIndex == 0 ? $"{bytes} {units[unitIndex]}" : $"{value:0.##} {units[unitIndex]}";
+    }
+
+    private enum UploadState
+    {
+        Pending,
+        Uploading,
+        Completed,
+        Cancelled,
+        Failed
+    }
+
+    private sealed class UploadItem
+    {
+        public int Index { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public long SizeBytes { get; init; }
+        public long SentBytes { get; set; }
+        public UploadState State { get; set; } = UploadState.Pending;
+        public string? Error { get; set; }
+        public bool IsLeaving { get; set; }
+        public bool IsRemoved { get; set; }
+
+        public int Percent => SizeBytes <= 0
+            ? 0
+            : (int)Math.Clamp(SentBytes * 100 / SizeBytes, 0, 100);
+    }
+
+    private sealed record SelectedFileInfo(int Index, string Name, long Size);
+
+    private sealed record UploadResult(string Name, long SizeBytes, bool Succeeded, bool Cancelled, string? Error);
+
+    private void HandleDragEnter(DragEventArgs args)
+    {
+        if (!CanUpload || isBusy || !ContainsFiles(args))
+        {
+            return;
+        }
+
+        dragDepth++;
+        isDragActive = true;
+    }
+
+    private void HandleDragLeave(DragEventArgs args)
+    {
+        dragDepth = Math.Max(0, dragDepth - 1);
+
+        if (dragDepth == 0)
+        {
+            isDragActive = false;
+        }
+    }
+
+    private void HandleDragDrop(DragEventArgs args)
+    {
+        ResetDragState();
+    }
+
+    private void ResetDragState()
+    {
+        dragDepth = 0;
+        isDragActive = false;
+    }
+
+    /// <summary>Distinguishes a file drag from text or element drags so the drop zone only reacts to files.</summary>
+    private static bool ContainsFiles(DragEventArgs args)
+    {
+        return args.DataTransfer?.Types?.Any(type => string.Equals(type, "Files", StringComparison.OrdinalIgnoreCase)) == true;
+    }
+
+    private async Task ReportErrorAsync(string message, Exception? exception = null)
+    {
+        var detail = exception is null
+            ? message
+            : $"{message} {ClientLogClient.DescribeException(exception)}";
+
+        Toasts.Error(detail);
+        await ClientLog.ReportErrorAsync(message, exception, source: "Files.razor", correlationId: CreateCorrelationId());
     }
 
     private async Task LoadFilesAsync()
@@ -466,7 +834,6 @@ else
     private async Task LoadCurrentFolderAsync()
     {
         isBusy = true;
-        errorMessage = null;
 
         try
         {
@@ -488,7 +855,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            await ReportErrorAsync("Unable to load the current folder.", ex);
         }
         finally
         {
@@ -502,7 +869,11 @@ else
         var returnUrl = Uri.EscapeDataString("/files");
         var reasonParam = !string.IsNullOrWhiteSpace(reason) ? $"&reason={reason}" : string.Empty;
         Navigation.NavigateTo($"/account?returnUrl={returnUrl}{reasonParam}", forceLoad: false);
-        errorMessage = message;
+
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            Toasts.Warning(message);
+        }
     }
 
     private async Task SyncSubscriptionsAsync()
@@ -522,7 +893,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage ??= $"Real-time updates unavailable. {ex.Message}";
+            Toasts.Warning($"Real-time updates unavailable. {ex.Message}");
         }
     }
 
@@ -555,7 +926,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = $"Failed to refresh after file update event. {ex.Message}";
+            await ReportErrorAsync("Failed to refresh after a file update event.", ex);
             StateHasChanged();
         }
     }
@@ -663,12 +1034,11 @@ else
         var query = searchQuery.Trim();
         if (string.IsNullOrWhiteSpace(query))
         {
-            errorMessage = "Search query is required.";
+            Toasts.Warning("Search query is required.");
             return;
         }
 
         isBusy = true;
-        errorMessage = null;
 
         try
         {
@@ -690,7 +1060,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            await ReportErrorAsync("Search failed.", ex);
         }
         finally
         {
@@ -702,7 +1072,6 @@ else
     {
         showSearchResults = false;
         searchResults.Clear();
-        errorMessage = null;
     }
 
     private void ToggleSelection(string path, ChangeEventArgs args)
@@ -883,12 +1252,11 @@ else
         var folderName = newFolderName.Trim();
         if (string.IsNullOrWhiteSpace(folderName))
         {
-            errorMessage = "Folder name is required.";
+            Toasts.Warning("Folder name is required.");
             return;
         }
 
         isBusy = true;
-        errorMessage = null;
 
         try
         {
@@ -910,7 +1278,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            await ReportErrorAsync($"Could not create folder '{folderName}'.", ex);
         }
         finally
         {
@@ -929,12 +1297,11 @@ else
         var newName = renameTargetName.Trim();
         if (string.IsNullOrWhiteSpace(newName))
         {
-            errorMessage = "New name is required.";
+            Toasts.Warning("New name is required.");
             return;
         }
 
         isBusy = true;
-        errorMessage = null;
 
         try
         {
@@ -957,7 +1324,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            await ReportErrorAsync("Rename failed.", ex);
         }
         finally
         {
@@ -973,7 +1340,6 @@ else
         }
 
         isBusy = true;
-        errorMessage = null;
 
         try
         {
@@ -997,7 +1363,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            await ReportErrorAsync("Move failed.", ex);
         }
         finally
         {
@@ -1013,7 +1379,6 @@ else
         }
 
         isBusy = true;
-        errorMessage = null;
 
         try
         {
@@ -1036,7 +1401,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            await ReportErrorAsync("Delete failed.", ex);
         }
         finally
         {
@@ -1212,6 +1577,7 @@ else
     public async ValueTask DisposeAsync()
     {
         FileEventsClient.FileChanged -= OnFileChanged;
+        selfReference?.Dispose();
         await FileEventsClient.DisposeAsync();
     }
 

@@ -117,7 +117,7 @@ body {
 }
 
 .eyebrow {
-    margin: 0 0 8px;
+    margin: 0 0 0.35rem 1rem;
     color: var(--accent);
     font-size: 1rem;
     letter-spacing: 0.12em;

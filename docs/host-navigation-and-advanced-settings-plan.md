@@ -99,7 +99,7 @@ Initial Advanced sections:
 - `Customize URL` - existing guest URL settings and customization guidance.
 - `Access History` - existing recent decisions table, initially preserved functionally.
 - `Logs` - active read-only operational log view backed by the durable application log store.
-- `Security` - placeholder section until the security-controls design is complete.
+- `Security` - focused JWT signing-key rotation action with impact guidance and confirmation.
 
 Presentation decisions:
 - Major section headings should be slightly smaller than the page title and consistent with one another.
@@ -107,8 +107,8 @@ Presentation decisions:
 - `Security` is the user-facing title; `Security Controls` remains a technical planning term.
 - Logs and Security should remain visible as independently collapsible sections.
 - Logs should remain read-only and operator-focused while capture coverage and filtering are completed.
-- Security should initially be a collapsed placeholder with no JWT controls exposed.
-- JWT rotation and session invalidation remain part of the later Security milestone.
+- Security should remain a narrow, confirmation-heavy action surface.
+- JWT rotation invalidates active sessions and records a redacted Security event.
 
 Section-state persistence decision:
 - Persist expansion state in SQLite for resilience across Host restarts, WebView2 profile changes, and browser-storage cleanup.

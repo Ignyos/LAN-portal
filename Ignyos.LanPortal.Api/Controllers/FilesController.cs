@@ -2,13 +2,17 @@ using Ignyos.LanPortal.Contracts;
 using Ignyos.LanPortal.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Ignyos.LanPortal.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public sealed class FilesController(IAppSettingsStore settingsStore, IFileEventPublisher fileEventPublisher) : ControllerBase
+public sealed class FilesController(
+    IAppSettingsStore settingsStore,
+    IFileEventPublisher fileEventPublisher,
+    IApplicationLogStore applicationLogStore) : ControllerBase
 {
     private static readonly EnumerationOptions StorageEnumerationOptions = new()
     {
@@ -552,20 +556,12 @@ public sealed class FilesController(IAppSettingsStore settingsStore, IFileEventP
         return NoContent();
     }
 
-    [HttpPost("upload")]
-    [RequestFormLimits(MultipartBodyLengthLimit = 10L * 1024L * 1024L * 1024L)]
-    public async Task<ActionResult<UploadResultDto>> Upload([FromForm] IFormFile? file, CancellationToken cancellationToken)
+    [HttpGet("storage-info")]
+    public ActionResult<StorageInfoDto> GetStorageInfo()
     {
-        if (!FilePermissionService.HasPermission(User, PermissionKeys.Upload))
+        if (!FilePermissionService.HasPermission(User, PermissionKeys.Read))
         {
             return Forbid();
-        }
-
-        file ??= Request.Form.Files.FirstOrDefault();
-
-        if (file is null || file.Length <= 0)
-        {
-            return BadRequest("No file was uploaded.");
         }
 
         var configuredStoragePath = settingsStore.GetStorageRootPath();
@@ -575,29 +571,65 @@ public sealed class FilesController(IAppSettingsStore settingsStore, IFileEventP
         }
 
         var rootPath = StoragePathResolver.EnsureStorageRoot(configuredStoragePath);
-        var uploadCurrentPath = Request.Form.TryGetValue("currentPath", out var currentPathValue)
-            ? currentPathValue.ToString()
-            : null;
+        var drive = new DriveInfo(Path.GetPathRoot(rootPath)!);
 
-        if (!StoragePathResolver.TryResolveOptionalPathUnderRoot(rootPath, uploadCurrentPath, out var fullUploadFolderPath) ||
+        return Ok(new StorageInfoDto(drive.AvailableFreeSpace, drive.TotalSize));
+    }
+
+    /// <summary>Streams the raw request body to disk so multi-gigabyte uploads are never buffered in memory or a temp file.</summary>
+    [HttpPost("upload/stream")]
+    [DisableRequestSizeLimit]
+    public async Task<ActionResult<UploadResultDto>> UploadStream(
+        [FromQuery] string fileName,
+        [FromQuery] string? currentPath,
+        CancellationToken cancellationToken)
+    {
+        if (!FilePermissionService.HasPermission(User, PermissionKeys.Upload))
+        {
+            return Forbid();
+        }
+
+        var originalFileName = Path.GetFileName(fileName ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(originalFileName))
+        {
+            return BadRequest("Invalid file name.");
+        }
+
+        var configuredStoragePath = settingsStore.GetStorageRootPath();
+        if (string.IsNullOrWhiteSpace(configuredStoragePath))
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Storage root path is not configured. Run local setup on Machine A.");
+        }
+
+        var rootPath = StoragePathResolver.EnsureStorageRoot(configuredStoragePath);
+
+        if (!StoragePathResolver.TryResolveOptionalPathUnderRoot(rootPath, currentPath, out var fullUploadFolderPath) ||
             string.IsNullOrWhiteSpace(fullUploadFolderPath) ||
             !Directory.Exists(fullUploadFolderPath))
         {
             return BadRequest("Invalid current folder path for upload.");
         }
 
-        var originalFileName = Path.GetFileName(file.FileName);
-
-        if (string.IsNullOrWhiteSpace(originalFileName))
-        {
-            return BadRequest("Invalid file name.");
-        }
-
         var targetPath = StoragePathResolver.GetUniquePath(fullUploadFolderPath, originalFileName);
 
-        await using (var destination = System.IO.File.Create(targetPath))
+        try
         {
-            await file.CopyToAsync(destination, cancellationToken);
+            await using (var destination = new FileStream(
+                targetPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 1024 * 1024,
+                useAsync: true))
+            {
+                await Request.Body.CopyToAsync(destination, cancellationToken);
+            }
+        }
+        catch (Exception exception)
+        {
+            TryDeletePartialUpload(targetPath);
+            LogUploadFailure(originalFileName, Request.ContentLength ?? 0, exception);
+            throw;
         }
 
         var writtenFile = new FileInfo(targetPath);
@@ -694,5 +726,38 @@ public sealed class FilesController(IAppSettingsStore settingsStore, IFileEventP
     private void PublishEvent(FileChangeEventDto fileEvent)
     {
         _ = fileEventPublisher.PublishAsync(fileEvent);
+    }
+
+    private static void TryDeletePartialUpload(string targetPath)
+    {
+        try
+        {
+            if (System.IO.File.Exists(targetPath))
+            {
+                System.IO.File.Delete(targetPath);
+            }
+        }
+        catch
+        {
+            // A partial file that cannot be removed must not mask the original upload failure.
+        }
+    }
+
+    private void LogUploadFailure(string fileName, long sizeBytes, Exception exception)
+    {
+        applicationLogStore.Write(new ApplicationLogRecord(
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            ApplicationLogSeverity.Error,
+            ApplicationLogCategory.App,
+            "FilesController",
+            GetCorrelationId(),
+            User.FindFirst(JwtRegisteredClaimNames.UniqueName)?.Value,
+            User.FindFirst("device_name")?.Value,
+            $"Upload failed for '{fileName}' ({sizeBytes} bytes).",
+            exception.GetType().Name,
+            exception.Message,
+            null,
+            false));
     }
 }

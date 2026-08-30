@@ -47,7 +47,7 @@ public sealed class LocalAdminController(
     </header>
 
     <!-- <section class="card" style="margin-top:16px;">
-      <h1>My Home</h1>
+      <h1>LAN Portal</h1>
     </section> -->
 
     <section class="card" style="margin-top:16px;">

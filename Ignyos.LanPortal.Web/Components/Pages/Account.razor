@@ -10,11 +10,11 @@
 @inject ToastService Toasts
 @inject IJSRuntime JS
 
-<PageTitle>@(AuthSession.HasActiveSession ? "Account" : $"{networkName} - Account")</PageTitle>
+<PageTitle>Account</PageTitle>
 
-<section class="view-header">
-    <h1>Account</h1>
-</section>
+<header class="page-header">
+    <p class="eyebrow">Account</p>
+</header>
 
 @if (!AuthSession.IsLoaded)
 {
@@ -94,7 +94,7 @@ else
 
 @code {
     private bool isBusy;
-    private string networkName = "My Home";
+    private string networkName = "LAN Portal";
     private string userName = string.Empty;
     private string deviceName = "Desktop";
     private string returnUrl = "/files";

@@ -25,7 +25,7 @@ public sealed class FileApiClient(
         ApplyBearerToken(request);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<TreeNodeChildrenResponseDto>(cancellationToken: cancellationToken)
@@ -47,7 +47,7 @@ public sealed class FileApiClient(
         ApplyBearerToken(request);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<FileSearchResponseDto>(cancellationToken: cancellationToken)
@@ -70,7 +70,7 @@ public sealed class FileApiClient(
         AddCorrelationId(request, correlationId);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<FileNodeDto>(cancellationToken: cancellationToken)
@@ -93,7 +93,7 @@ public sealed class FileApiClient(
         AddCorrelationId(request, correlationId);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<FileNodeDto>(cancellationToken: cancellationToken)
@@ -116,7 +116,7 @@ public sealed class FileApiClient(
         AddCorrelationId(request, correlationId);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<List<FileNodeDto>>(cancellationToken: cancellationToken) ?? [];
@@ -137,7 +137,7 @@ public sealed class FileApiClient(
         AddCorrelationId(request, correlationId);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
         response.EnsureSuccessStatusCode();
     }
 
@@ -153,7 +153,7 @@ public sealed class FileApiClient(
         ApplyBearerToken(request);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
 
         response.EnsureSuccessStatusCode();
 
@@ -169,7 +169,7 @@ public sealed class FileApiClient(
         ApplyBearerToken(request);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
+        ThrowIfRequestFailed(response);
 
         response.EnsureSuccessStatusCode();
 
@@ -178,35 +178,27 @@ public sealed class FileApiClient(
         return files;
     }
 
-    public async Task<UploadResultDto> UploadAsync(
-        IBrowserFile file,
-        long maxFileSizeBytes,
-        string? currentPath = null,
-        string? correlationId = null,
-        CancellationToken cancellationToken = default)
+    public string GetApiBaseUrl()
     {
-        await using var fileStream = file.OpenReadStream(maxFileSizeBytes, cancellationToken);
+        var configuredPublicBase = configuration["Api:PublicBaseUrl"];
+        return !string.IsNullOrWhiteSpace(configuredPublicBase)
+            ? configuredPublicBase.TrimEnd('/')
+            : BuildApiBaseFromCurrentHost().TrimEnd('/');
+    }
 
+    public async Task<StorageInfoDto> GetStorageInfoAsync(CancellationToken cancellationToken = default)
+    {
         await EnsureAccessTokenAsync(cancellationToken);
 
-        using var content = new MultipartFormDataContent();
-        content.Add(new StreamContent(fileStream), "file", file.Name);
-        content.Add(new StringContent(currentPath ?? string.Empty), "currentPath");
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "api/files/upload")
-        {
-            Content = content
-        };
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/files/storage-info");
         ApplyBearerToken(request);
-        AddCorrelationId(request, correlationId);
 
         using var response = await SendWithRefreshRetryAsync(request, cancellationToken);
-        ThrowIfUnauthorized(response);
-
+        ThrowIfRequestFailed(response);
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<UploadResultDto>(cancellationToken: cancellationToken);
-        return result ?? throw new InvalidOperationException("Upload response was empty.");
+        return await response.Content.ReadFromJsonAsync<StorageInfoDto>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Storage info response was empty.");
     }
 
     public string BuildDownloadUrl(string relativePath)
@@ -328,11 +320,17 @@ public sealed class FileApiClient(
         }
     }
 
-    private static void ThrowIfUnauthorized(HttpResponseMessage response)
+    private static void ThrowIfRequestFailed(HttpResponseMessage response)
     {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
             throw new SessionRevokedException();
+        }
+
+        if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+        {
+            throw new InvalidOperationException(
+                "The host has not chosen a shared folder yet. Open File Sharing on the host and select a folder to share.");
         }
     }
 

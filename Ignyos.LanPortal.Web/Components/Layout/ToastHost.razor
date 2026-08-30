@@ -2,18 +2,37 @@
 @implements IDisposable
 @inject ToastService Toasts
 
-@foreach (var toast in visibleToasts)
+@foreach (var group in visibleToasts.GroupBy(item => item.Position))
 {
-    <div class="toast-host toast-host-@toast.Position.ToString().ToLowerInvariant()" role="status" aria-live="polite">
-        <div class="toast toast-@toast.Kind.ToString().ToLowerInvariant()">
-            @toast.Message
-        </div>
+    <div class="toast-host toast-host-@group.Key.ToString().ToLowerInvariant()" role="status" aria-live="polite">
+        @foreach (var toast in group)
+        {
+            <div class="toast toast-@toast.Kind.ToString().ToLowerInvariant()">
+                <span class="toast-message">@toast.Message</span>
+                <button type="button"
+                        class="toast-close"
+                        title="Dismiss"
+                        aria-label="Dismiss notification"
+                        @onclick="() => Dismiss(toast.Id)">&times;</button>
+            </div>
+        }
     </div>
 }
 
 @code {
     private readonly List<ToastMessage> visibleToasts = [];
     private readonly Dictionary<Guid, CancellationTokenSource> dismissals = [];
+
+    private void Dismiss(Guid toastId)
+    {
+        visibleToasts.RemoveAll(item => item.Id == toastId);
+
+        if (dismissals.Remove(toastId, out var source))
+        {
+            source.Cancel();
+            source.Dispose();
+        }
+    }
 
     protected override void OnInitialized()
     {

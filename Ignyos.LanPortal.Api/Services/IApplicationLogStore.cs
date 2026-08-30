@@ -20,7 +20,8 @@ public enum ApplicationLogCategory
     DeviceAuth,
     Security,
     Admin,
-    Maintenance
+    Maintenance,
+    Client
 }
 
 public sealed record ApplicationLogRecord(

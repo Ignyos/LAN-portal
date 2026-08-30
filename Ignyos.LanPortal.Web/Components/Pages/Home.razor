@@ -1,15 +1,14 @@
 ﻿@page "/home"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
-@inject Ignyos.LanPortal.Web.Services.PortalConfigClient PortalConfigClient
 @inject Ignyos.LanPortal.Web.Services.ToastService Toasts
 @inject IJSRuntime JS
 
-<PageTitle>@networkName - Home</PageTitle>
+<PageTitle>LAN Portal</PageTitle>
 
-<section class="view-header">
-    <h1>@networkName</h1>
-</section>
+<header class="page-header">
+    <p class="eyebrow">LAN Portal</p>
+</header>
 
 <section class="panel reveal" style="max-width: 40rem;">
     <h2>Join This Network</h2>
@@ -34,14 +33,11 @@
 </section>
 
 @code {
-	private string networkName = "My Home";
 	private string shareUrl = string.Empty;
 	private string qrCodeUrl = string.Empty;
 
 	protected override async Task OnInitializedAsync()
 	{
-		networkName = await PortalConfigClient.GetNetworkNameAsync();
-
 		shareUrl = Navigation.ToAbsoluteUri("/").ToString();
 		qrCodeUrl = BuildQrCodeUrl(shareUrl);
 	}

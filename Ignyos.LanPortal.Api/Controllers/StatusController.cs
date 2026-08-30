@@ -27,7 +27,7 @@ public sealed class StatusController : ControllerBase
     {
         return Ok(new
         {
-            networkName = "My Home"
+            networkName = "LAN Portal"
         });
     }
 }

@@ -49,6 +49,7 @@ public sealed class MainForm : Form
     private const string HostMenuDismissMessage = "HOST_CLOSE_OPEN_MENUS";
 
     private readonly WebView2 browser;
+    private static readonly object ProcessLogLock = new();
     private readonly string appVersionFull;
     private readonly string appVersionDisplay;
     private readonly bool isDevInstaller;
@@ -72,9 +73,7 @@ public sealed class MainForm : Form
         isDevInstaller = IsDeveloperVersionByFourthNode(appVersionFull);
         appVersionDisplay = GetDisplayVersionForInstaller(appVersionFull, isDevInstaller);
         isTestChannel = isDevInstaller;
-        Text = isDevInstaller
-            ? $"{AppTitlePrefix} (Dev) v{appVersionDisplay}"
-            : $"{AppTitlePrefix} v{appVersionDisplay}";
+        Text = AppTitlePrefix;
         BackColor = HostBackground;
         ForeColor = HostInk;
         Width = 1280;
@@ -86,7 +85,7 @@ public sealed class MainForm : Form
         var menuStrip = BuildMenuStrip(out checkForUpdatesMenuItem);
         MainMenuStrip = menuStrip;
 
-        var statusStrip = BuildStatusStrip(appVersionDisplay, out updateStateLabel, out updateActionLabel);
+        var statusStrip = BuildStatusStrip(appVersionDisplay, isDevInstaller, out updateStateLabel, out updateActionLabel);
         updatePollTimer = BuildUpdatePollTimer();
 
         browser = new WebView2
@@ -278,14 +277,57 @@ public sealed class MainForm : Form
             throw new FileNotFoundException($"Missing executable: {executablePath}");
         }
 
-        return Process.Start(new ProcessStartInfo
+        var process = new Process
         {
-            FileName = executablePath,
-            Arguments = string.Join(' ', arguments),
-            UseShellExecute = true,
-            WindowStyle = ProcessWindowStyle.Hidden,
-            WorkingDirectory = Path.GetDirectoryName(executablePath)!
-        });
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = executablePath,
+                Arguments = string.Join(' ', arguments),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = Path.GetDirectoryName(executablePath)!
+            },
+            EnableRaisingEvents = true
+        };
+
+        var logPath = GetProcessLogPath(processName);
+        process.OutputDataReceived += (_, e) => AppendProcessLog(logPath, "out", e.Data);
+        process.ErrorDataReceived += (_, e) => AppendProcessLog(logPath, "err", e.Data);
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        return process;
+    }
+
+    private static string GetProcessLogPath(string processName)
+    {
+        var logDirectory = Path.Combine(GetLanPortalStateRoot(), "logs");
+        Directory.CreateDirectory(logDirectory);
+        return Path.Combine(logDirectory, $"{processName}.log");
+    }
+
+    private static void AppendProcessLog(string logPath, string channel, string? line)
+    {
+        if (string.IsNullOrEmpty(line))
+        {
+            return;
+        }
+
+        try
+        {
+            lock (ProcessLogLock)
+            {
+                File.AppendAllText(logPath, $"{DateTimeOffset.Now:O} [{channel}] {line}{Environment.NewLine}");
+            }
+        }
+        catch
+        {
+            // Diagnostic logging must never take down the host.
+        }
     }
 
     private static bool WaitForExistingProcess(string processName, TimeSpan timeout)
@@ -398,7 +440,7 @@ public sealed class MainForm : Form
         return menuStrip;
     }
 
-    private static StatusStrip BuildStatusStrip(string currentVersion, out ToolStripStatusLabel stateLabel, out ToolStripStatusLabel actionLabel)
+    private static StatusStrip BuildStatusStrip(string currentVersion, bool isDevInstaller, out ToolStripStatusLabel stateLabel, out ToolStripStatusLabel actionLabel)
     {
         var statusStrip = new StatusStrip
         {
@@ -409,15 +451,11 @@ public sealed class MainForm : Form
             Renderer = new ToolStripProfessionalRenderer(new HostColorTable())
         };
 
-        var versionLabel = new ToolStripStatusLabel
-        {
-            Text = $"Version {currentVersion}",
-            ForeColor = HostMuted
-        };
-
         stateLabel = new ToolStripStatusLabel
         {
-            Text = "Checking for updates...",
+            Text = isDevInstaller
+                ? $"v{currentVersion}"
+                : $"v{currentVersion} [checking for updates]",
             Spring = true,
             TextAlign = ContentAlignment.MiddleRight,
             ForeColor = HostMuted
@@ -430,7 +468,6 @@ public sealed class MainForm : Form
             ForeColor = HostAccent
         };
 
-        statusStrip.Items.Add(versionLabel);
         statusStrip.Items.Add(stateLabel);
         statusStrip.Items.Add(actionLabel);
 
@@ -585,7 +622,9 @@ public sealed class MainForm : Form
 
         isUpdateCheckInProgress = true;
         checkForUpdatesMenuItem.Enabled = false;
-        updateStateLabel.Text = "Checking for updates...";
+        updateStateLabel.Text = isTestChannel
+            ? $"v{appVersionDisplay}"
+            : $"v{appVersionDisplay} [checking for updates]";
 
         try
         {
@@ -624,13 +663,13 @@ public sealed class MainForm : Form
 
             if (isTestChannel)
             {
-                updateStateLabel.Text = "Update check unavailable (test channel).";
-                updateStateLabel.ForeColor = Color.DarkGoldenrod;
+                updateStateLabel.Text = $"v{appVersionDisplay}";
+                updateStateLabel.ForeColor = HostMuted;
             }
             else
             {
-                updateStateLabel.Text = "";
-                updateStateLabel.ForeColor = Color.DimGray;
+                updateStateLabel.Text = $"v{appVersionDisplay} [update check unavailable]";
+                updateStateLabel.ForeColor = Color.DarkGoldenrod;
             }
 
             if (isManualCheck && isTestChannel)
@@ -656,29 +695,32 @@ public sealed class MainForm : Form
     {
         isTestChannel = updateStatus.IsTestChannel;
 
+        if (isTestChannel)
+        {
+            updateStateLabel.Text = $"v{appVersionDisplay}";
+            updateStateLabel.ForeColor = HostMuted;
+            availableUpdateUrl = null;
+            availableUpdateSha256 = null;
+            availableUpdateVersion = null;
+            updateActionLabel.Visible = false;
+            updateActionLabel.Click -= OpenAvailableUpdate;
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(updateStatus.Error))
         {
             Trace.WriteLine($"[UpdateCheck] {updateStatus.Error}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(updateStatus.Error) && updateStatus.IsTestChannel)
-        {
-            updateStateLabel.Text = "Update check unavailable (test channel).";
+            updateStateLabel.Text = $"v{appVersionDisplay} [update check unavailable]";
             updateStateLabel.ForeColor = Color.DarkGoldenrod;
-        }
-        else if (updateStatus.RequiredUpdate)
-        {
-            updateStateLabel.Text = $"Update required: {updateStatus.LatestVersion}";
-            updateStateLabel.ForeColor = Color.DarkOrange;
         }
         else if (updateStatus.UpdateAvailable)
         {
-            updateStateLabel.Text = $"New version available: {updateStatus.LatestVersion}";
+            updateStateLabel.Text = $"v{appVersionDisplay} | Update available";
             updateStateLabel.ForeColor = Color.FromArgb(20, 92, 148);
         }
         else
         {
-            updateStateLabel.Text = "Up to date";
+            updateStateLabel.Text = $"v{appVersionDisplay}";
             updateStateLabel.ForeColor = Color.DimGray;
         }
 
@@ -687,7 +729,7 @@ public sealed class MainForm : Form
             availableUpdateUrl = updateStatus.DownloadUrl;
             availableUpdateSha256 = updateStatus.ExpectedSha256;
             availableUpdateVersion = updateStatus.LatestVersion;
-            updateActionLabel.Text = updateStatus.RequiredUpdate ? "Update Required" : "New Version Available";
+            updateActionLabel.Text = "Update available";
             updateActionLabel.Visible = true;
             updateActionLabel.Click -= OpenAvailableUpdate;
             updateActionLabel.Click += OpenAvailableUpdate;
@@ -699,12 +741,6 @@ public sealed class MainForm : Form
             availableUpdateVersion = null;
             updateActionLabel.Visible = false;
             updateActionLabel.Click -= OpenAvailableUpdate;
-        }
-
-        if (isManualCheck && !updateStatus.UpdateAvailable && string.IsNullOrWhiteSpace(updateStatus.Error))
-        {
-            updateStateLabel.Text = "No newer version is currently available.";
-            updateStateLabel.ForeColor = Color.DimGray;
         }
     }
 

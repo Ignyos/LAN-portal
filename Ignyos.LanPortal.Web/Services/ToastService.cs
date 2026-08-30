@@ -56,5 +56,5 @@ public sealed class ToastService
         => Show(message, ToastKind.Warning, duration, position);
 
     public void Error(string message, TimeSpan? duration = null, ToastPosition position = ToastPosition.TopRight)
-        => Show(message, ToastKind.Error, duration, position);
+        => Show(message, ToastKind.Error, duration ?? TimeSpan.FromSeconds(12), position);
 }

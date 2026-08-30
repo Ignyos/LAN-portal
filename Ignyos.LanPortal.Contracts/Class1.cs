@@ -49,6 +49,19 @@ public sealed record UploadResultDto(
     long SizeBytes,
     DateTimeOffset LastModifiedUtc);
 
+public sealed record StorageInfoDto(
+    long AvailableFreeSpaceBytes,
+    long TotalSizeBytes);
+
+public sealed record ClientLogRequestDto(
+    string Message,
+    string? Severity,
+    string? Source,
+    string? CorrelationId,
+    string? ExceptionType,
+    string? ExceptionMessage,
+    string? DetailsJson);
+
 public sealed record FileNodeDto(
     string Path,
     string Name,

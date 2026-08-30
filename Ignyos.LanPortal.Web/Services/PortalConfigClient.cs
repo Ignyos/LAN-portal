@@ -4,7 +4,7 @@ namespace Ignyos.LanPortal.Web.Services;
 
 public sealed class PortalConfigClient(HttpClient httpClient)
 {
-    private const string DefaultNetworkName = "My Home";
+    private const string DefaultNetworkName = "LAN Portal";
     private string? cachedNetworkName;
 
     public async Task<string> GetNetworkNameAsync(CancellationToken cancellationToken = default)
