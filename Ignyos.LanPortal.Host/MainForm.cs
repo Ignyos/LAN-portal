@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -64,6 +65,7 @@ public sealed class MainForm : Form
     private string? availableUpdateVersion;
     private Process? managedApiProcess;
     private Process? managedWebProcess;
+    private Icon? transparentTitleBarIcon;
 
     private static string WebListenUrl => IsDevelopmentEnvironment() ? WebListenUrlDev : WebListenUrlProd;
 
@@ -81,6 +83,19 @@ public sealed class MainForm : Form
         MinimumSize = new Size(900, 640);
         StartPosition = FormStartPosition.CenterScreen;
         WindowState = FormWindowState.Maximized;
+
+        try
+        {
+            using var iconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Ignyos.LanPortal.Host.LAN_Portal_Logo.ico");
+            if (iconStream is not null)
+            {
+                Icon = new Icon(iconStream);
+            }
+        }
+        catch (Exception)
+        {
+            // Fall back to the WinForms default icon if the resource is missing or invalid.
+        }
 
         var menuStrip = BuildMenuStrip(out checkForUpdatesMenuItem);
         MainMenuStrip = menuStrip;
@@ -108,6 +123,47 @@ public sealed class MainForm : Form
 
         Shown += async (_, _) => await InitializeAsync();
     }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        transparentTitleBarIcon ??= CreateTransparentTitleBarIcon();
+        SendMessage(Handle, WmSetIcon, IconSmall, transparentTitleBarIcon.Handle);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            transparentTitleBarIcon?.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private static Icon CreateTransparentTitleBarIcon()
+    {
+        using var bitmap = new Bitmap(16, 16);
+        var handle = bitmap.GetHicon();
+        try
+        {
+            using var icon = Icon.FromHandle(handle);
+            return (Icon)icon.Clone();
+        }
+        finally
+        {
+            DestroyIcon(handle);
+        }
+    }
+
+    private const int WmSetIcon = 0x0080;
+    private static readonly IntPtr IconSmall = new(0);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     private void CloseOpenMenus()
     {

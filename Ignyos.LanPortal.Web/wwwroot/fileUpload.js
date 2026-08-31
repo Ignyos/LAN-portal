@@ -15,8 +15,12 @@ window.lanPortalUpload = (function () {
 
     function getSelectedFiles(inputElement) {
         if (!inputElement || !inputElement.files) {
+            console.warn('lanPortalUpload.getSelectedFiles: no input element or FileList available.');
             return [];
         }
+
+        // Left in place to help diagnose mobile browsers that behave differently for multi-file selections.
+        console.debug(`lanPortalUpload.getSelectedFiles: ${inputElement.files.length} file(s) selected.`);
 
         return Array.from(inputElement.files).map((file, index) => ({
             index,

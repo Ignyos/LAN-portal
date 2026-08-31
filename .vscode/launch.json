@@ -6,7 +6,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "dev-test-prelaunch",
-      "program": "${workspaceFolder}/Ignyos.LanPortal.Host/bin/Debug/net9.0-windows/Ignyos.LanPortal.Host.dll",
+      "program": "${workspaceFolder}/Ignyos.LanPortal.Host/bin/Debug/net9.0-windows/Ignyos.LanPortal.Host.exe",
       "args": [],
       "cwd": "${workspaceFolder}/Ignyos.LanPortal.Host",
       "stopAtEntry": false,

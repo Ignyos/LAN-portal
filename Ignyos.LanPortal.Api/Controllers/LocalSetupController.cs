@@ -671,7 +671,7 @@ loadSectionState();
     {
         var lanIp = GetLanIpv4Address();
         var host = string.IsNullOrWhiteSpace(lanIp)
-            ? $"http://{GuestLoginHostName}/"
+            ? "http://localhost/"
             : $"http://{lanIp}/";
 
         return AddDevelopmentPortIfNeeded(host);

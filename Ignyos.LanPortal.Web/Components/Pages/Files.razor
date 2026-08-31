@@ -40,7 +40,8 @@ else
                        multiple
                        @ref="fileInputElement"
                        disabled="@(!CanUpload || isBusy)"
-                       @onchange="HandleFilesSelectedAsync" />
+                       @onchange="HandleFilesSelectedAsync"
+                       @oninput="HandleFilesSelectedAsync" />
             </label>
         </div>
 
@@ -354,6 +355,7 @@ else
     private bool showTransferModal;
     private string transferStatus = string.Empty;
     private bool isCancellingUpload;
+    private bool isProcessingSelection;
     private string uploadBatchId = string.Empty;
     private ElementReference fileInputElement;
     private DotNetObjectReference<Files>? selfReference;
@@ -488,6 +490,26 @@ else
 
     private async Task HandleFilesSelectedAsync()
     {
+        // Some mobile browsers only raise one of change/input for multi-file selections;
+        // both are wired to this handler, so guard against processing the same selection twice.
+        if (isProcessingSelection)
+        {
+            return;
+        }
+
+        isProcessingSelection = true;
+        try
+        {
+            await ProcessFileSelectionAsync();
+        }
+        finally
+        {
+            isProcessingSelection = false;
+        }
+    }
+
+    private async Task ProcessFileSelectionAsync()
+    {
         ResetDragState();
 
         if (!CanUpload)
@@ -508,6 +530,13 @@ else
 
         if (selected.Length == 0)
         {
+            // The browser only raises change/input when the selection actually changed, so an
+            // empty result here (rather than no event at all) points at a real client-side bug.
+            Toasts.Warning("No files were detected from that selection. Please try again.");
+            await ClientLog.ReportErrorAsync(
+                "File picker fired but no files were returned.",
+                source: "Files.razor",
+                correlationId: CreateCorrelationId());
             return;
         }
 

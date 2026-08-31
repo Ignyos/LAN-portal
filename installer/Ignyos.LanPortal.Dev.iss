@@ -47,6 +47,7 @@ DisableReadyPage=yes
 DisableFinishedPage=yes
 OutputDir={#InstallerOutRoot}
 OutputBaseFilename={#MyAppOutputBase}{#MyAppVersion}
+SetupIconFile=..\assets\LAN_Portal_Logo.ico
 Compression=lzma
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -60,7 +61,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "{#StagingRoot}\app\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#MyAppProgramGroup}\Open Ignyos LAN Portal"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppLauncherScript}"""; WorkingDir: "{app}"
+Name: "{autoprograms}\{#MyAppProgramGroup}\Open Ignyos LAN Portal"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppLauncherScript}"""; WorkingDir: "{app}"; IconFilename: "{app}\host\Ignyos.LanPortal.Host.exe"
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppLauncherScript}"""; WorkingDir: "{app}"; Flags: nowait skipifsilent runhidden
