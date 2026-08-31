@@ -215,6 +215,19 @@ button {
     color: var(--ink);
 }
 
+.button-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.75);
+}
+
 button.primary,
 button:not(.secondary):not(.modal-close):not(.icon-btn) {
     border-color: #086868;
@@ -222,13 +235,15 @@ button:not(.secondary):not(.modal-close):not(.icon-btn) {
     background: linear-gradient(145deg, var(--accent), #0b7070);
 }
 
-button.secondary {
+button.secondary,
+.button-link.secondary {
     background: linear-gradient(145deg, #fffdf8, #f3e7d1);
     color: var(--ink);
     box-shadow: none;
 }
 
-button:hover {
+button:hover,
+.button-link:hover {
     filter: brightness(1.03);
 }
 

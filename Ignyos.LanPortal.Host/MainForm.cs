@@ -32,6 +32,7 @@ public sealed class MainForm : Form
     private const string AdvancedUrl = "http://localhost:5212/local/advanced";
     private const string AdminUrl = "http://localhost:5212/local/admin";
     private const string SettingsUrl = "http://localhost:5212/local/settings";
+    private const string AboutUrl = "http://localhost:5212/local/about";
     private const string UpdateStatusUrl = "http://localhost:5212/api/local/update/status";
     private const string UpdateCheckNowUrl = "http://localhost:5212/api/local/update/check-now";
     private const string AppTitlePrefix = "Ignyos LAN Portal";
@@ -479,6 +480,12 @@ public sealed class MainForm : Form
         };
         advancedMenuItem.Click += (_, _) => NavigateTo(AdvancedUrl);
 
+        var aboutMenuItem = new ToolStripMenuItem("About")
+        {
+            ForeColor = HostInk
+        };
+        aboutMenuItem.Click += (_, _) => NavigateTo(AboutUrl);
+
         checkUpdatesMenuItem = new ToolStripMenuItem("Check For Updates")
         {
             ForeColor = HostInk,
@@ -491,6 +498,8 @@ public sealed class MainForm : Form
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
         fileMenu.DropDownItems.Add(settingsMenuItem);
         fileMenu.DropDownItems.Add(advancedMenuItem);
+        fileMenu.DropDownItems.Add(new ToolStripSeparator());
+        fileMenu.DropDownItems.Add(aboutMenuItem);
 
         menuStrip.Items.Add(fileMenu);
         return menuStrip;

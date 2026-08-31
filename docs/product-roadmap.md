@@ -13,7 +13,9 @@ Current status:
 - Host Advanced validation is complete for the accepted scope.
 - File-transfer reliability work is complete for the accepted scope, including a known, deferred mobile multi-file selection limitation (see [Mobile-Friendly Client Implementation Checklist](mobile-friendly-client-implementation-checklist.md)).
 - Mobile-friendliness work is complete for the accepted scope.
-- The active current work is adding the LAN Portal logo across Host surfaces.
+- LAN Portal logo placement is complete for the accepted scope.
+- The Host Portal About page is complete for the accepted scope.
+- The active current work is the controller HTML and asset versioning refactor.
 
 The current client-side UI/UX implementation work is tracked in the [Client Navigation Implementation Checklist](client-navigation-implementation-checklist.md). The current mobile-friendliness work is tracked in the [Mobile-Friendly Client Implementation Checklist](mobile-friendly-client-implementation-checklist.md). The current Host-side operational work is tracked in the [Host Navigation And Advanced Settings Plan](host-navigation-and-advanced-settings-plan.md).
 
@@ -41,13 +43,13 @@ These are the immediate priorities in order:
    - verify layout, navigation, touch interaction, and readability on phone-sized viewports
    - do not change the accepted navigation, wording, or workflow decisions already recorded in the Client Navigation Implementation Checklist
 
-4. Add the LAN Portal logo across Host surfaces.
+4. [x] Add the LAN Portal logo across Host surfaces.
    - do not show an icon in the Host title bar; the artwork is too small to be useful there
    - replace default icons in the Inno Setup installer wherever it makes sense (wizard image, uninstall entry, shortcuts, etc.)
    - replace the default icon shown for the Host in the Windows taskbar
    - use the existing logo assets (`assets/LAN_Portal_Logo.png` / `.svg`) as the source, converting to `.ico` as needed
 
-5. Add an About item to the Host Portal menu.
+5. [x] Add an About item to the Host Portal menu.
    - show the LAN Portal release date
    - include a link to the Ignyos homepage
    - include a link to the release notes

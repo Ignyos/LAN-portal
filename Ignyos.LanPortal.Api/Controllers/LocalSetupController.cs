@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Text;
+using System.Text.Json;
 using Ignyos.LanPortal.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using QRCoder;
@@ -260,6 +261,99 @@ public sealed class LocalSetupController(
         windowsStartupRegistration.Apply(request.RunAtWindowsStartup);
 
         return Redirect("/local/settings?saved=1");
+    }
+
+    [HttpGet("local/about")]
+    public IActionResult AboutPage()
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        var version = WebUtility.HtmlEncode(GetDisplayVersion());
+        var releaseDate = WebUtility.HtmlEncode(GetReleaseDateDisplay());
+
+        var html = $$"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LAN Portal | About</title>
+    <link rel="stylesheet" href="/host.css?v=2" />
+</head>
+<body>
+    <div class="shell">
+        <header class="page-header">
+            <p class="eyebrow">About</p>
+        </header>
+
+        <section class="card">
+            <h2>LAN Portal</h2>
+            <p class="sub">Version {{version}}</p>
+            <p class="sub">Release date: {{releaseDate}}</p>
+
+            <div class="actions about-actions">
+                <a class="button-link secondary" href="https://lanportal.ignyos.com/" target="_blank" rel="noopener">Ignyos Homepage</a>
+                <a class="button-link secondary" href="https://lanportal.ignyos.com/releases/" target="_blank" rel="noopener">Release Notes</a>
+                <button type="button" id="checkUpdatesButton">Check for Updates</button>
+            </div>
+
+            <p id="updateStatus" class="sub" role="status">Use Check for Updates to look for a newer release.</p>
+        </section>
+    </div>
+
+<script>
+const currentVersion = {{JsonSerializer.Serialize(version)}};
+
+function formatLocalDateTime(value) {
+    if (!value) return 'unknown';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+async function checkForUpdates() {
+    const status = document.getElementById('updateStatus');
+    const button = document.getElementById('checkUpdatesButton');
+    button.disabled = true;
+    status.innerText = 'Checking for updates...';
+
+    try {
+        const response = await fetch('/api/local/update/check-now', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentVersion })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result?.message || 'Update check failed.');
+
+        if (result.error) {
+            status.innerText = `Unable to check for updates. ${result.error}`;
+            return;
+        }
+
+        if (result.updateAvailable) {
+            const published = result.checkedAtUtc ? ` Checked ${formatLocalDateTime(result.checkedAtUtc)}.` : '';
+            status.innerText = `Update available: ${result.latestVersion}.${published}`;
+            return;
+        }
+
+        status.innerText = `LAN Portal is up to date. Checked ${formatLocalDateTime(result.checkedAtUtc)}.`;
+    } catch (error) {
+        status.innerText = error.message || 'Update check failed.';
+    } finally {
+        button.disabled = false;
+    }
+}
+
+document.getElementById('checkUpdatesButton')?.addEventListener('click', checkForUpdates);
+</script>
+</body>
+</html>
+""";
+
+        return Content(html, "text/html", Encoding.UTF8);
     }
 
     [HttpGet("local/advanced")]
@@ -830,6 +924,19 @@ loadSectionState();
     public sealed record HostUiStateRequest(string PageKey, string SectionKey, bool IsExpanded);
 
     private sealed record GuestDnsStatus(bool IsConfigured, string Message);
+
+    private static string GetReleaseDateDisplay()
+    {
+        var assemblyLocation = Assembly.GetEntryAssembly()?.Location;
+        if (string.IsNullOrWhiteSpace(assemblyLocation) || !System.IO.File.Exists(assemblyLocation))
+        {
+            return "unknown";
+        }
+
+        return System.IO.File.GetLastWriteTimeUtc(assemblyLocation)
+            .ToLocalTime()
+            .ToString("yyyy-MM-dd");
+    }
 
     private static string GetDisplayVersion()
     {
