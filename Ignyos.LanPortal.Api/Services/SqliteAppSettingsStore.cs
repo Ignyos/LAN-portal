@@ -16,6 +16,7 @@ public sealed class SqliteAppSettingsStore(
     private const string ApplicationLogRetentionDaysKey = "ApplicationLogs:RetentionDays";
     private const string AccessRequestTimeoutSecondsKey = "DeviceLogin:RequestLifetimeSeconds";
     private const string AccessRequestPollIntervalSecondsKey = "DeviceLogin:PollIntervalSeconds";
+    private const string RunAtWindowsStartupKey = "Host:RunAtWindowsStartup";
 
     private readonly object _sync = new();
     private bool _initialized;
@@ -115,6 +116,7 @@ CREATE INDEX IF NOT EXISTS IX_RoleChangeAudits_ChangedAtUtc ON RoleChangeAudits(
             SeedIfMissing(connection, ApplicationLogRetentionDaysKey, "30", isSensitive: false);
             SeedIfMissing(connection, AccessRequestTimeoutSecondsKey, "300", isSensitive: false);
             SeedIfMissing(connection, AccessRequestPollIntervalSecondsKey, "3", isSensitive: false);
+            SeedIfMissing(connection, RunAtWindowsStartupKey, "true", isSensitive: false);
 
             _initialized = true;
         }
@@ -245,6 +247,19 @@ CREATE INDEX IF NOT EXISTS IX_RoleChangeAudits_ChangedAtUtc ON RoleChangeAudits(
     {
         Initialize();
         SetValue(AccessRequestPollIntervalSecondsKey, Math.Clamp(intervalSeconds, 1, 60).ToString(), isSensitive: false);
+    }
+
+    public bool GetRunAtWindowsStartup()
+    {
+        Initialize();
+        var value = GetValue(RunAtWindowsStartupKey);
+        return !bool.TryParse(value, out var enabled) || enabled;
+    }
+
+    public void SetRunAtWindowsStartup(bool enabled)
+    {
+        Initialize();
+        SetValue(RunAtWindowsStartupKey, enabled.ToString(), isSensitive: false);
     }
 
     public void RecordIssuedAccessSession(AccessSessionRecord record)

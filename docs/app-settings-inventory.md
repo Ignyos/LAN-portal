@@ -19,6 +19,7 @@ The settings inventory is intentionally separate from session data. `AccessSessi
 | `DeviceLogin:RequestLifetimeSeconds` | Access request timeout | integer | No | `300` seconds (5 minutes) | Yes | Stored in AppSettings and read at request creation time; display as minutes/seconds in the Host Settings UI. |
 | `DeviceLogin:PollIntervalSeconds` | Access request check interval | integer | No | `3` seconds | Yes | Stored in AppSettings and read when a request is created; display as seconds in the Host Settings UI. |
 | `AccessHistory:RetentionDays` | Access history retention | integer | No | `365` days (1 year) | Yes | Now seeded and read from AppSettings; valid range is 7 through 3650 days and Never is not offered. |
+| `Host:RunAtWindowsStartup` | Start with Windows | boolean | No | `true` | Yes | Controls the current-user Windows Startup Apps registration for installed LAN Portal packages. Dev/debug runs do not register a startup command. |
 
 ## Strong Candidates For Later Addition
 

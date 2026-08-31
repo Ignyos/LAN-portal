@@ -42,12 +42,18 @@ These are the immediate priorities in order:
    - do not change the accepted navigation, wording, or workflow decisions already recorded in the Client Navigation Implementation Checklist
 
 4. Add the LAN Portal logo across Host surfaces.
-   - replace the default WinForms icon with the LAN Portal logo on the Host title bar
+   - do not show an icon in the Host title bar; the artwork is too small to be useful there
    - replace default icons in the Inno Setup installer wherever it makes sense (wizard image, uninstall entry, shortcuts, etc.)
    - replace the default icon shown for the Host in the Windows taskbar
    - use the existing logo assets (`assets/LAN_Portal_Logo.png` / `.svg`) as the source, converting to `.ico` as needed
 
-5. Complete the controller HTML and asset versioning refactor for release readiness.
+5. Add an About item to the Host Portal menu.
+   - show the LAN Portal release date
+   - include a link to the Ignyos homepage
+   - include a link to the release notes
+   - include a Check for Updates button/action
+
+6. Complete the controller HTML and asset versioning refactor for release readiness.
    - extract controller-owned HTML into maintainable Razor views in the API project
    - keep request validation and dynamic data preparation in controllers and pass values through view models
    - move inline JavaScript into separate static files where practical
@@ -57,17 +63,17 @@ These are the immediate priorities in order:
    - keep Host, API, Web, and published artifacts on the same release version
    - this remains required before `v1.0.0.0` general release
 
-6. Complete the runtime settings integration work.
+7. Complete the runtime settings integration work.
    - define the typed settings model and validation pattern
    - keep direct DB access inside the settings store
    - connect the remaining settings surfaces to the typed facade
    - include an option to run LAN Portal at Windows startup, defaulting to `true`
 
-7. Revisit Apps management only after the Advanced work is complete.
+8. Revisit Apps management only after the Advanced work is complete.
    - keep the current focus on Host operations and file-sharing stability
    - do not make app management the near-term priority while Advanced remains open
 
-8. Defer mandatory update enforcement until a later product decision.
+9. Defer mandatory update enforcement until a later product decision.
    - treat newer releases as informational for now
    - do not block startup, navigation, or normal use when a newer version is available
    - do not label an available update as required in the current product experience

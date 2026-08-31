@@ -30,6 +30,10 @@ public interface IAppSettingsStore
 
     void SetAccessRequestPollIntervalSeconds(int intervalSeconds);
 
+    bool GetRunAtWindowsStartup();
+
+    void SetRunAtWindowsStartup(bool enabled);
+
     bool IsSetupComplete();
 
     void RecordIssuedAccessSession(AccessSessionRecord record);

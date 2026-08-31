@@ -15,7 +15,8 @@ public sealed class LocalSetupController(
     IAppSettingsStore settingsStore,
     IHostUiStateStore hostUiStateStore,
     IApplicationLogStore applicationLogStore,
-    ApplicationEventLogger applicationEventLogger) : ControllerBase
+    ApplicationEventLogger applicationEventLogger,
+    IWindowsStartupRegistration windowsStartupRegistration) : ControllerBase
 {
     private const string GuestLoginHostName = "lan.home.arpa";
     private const int DevelopmentGuestLoginPort = 5014;
@@ -198,7 +199,16 @@ public sealed class LocalSetupController(
             return NotFound();
         }
 
-        var html = """
+        var runAtStartup = settingsStore.GetRunAtWindowsStartup();
+        var startupState = windowsStartupRegistration.GetState();
+        var savedNotice = Request.Query.ContainsKey("saved")
+            ? "<p class=\"success\" role=\"status\">Settings saved.</p>"
+            : string.Empty;
+        var checkedAttribute = runAtStartup ? " checked" : string.Empty;
+        var disabledAttribute = startupState.IsSupported ? string.Empty : " disabled";
+        var supportMessage = WebUtility.HtmlEncode(startupState.Message);
+
+        var html = $$"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -212,12 +222,44 @@ public sealed class LocalSetupController(
         <header class="page-header">
             <p class="eyebrow">Settings</p>
         </header>
+
+        {{savedNotice}}
+
+        <section class="card">
+            <h2>Startup</h2>
+            <p class="sub">Choose whether LAN Portal starts automatically when you sign in to Windows.</p>
+            <form method="post" action="/local/settings/startup" class="field">
+                <input type="hidden" name="RunAtWindowsStartup" value="false" />
+                <label class="checkbox-row">
+                    <input type="checkbox" name="RunAtWindowsStartup" value="true"{{checkedAttribute}}{{disabledAttribute}} />
+                    <span>Start LAN Portal when I sign in to Windows</span>
+                </label>
+                <p class="sub">{{supportMessage}}</p>
+                <div class="actions">
+                    <button type="submit"{{disabledAttribute}}>Save Settings</button>
+                </div>
+            </form>
+        </section>
     </div>
 </body>
 </html>
 """;
 
         return Content(html, "text/html", Encoding.UTF8);
+    }
+
+    [HttpPost("local/settings/startup")]
+    public IActionResult SaveStartupSettings([FromForm] StartupSettingsRequest request)
+    {
+        if (!IsLocalRequest(HttpContext))
+        {
+            return NotFound();
+        }
+
+        settingsStore.SetRunAtWindowsStartup(request.RunAtWindowsStartup);
+        windowsStartupRegistration.Apply(request.RunAtWindowsStartup);
+
+        return Redirect("/local/settings?saved=1");
     }
 
     [HttpGet("local/advanced")]
@@ -778,6 +820,8 @@ loadSectionState();
     }
 
     public sealed record SaveStorageRootRequest(string StorageRootPath);
+
+    public sealed record StartupSettingsRequest(bool RunAtWindowsStartup);
 
     public sealed record PickStorageRootRequest(string? CurrentPath);
 

@@ -45,6 +45,9 @@ builder.Services.AddSingleton<IApplicationLogStore, SqliteApplicationLogStore>()
 builder.Services.AddSingleton<ApplicationEventLogger>();
 builder.Services.AddSingleton<IAccessRequestStore, SqliteAccessRequestStore>();
 builder.Services.AddHostedService<AccessHistoryMaintenanceService>();
+builder.Services.AddSingleton<WindowsStartupRegistration>();
+builder.Services.AddSingleton<IWindowsStartupRegistration>(services => services.GetRequiredService<WindowsStartupRegistration>());
+builder.Services.AddHostedService(services => services.GetRequiredService<WindowsStartupRegistration>());
 builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
 builder.Services.AddSingleton<IDeviceLoginStore, InMemoryDeviceLoginStore>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();

@@ -326,6 +326,10 @@ Acceptance gate:
 
 ## Milestone 6: Runtime Settings Integration
 
+- [x] Add a first Host Settings control for running LAN Portal when Windows starts.
+	- stored as `Host:RunAtWindowsStartup` in `AppSettings`, defaulting to `true`
+	- applies to installed packages by writing/removing the current-user Startup Apps Run entry
+	- dev/debug runs do not register a startup command when the packaged launcher is unavailable
 - [ ] Finalize the typed per-setting definition model.
 - [ ] Keep direct `AppSettings` table access inside `IAppSettingsStore`/`SqliteAppSettingsStore`.
 - [ ] Add a typed application-settings facade above the store.
