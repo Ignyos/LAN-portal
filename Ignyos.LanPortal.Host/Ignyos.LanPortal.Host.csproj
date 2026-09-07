@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.3.0.8</Version>
-    <InformationalVersion>0.3.0.8</InformationalVersion>
+    <Version>0.3.0.9</Version>
+    <InformationalVersion>0.3.0.9</InformationalVersion>
     <ApplicationIcon>..\assets\LAN_Portal_Logo.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -26,6 +26,7 @@
   </ItemGroup>
 
 </Project>
+
 
 
 
