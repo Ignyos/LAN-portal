@@ -13,6 +13,10 @@ Before answering questions about roadmap, next steps, or feature priorities, rea
 
 If the docs no longer match reality, update the documentation before answering.
 
+## Project management
+
+In-flight, itemized work lives under `PM/` (backlog, current, release-candidate-dev, release-candidate, completed). See `PM/workflow.md` for lifecycle rules and `PM/project-management.md` for the current index. `PM/` tracks itemized execution state; the docs above remain the source of truth for product direction and status.
+
 ## Current documented status
 
 - Access-request / Account polish is complete.

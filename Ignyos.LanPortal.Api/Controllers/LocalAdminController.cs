@@ -13,7 +13,8 @@ public sealed class LocalAdminController(
   IAppSettingsStore settingsStore,
   IDeviceLoginStore loginStore,
   IAccessHistoryStore accessHistoryStore,
-  ISessionLifecycleService sessionLifecycleService) : ControllerBase
+  ISessionLifecycleService sessionLifecycleService,
+  IWebHostEnvironment webHostEnvironment) : ControllerBase
 {
     private const string GuestLoginHostName = "lan.home.arpa";
   private const int DevelopmentGuestLoginPort = 5014;
@@ -31,6 +32,9 @@ public sealed class LocalAdminController(
         var guestDnsStatus = EvaluateGuestDnsStatus();
         var tokenExpiryOptionsJson = System.Text.Json.JsonSerializer.Serialize(
             Contracts.TokenExpiryOptions.All.Select(option => new { value = option.Value, label = option.Label }));
+        var hostCssUrl = AssetVersionService.GetVersionedUrl(
+            Path.Combine(webHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
+            "/host.css");
         var html = $$"""
 <!DOCTYPE html>
 <html lang="en">
@@ -38,7 +42,7 @@ public sealed class LocalAdminController(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin</title>
-  <link rel="stylesheet" href="/host.css?v=2" />
+  <link rel="stylesheet" href="{{hostCssUrl}}" />
 </head>
 <body>
   <div class="shell">

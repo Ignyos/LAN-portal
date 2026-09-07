@@ -26,7 +26,7 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = maxUploadBytes;
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews();
 builder.Services.AddOpenApi();
 builder.Services.Configure<BootstrapOptions>(builder.Configuration.GetSection(BootstrapOptions.SectionName));
 builder.Services.Configure<UpdateChannelOptions>(builder.Configuration.GetSection(UpdateChannelOptions.SectionName));
@@ -152,6 +152,9 @@ app.UseCors(BrowserDirectPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 app.MapHub<FileEventsHub>("/hubs/files");
 
 app.Run();

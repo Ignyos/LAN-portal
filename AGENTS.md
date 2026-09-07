@@ -19,6 +19,10 @@ Before answering any question about current product direction, next steps, statu
 3. If the docs are stale, update them in the same change before answering.
 4. Answer only from the updated documentation and the current code state.
 
+## Project management
+
+In-flight, itemized work lives under `PM/` (backlog, current, release-candidate-dev, release-candidate, completed). See [PM/workflow.md](PM/workflow.md) for lifecycle rules and [PM/project-management.md](PM/project-management.md) for the current index. `PM/` tracks itemized execution state; this file and the docs above remain the source of truth for product direction and status.
+
 ## Canonical status
 
 The current documented status is:

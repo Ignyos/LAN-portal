@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Ignyos.LanPortal.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using QRCoder;
 
 namespace Ignyos.LanPortal.Api.Controllers;
@@ -17,7 +18,8 @@ public sealed class LocalSetupController(
     IHostUiStateStore hostUiStateStore,
     IApplicationLogStore applicationLogStore,
     ApplicationEventLogger applicationEventLogger,
-    IWindowsStartupRegistration windowsStartupRegistration) : ControllerBase
+    IWindowsStartupRegistration windowsStartupRegistration,
+    IWebHostEnvironment webHostEnvironment) : Controller
 {
     private const string GuestLoginHostName = "lan.home.arpa";
     private const int DevelopmentGuestLoginPort = 5014;
@@ -30,166 +32,14 @@ public sealed class LocalSetupController(
             return NotFound();
         }
 
-        var setupComplete = settingsStore.IsSetupComplete();
-        var storageRootPath = settingsStore.GetStorageRootPath() ?? string.Empty;
-        var guestLoginUrl = BuildGuestLoginUrl();
-        var customGuestLoginUrl = BuildCustomGuestLoginUrl();
-        var guestDnsStatus = EvaluateGuestDnsStatus();
+        var model = new LocalSetupPageViewModel(
+            settingsStore.IsSetupComplete(),
+            settingsStore.GetStorageRootPath() ?? string.Empty,
+            BuildGuestLoginUrl(),
+            BuildCustomGuestLoginUrl(),
+            EvaluateGuestDnsStatus());
 
-        var html = $$"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LAN Portal | File Sharing</title>
-    <link rel="stylesheet" href="/host.css?v=5" />
-</head>
-<body>
-    <div class="shell">
-        <header class="page-header">
-            <p class="eyebrow">File Sharing</p>
-        </header>
-
-        <section class="card">
-            <div class="step-title">
-                <span class="step-badge">1</span>
-                <h3 class="step-label">Choose a folder or drive to share</h3>
-            </div>
-            <div class="step-body">
-                <div class="field">
-                    <div class="path-row">
-                        <input id="storageRootPath" value="{{storageRootPath}}" placeholder="D:/Ignyos/LanPortal" aria-label="Shared folder" readonly />
-                        <button type="button" class="secondary" id="changeStorageRootButton">Browse</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="card">
-                <div class="step-title">
-                    <span class="step-badge">2</span>
-                    <h3 class="step-label">Share the link or QR Code</h3>
-                </div>
-                <div class="step-body">
-                    <div class="guest-url">{{guestLoginUrl}}</div>
-                    <div class="guest-qr">
-                        <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
-                    </div>
-                </div>
-        </section>
-
-        <section class="card">
-                <div class="step-title">
-                    <span class="step-badge">3</span>
-                    <h3 class="step-label">Securely control access</h3>
-                </div>
-                <div class="step-body">
-                    <div class="actions">
-                        <button type="button" id="openAdminButton" onclick="openAdminConsole()">Open admin console</button>
-                    </div>
-                </div>
-        </section>
-
-        <div class="status" id="status"></div>
-    </div>
-
-    <script>
-        async function persistStorageRoot(storageRootPath) {
-            return fetch('/api/local/setup/storage-root', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storageRootPath })
-            });
-        }
-
-        async function changeStorageRoot() {
-            const input = document.getElementById('storageRootPath');
-            const status = document.getElementById('status');
-            const currentPath = (input.value || '').trim();
-
-            status.className = 'status';
-            status.textContent = 'Opening folder picker...';
-
-            try {
-                const response = await fetch('/api/local/setup/pick-storage-root', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ currentPath })
-                });
-
-                if (response.status === 204) {
-                    status.className = 'status error';
-                    status.textContent = 'No folder was selected.';
-                    return;
-                }
-
-                if (!response.ok) {
-                    status.className = 'status error';
-                    status.textContent = 'Could not open the folder picker.';
-                    return;
-                }
-
-                const data = await response.json();
-                const selectedPath = (data?.storageRootPath || '').trim();
-                if (!selectedPath) {
-                    status.className = 'status error';
-                    status.textContent = 'No folder was selected.';
-                    return;
-                }
-
-                const saveResponse = await persistStorageRoot(selectedPath);
-                if (!saveResponse.ok) {
-                    status.className = 'status error';
-                    status.textContent = 'Could not save the selected folder.';
-                    return;
-                }
-
-                input.value = selectedPath;
-                status.className = 'status ok';
-                status.textContent = 'Shared folder updated.';
-            } catch {
-                status.className = 'status error';
-                status.textContent = 'Could not update the shared folder.';
-            }
-        }
-
-        async function openAdminConsole() {
-            const input = document.getElementById('storageRootPath');
-            const status = document.getElementById('status');
-            const storageRootPath = (input.value || '').trim();
-
-            if (!storageRootPath) {
-                status.className = 'status error';
-                status.textContent = 'Please choose a shared folder first.';
-                return;
-            }
-
-            status.className = 'status';
-            status.textContent = 'Saving...';
-
-            try {
-                const response = await persistStorageRoot(storageRootPath);
-                if (!response.ok) {
-                    status.className = 'status error';
-                    status.textContent = 'Could not save the shared folder. Please try again.';
-                    return;
-                }
-
-                window.location.href = '/local/admin';
-            } catch {
-                status.className = 'status error';
-                status.textContent = 'Could not save the shared folder. Please try again.';
-            }
-        }
-
-        document.getElementById('changeStorageRootButton').addEventListener('click', changeStorageRoot);
-    </script>
-</body>
-</html>
-""";
-
-        return Content(html, "text/html", Encoding.UTF8);
+        return View(model);
     }
 
     [HttpGet("local/settings")]
@@ -208,6 +58,9 @@ public sealed class LocalSetupController(
         var checkedAttribute = runAtStartup ? " checked" : string.Empty;
         var disabledAttribute = startupState.IsSupported ? string.Empty : " disabled";
         var supportMessage = WebUtility.HtmlEncode(startupState.Message);
+        var hostCssUrl = AssetVersionService.GetVersionedUrl(
+            Path.Combine(webHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
+            "/host.css");
 
         var html = $$"""
 <!DOCTYPE html>
@@ -216,7 +69,7 @@ public sealed class LocalSetupController(
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LAN Portal | Settings</title>
-    <link rel="stylesheet" href="/host.css?v=2" />
+    <link rel="stylesheet" href="{{hostCssUrl}}" />
 </head>
 <body>
     <div class="shell">
@@ -273,6 +126,9 @@ public sealed class LocalSetupController(
 
         var version = WebUtility.HtmlEncode(GetDisplayVersion());
         var releaseDate = WebUtility.HtmlEncode(GetReleaseDateDisplay());
+        var hostCssUrl = AssetVersionService.GetVersionedUrl(
+            Path.Combine(webHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
+            "/host.css");
 
         var html = $$"""
 <!DOCTYPE html>
@@ -281,7 +137,7 @@ public sealed class LocalSetupController(
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LAN Portal | About</title>
-    <link rel="stylesheet" href="/host.css?v=2" />
+    <link rel="stylesheet" href="{{hostCssUrl}}" />
 </head>
 <body>
     <div class="shell">
@@ -367,6 +223,9 @@ document.getElementById('checkUpdatesButton')?.addEventListener('click', checkFo
                 var guestLoginUrl = BuildGuestLoginUrl();
                 var customGuestLoginUrl = BuildCustomGuestLoginUrl();
                 var guestDnsStatus = EvaluateGuestDnsStatus();
+                var hostCssUrl = AssetVersionService.GetVersionedUrl(
+                    Path.Combine(webHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
+                    "/host.css");
 
                 var html = $$"""
 <!DOCTYPE html>
@@ -375,7 +234,7 @@ document.getElementById('checkUpdatesButton')?.addEventListener('click', checkFo
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LAN Portal | Advanced</title>
-    <link rel="stylesheet" href="/host.css?v=2" />
+    <link rel="stylesheet" href="{{hostCssUrl}}" />
 </head>
 <body>
   <div class="shell">
@@ -923,8 +782,6 @@ loadSectionState();
 
     public sealed record HostUiStateRequest(string PageKey, string SectionKey, bool IsExpanded);
 
-    private sealed record GuestDnsStatus(bool IsConfigured, string Message);
-
     private static string GetReleaseDateDisplay()
     {
         var assemblyLocation = Assembly.GetEntryAssembly()?.Location;
@@ -1037,3 +894,12 @@ loadSectionState();
         }
     }
 }
+
+public sealed record LocalSetupPageViewModel(
+    bool SetupComplete,
+    string StorageRootPath,
+    string GuestLoginUrl,
+    string CustomGuestLoginUrl,
+    GuestDnsStatus GuestDnsStatus);
+
+public sealed record GuestDnsStatus(bool IsConfigured, string Message);

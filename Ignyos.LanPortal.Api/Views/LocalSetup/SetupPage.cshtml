@@ -1,0 +1,65 @@
+@model Ignyos.LanPortal.Api.Controllers.LocalSetupPageViewModel
+@using Ignyos.LanPortal.Api.Services
+@{
+    var hostCssUrl = AssetVersionService.GetVersionedUrl(System.IO.Path.Combine(ViewContext.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().WebRootPath ?? string.Empty, "host.css"), "/host.css");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LAN Portal | File Sharing</title>
+    <link rel="stylesheet" href="@hostCssUrl" />
+</head>
+<body>
+    <div class="shell">
+        <header class="page-header">
+            <p class="eyebrow">File Sharing</p>
+        </header>
+
+        <section class="card">
+            <div class="step-title">
+                <span class="step-badge">1</span>
+                <h3 class="step-label">Choose a folder or drive to share</h3>
+            </div>
+            <div class="step-body">
+                <div class="field">
+                    <div class="path-row">
+                        <input id="storageRootPath" value="@Model.StorageRootPath" placeholder="D:/Ignyos/LanPortal" aria-label="Shared folder" readonly />
+                        <button type="button" class="secondary" id="changeStorageRootButton">Browse</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="step-title">
+                <span class="step-badge">2</span>
+                <h3 class="step-label">Share the link or QR Code</h3>
+            </div>
+            <div class="step-body">
+                <div class="guest-url">@Model.GuestLoginUrl</div>
+                <div class="guest-qr">
+                    <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="step-title">
+                <span class="step-badge">3</span>
+                <h3 class="step-label">Securely control access</h3>
+            </div>
+            <div class="step-body">
+                <div class="actions">
+                    <button type="button" id="openAdminButton">Open admin console</button>
+                </div>
+            </div>
+        </section>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script src="/js/local-setup.js" defer></script>
+</body>
+</html>
