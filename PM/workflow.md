@@ -66,3 +66,9 @@ actually performed — it is never sized to reduce how often the developer is as
 ## Dev deploys never touch PM state outside the checkpoint above
 
 No other PM folder transition happens on a dev deploy.
+
+## Optional: branch discipline
+
+`branching.md` is an opt-in companion to this file covering how PM housekeeping changes and code
+changes should be split across `dev` and per-item working branches. It only applies if the project
+opted in during bootstrap and `PM/branching.md` exists.
