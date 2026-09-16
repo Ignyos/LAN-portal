@@ -341,9 +341,5 @@ foreach ($installerArtifact in $installerArtifacts) {
     Write-Host "Created installer checksum: $($installerArtifact.FullName).sha256"
 }
 
-if (Test-Path $packageOut) {
-    Get-ChildItem -Path $packageOut -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
-}
-
 Write-Host "Done. Artifacts root: $artifactsRoot"
 exit 0

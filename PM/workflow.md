@@ -8,7 +8,7 @@ Generated: 2026-09-07T00:00:00Z
 
 # PM Workflow Rules
 
-`project-management.md` is a pure index. This file owns the rules. See [AGENTS.md](../AGENTS.md) for current
+`project-management.md` is a pure index. This file owns the rules. See `AGENTS.md` for current
 direction and priorities — this file only defines process.
 
 ## Lifecycle
@@ -40,6 +40,30 @@ actually performed — it is never sized to reduce how often the developer is as
 - Request first, write second. Marking an item complete in the same turn as asking defeats the gate.
 - Only items the slice actually touched appear in the list. Unrelated in-flight items are not
   bundled in to ride along on the same approval.
+
+## Verification scope discipline
+
+An item's existing acceptance criteria define what "done" means. Verifying that criteria stays
+inside it; verification is not a side door for growing the item.
+
+- Before adding a new check, script, or build step to verify an item, state what it is checking
+  and what result would satisfy it. If that can't be stated up front, it isn't ready to run.
+- A verification path must have a stated completion condition and a bounded number of attempts. If
+  meeting that condition requires new tooling, source changes, or repeated retries, stop — that is
+  new scope, not verification.
+- A failed verification result is evidence about the item's *existing* acceptance criteria. It is
+  not, by itself, license to invent new acceptance criteria, new tooling, or new build/test steps.
+- Sort every verification finding into one of three named buckets, and only act on the first two:
+  1. **Implementation incorrect** — fix it.
+  2. **Implementation correct but unverified** — verify it, within the bounded attempts above.
+  3. **Additional confidence would be nice to have** — out of scope; surface it as a suggestion,
+     don't build it.
+- A cancelled command, a second failed attempt at the same check, or the developer naming a loop
+  or repetition is a stop signal. Stop, summarize what is confirmed vs. still open, and wait — do
+  not rerun or re-expand the same verification path without the developer explicitly asking to
+  continue.
+- If a self-added check needs its own rounds of fixes before it can even run cleanly, that check is
+  new scope, not verification. Pause and ask whether it belongs in this item before continuing.
 
 ## Checkpoints
 

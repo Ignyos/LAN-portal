@@ -1,3 +1,8 @@
+param(
+    [string]$ArtifactRoot,
+    [string]$ExpectedVersion
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -33,6 +38,78 @@ function Test-FileContentContains {
     return ($content -match [regex]::Escape($Pattern))
 }
 
+function Get-ProjectVersion {
+    param([string]$ProjectPath)
+
+    if (-not (Test-Path -LiteralPath $ProjectPath)) {
+        throw "Version source project was not found: $ProjectPath"
+    }
+
+    $content = Get-Content -LiteralPath $ProjectPath -Raw
+    if ($content -notmatch '<Version>\s*(?<version>[^<\s]+)\s*</Version>') {
+        throw "Version source was not found in: $ProjectPath"
+    }
+
+    return $Matches.version.Trim()
+}
+
+function Add-ArtifactVersionChecks {
+    param(
+        [string]$RootPath,
+        [string]$Version
+    )
+
+    $expectedVersion = if ([string]::IsNullOrWhiteSpace($Version)) {
+        Get-ProjectVersion -ProjectPath (Join-Path $scriptRoot "..\Ignyos.LanPortal.Host\Ignyos.LanPortal.Host.csproj")
+    }
+    else {
+        $Version.Trim()
+    }
+    $stagingRoot = Join-Path $RootPath "staging\app"
+    $publishTargets = @(
+        @{ Name = "API"; Path = (Join-Path $stagingRoot "api") },
+        @{ Name = "Web"; Path = (Join-Path $stagingRoot "web") },
+        @{ Name = "Host"; Path = (Join-Path $stagingRoot "host") }
+    )
+
+    foreach ($target in $publishTargets) {
+        $artifact = Get-ChildItem -LiteralPath $target.Path -Filter "*.exe" -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+        if ($null -eq $artifact) {
+            Add-Check -Name "artifact $($target.Name) exists" -Passed $false -Details $target.Path
+            continue
+        }
+
+        $actualVersion = $artifact.VersionInfo.FileVersion
+        Add-Check -Name "artifact $($target.Name) version" `
+            -Passed ($actualVersion -eq $expectedVersion) `
+            -Details "$($artifact.Name): expected $expectedVersion, found $actualVersion"
+    }
+
+    $packageDirectory = Join-Path $RootPath "package"
+    $package = Get-ChildItem -LiteralPath $packageDirectory -Filter "Ignyos-LanPortal-QA-*.zip" -File -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    $expectedPackageName = "Ignyos-LanPortal-QA-$expectedVersion.zip"
+    Add-Check -Name "QA package version" `
+        -Passed ($null -ne $package -and $package.Name -eq $expectedPackageName) `
+        -Details "expected $expectedPackageName"
+
+    $installerDirectory = Join-Path $RootPath "installer"
+    $installer = Get-ChildItem -LiteralPath $installerDirectory -Filter "Ignyos-LanPortal-Dev-*.exe" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.BaseName -eq "Ignyos-LanPortal-Dev-$expectedVersion" } |
+        Select-Object -First 1
+    if ($null -eq $installer) {
+        Add-Check -Name "installer version" -Passed $true -Details "No installer artifact found; package-only builds are supported"
+    }
+    else {
+        $installerVersion = $installer.VersionInfo.ProductVersion
+        Add-Check -Name "installer version" `
+            -Passed ($installerVersion -eq $expectedVersion) `
+            -Details "$($installer.Name): expected $expectedVersion, found $installerVersion"
+    }
+}
+
 $publishLivePath = Join-Path $scriptRoot "publish-live.ps1"
 $publishDevPath = Join-Path $scriptRoot "publish-dev.ps1"
 $publishReleasePath = Join-Path $scriptRoot "publish-release.ps1"
@@ -66,6 +143,10 @@ $commonFunctions = @(
 
 foreach ($functionName in $commonFunctions) {
     Add-Check -Name "release-common function $functionName" -Passed (Test-FileContentContains -Path $releaseCommonPath -Pattern "function $functionName") -Details $functionName
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ArtifactRoot)) {
+    Add-ArtifactVersionChecks -RootPath ([System.IO.Path]::GetFullPath($ArtifactRoot)) -Version $ExpectedVersion
 }
 
 $failed = @($checks | Where-Object { -not $_.Passed })
