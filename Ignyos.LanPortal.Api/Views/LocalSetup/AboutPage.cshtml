@@ -1,0 +1,42 @@
+@model Ignyos.LanPortal.Api.Controllers.LocalAboutPageViewModel
+@using Ignyos.LanPortal.Api.Services
+@inject IWebHostEnvironment WebHostEnvironment
+@{
+    var hostCssUrl = AssetVersionService.GetVersionedUrl(
+        System.IO.Path.Combine(WebHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
+        "/host.css");
+    var aboutJsUrl = AssetVersionService.GetVersionedUrl(
+        System.IO.Path.Combine(WebHostEnvironment.WebRootPath ?? string.Empty, "js", "local-about.js"),
+        "/js/local-about.js");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LAN Portal | About</title>
+    <link rel="stylesheet" href="@hostCssUrl" />
+</head>
+<body data-current-version="@Model.Version">
+    <div class="shell">
+        <header class="page-header">
+            <p class="eyebrow">About</p>
+        </header>
+
+        <section class="card">
+            <h2>LAN Portal</h2>
+            <p class="sub">Version @Model.Version</p>
+            <p class="sub">Release date: @Model.ReleaseDate</p>
+
+            <div class="actions about-actions">
+                <a class="button-link secondary" href="https://lanportal.ignyos.com/" target="_blank" rel="noopener">Ignyos Homepage</a>
+                <a class="button-link secondary" href="https://lanportal.ignyos.com/releases/" target="_blank" rel="noopener">Release Notes</a>
+                <button type="button" id="checkUpdatesButton">Check for Updates</button>
+            </div>
+
+            <p id="updateStatus" class="sub" role="status">Use Check for Updates to look for a newer release.</p>
+        </section>
+    </div>
+    <script src="@aboutJsUrl" defer></script>
+</body>
+</html>

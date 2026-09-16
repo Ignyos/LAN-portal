@@ -2,6 +2,7 @@
 @using Ignyos.LanPortal.Api.Services
 @{
     var hostCssUrl = AssetVersionService.GetVersionedUrl(System.IO.Path.Combine(ViewContext.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().WebRootPath ?? string.Empty, "host.css"), "/host.css");
+    var setupJsUrl = AssetVersionService.GetVersionedUrl(System.IO.Path.Combine(ViewContext.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().WebRootPath ?? string.Empty, "js", "local-setup.js"), "/js/local-setup.js");
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -60,6 +61,6 @@
         <div class="status" id="status"></div>
     </div>
 
-    <script src="/js/local-setup.js" defer></script>
+    <script src="@setupJsUrl" defer></script>
 </body>
 </html>

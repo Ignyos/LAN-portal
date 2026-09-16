@@ -18,8 +18,7 @@ public sealed class LocalSetupController(
     IHostUiStateStore hostUiStateStore,
     IApplicationLogStore applicationLogStore,
     ApplicationEventLogger applicationEventLogger,
-    IWindowsStartupRegistration windowsStartupRegistration,
-    IWebHostEnvironment webHostEnvironment) : Controller
+    IWindowsStartupRegistration windowsStartupRegistration) : Controller
 {
     private const string GuestLoginHostName = "lan.home.arpa";
     private const int DevelopmentGuestLoginPort = 5014;
@@ -50,56 +49,12 @@ public sealed class LocalSetupController(
             return NotFound();
         }
 
-        var runAtStartup = settingsStore.GetRunAtWindowsStartup();
         var startupState = windowsStartupRegistration.GetState();
-        var savedNotice = Request.Query.ContainsKey("saved")
-            ? "<p class=\"success\" role=\"status\">Settings saved.</p>"
-            : string.Empty;
-        var checkedAttribute = runAtStartup ? " checked" : string.Empty;
-        var disabledAttribute = startupState.IsSupported ? string.Empty : " disabled";
-        var supportMessage = WebUtility.HtmlEncode(startupState.Message);
-        var hostCssUrl = AssetVersionService.GetVersionedUrl(
-            Path.Combine(webHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
-            "/host.css");
-
-        var html = $$"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LAN Portal | Settings</title>
-    <link rel="stylesheet" href="{{hostCssUrl}}" />
-</head>
-<body>
-    <div class="shell">
-        <header class="page-header">
-            <p class="eyebrow">Settings</p>
-        </header>
-
-        {{savedNotice}}
-
-        <section class="card">
-            <h2>Startup</h2>
-            <p class="sub">Choose whether LAN Portal starts automatically when you sign in to Windows.</p>
-            <form method="post" action="/local/settings/startup" class="field">
-                <input type="hidden" name="RunAtWindowsStartup" value="false" />
-                <label class="checkbox-row">
-                    <input type="checkbox" name="RunAtWindowsStartup" value="true"{{checkedAttribute}}{{disabledAttribute}} />
-                    <span>Start LAN Portal when I sign in to Windows</span>
-                </label>
-                <p class="sub">{{supportMessage}}</p>
-                <div class="actions">
-                    <button type="submit"{{disabledAttribute}}>Save Settings</button>
-                </div>
-            </form>
-        </section>
-    </div>
-</body>
-</html>
-""";
-
-        return Content(html, "text/html", Encoding.UTF8);
+        return View(new LocalSettingsPageViewModel(
+            settingsStore.GetRunAtWindowsStartup(),
+            startupState.IsSupported,
+            startupState.Message,
+            Request.Query.ContainsKey("saved")));
     }
 
     [HttpPost("local/settings/startup")]
@@ -124,92 +79,9 @@ public sealed class LocalSetupController(
             return NotFound();
         }
 
-        var version = WebUtility.HtmlEncode(GetDisplayVersion());
-        var releaseDate = WebUtility.HtmlEncode(GetReleaseDateDisplay());
-        var hostCssUrl = AssetVersionService.GetVersionedUrl(
-            Path.Combine(webHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
-            "/host.css");
-
-        var html = $$"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LAN Portal | About</title>
-    <link rel="stylesheet" href="{{hostCssUrl}}" />
-</head>
-<body>
-    <div class="shell">
-        <header class="page-header">
-            <p class="eyebrow">About</p>
-        </header>
-
-        <section class="card">
-            <h2>LAN Portal</h2>
-            <p class="sub">Version {{version}}</p>
-            <p class="sub">Release date: {{releaseDate}}</p>
-
-            <div class="actions about-actions">
-                <a class="button-link secondary" href="https://lanportal.ignyos.com/" target="_blank" rel="noopener">Ignyos Homepage</a>
-                <a class="button-link secondary" href="https://lanportal.ignyos.com/releases/" target="_blank" rel="noopener">Release Notes</a>
-                <button type="button" id="checkUpdatesButton">Check for Updates</button>
-            </div>
-
-            <p id="updateStatus" class="sub" role="status">Use Check for Updates to look for a newer release.</p>
-        </section>
-    </div>
-
-<script>
-const currentVersion = {{JsonSerializer.Serialize(version)}};
-
-function formatLocalDateTime(value) {
-    if (!value) return 'unknown';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-}
-
-async function checkForUpdates() {
-    const status = document.getElementById('updateStatus');
-    const button = document.getElementById('checkUpdatesButton');
-    button.disabled = true;
-    status.innerText = 'Checking for updates...';
-
-    try {
-        const response = await fetch('/api/local/update/check-now', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ currentVersion })
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result?.message || 'Update check failed.');
-
-        if (result.error) {
-            status.innerText = `Unable to check for updates. ${result.error}`;
-            return;
-        }
-
-        if (result.updateAvailable) {
-            const published = result.checkedAtUtc ? ` Checked ${formatLocalDateTime(result.checkedAtUtc)}.` : '';
-            status.innerText = `Update available: ${result.latestVersion}.${published}`;
-            return;
-        }
-
-        status.innerText = `LAN Portal is up to date. Checked ${formatLocalDateTime(result.checkedAtUtc)}.`;
-    } catch (error) {
-        status.innerText = error.message || 'Update check failed.';
-    } finally {
-        button.disabled = false;
-    }
-}
-
-document.getElementById('checkUpdatesButton')?.addEventListener('click', checkForUpdates);
-</script>
-</body>
-</html>
-""";
-
-        return Content(html, "text/html", Encoding.UTF8);
+        return View(new LocalAboutPageViewModel(
+            GetDisplayVersion(),
+            GetReleaseDateDisplay()));
     }
 
     [HttpGet("local/advanced")]
@@ -220,285 +92,10 @@ document.getElementById('checkUpdatesButton')?.addEventListener('click', checkFo
             return NotFound();
         }
 
-                var guestLoginUrl = BuildGuestLoginUrl();
-                var customGuestLoginUrl = BuildCustomGuestLoginUrl();
-                var guestDnsStatus = EvaluateGuestDnsStatus();
-                var hostCssUrl = AssetVersionService.GetVersionedUrl(
-                    Path.Combine(webHostEnvironment.WebRootPath ?? string.Empty, "host.css"),
-                    "/host.css");
-
-                var html = $$"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LAN Portal | Advanced</title>
-    <link rel="stylesheet" href="{{hostCssUrl}}" />
-</head>
-<body>
-  <div class="shell">
-        <header class="page-header">
-            <p class="eyebrow">Advanced</p>
-        </header>
-
-        <main class="advanced-sections">
-            <section class="advanced-section" data-section="customize-url">
-                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="customize-url-content">
-                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
-                    <span>Customize URL</span>
-                </button>
-                <div id="customize-url-content" class="advanced-section-content" hidden>
-                    <p class="sub">Use these options only if you want to replace the default local URL with a custom LAN-friendly name.</p>
-                    <div class="section">
-                        <div class="label">Recommended guest URL</div>
-                        <div class="url">{{guestLoginUrl}}</div>
-                        <div class="qr">
-                            <img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" />
-                        </div>
-                    </div>
-                    <div class="section">
-                        <div class="label">Optional custom URL</div>
-                        <div class="url">{{customGuestLoginUrl}}</div>
-                        <div class="status {{(guestDnsStatus.IsConfigured ? "ok" : "warn")}}">{{guestDnsStatus.Message}}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">How to customize it</div>
-                        <ol class="steps">
-                            <li>Create a DHCP reservation so this host keeps the same LAN IP.</li>
-                            <li>In your router DNS settings, add an A record: lan.home.arpa → this host LAN IP.</li>
-                            <li>Reconnect guest devices to Wi‑Fi or toggle Wi‑Fi so they pick up updated DNS.</li>
-                            <li>Share <span class="url">{{customGuestLoginUrl}}</span> instead of the default URL.</li>
-                        </ol>
-                    </div>
-                </div>
-            </section>
-
-            <section class="advanced-section" data-section="access-history">
-                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="access-history-content">
-                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
-                    <span>Access History</span>
-                </button>
-                <div id="access-history-content" class="advanced-section-content" hidden>
-                    <div id="recentContainer" class="muted">Loading...</div>
-                </div>
-            </section>
-
-            <section class="advanced-section" data-section="logs">
-                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="logs-content">
-                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
-                    <span>Logs</span>
-                </button>
-                <div id="logs-content" class="advanced-section-content" hidden>
-                    <div class="log-toolbar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
-                        <label>
-                            Severity
-                            <select id="logsSeverityFilter">
-                                <option value="">All</option>
-                                <option value="Information">Information</option>
-                                <option value="Warning">Warning</option>
-                                <option value="Error">Error</option>
-                                <option value="Critical">Critical</option>
-                            </select>
-                        </label>
-                        <label>
-                            Category
-                            <select id="logsCategoryFilter">
-                                <option value="">All</option>
-                                <option value="Host">Host</option>
-                                <option value="DeviceAuth">DeviceAuth</option>
-                                <option value="Security">Security</option>
-                                <option value="Admin">Admin</option>
-                                <option value="Maintenance">Maintenance</option>
-                                <option value="App">App</option>
-                                <option value="Client">Client</option>
-                            </select>
-                        </label>
-                        <button id="logsRefreshButton" type="button">Refresh</button>
-                    </div>
-                    <div id="logsContainer" class="muted">Loading...</div>
-                </div>
-            </section>
-
-            <section class="advanced-section" data-section="security">
-                <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="security-content">
-                    <span class="advanced-section-marker" aria-hidden="true">&gt;</span>
-                    <span>Security</span>
-                </button>
-                <div id="security-content" class="advanced-section-content" hidden>
-                    <p class="sub">Rotating the JWT signing key immediately signs out every currently logged-in user. Use this after a suspected credential compromise or when you need to invalidate all existing access tokens.</p>
-                    <p class="sub">Users will need to request access again after rotation. This does not change the portal address or user permissions.</p>
-                    <button id="rotateSigningKeyButton" type="button">Rotate JWT signing key</button>
-                    <div id="securityStatus" class="muted" role="status" aria-live="polite"></div>
-                </div>
-            </section>
-        </main>
-  </div>
-<script>
-const pageKey = 'advanced';
-
-async function loadSectionState() {
-    try {
-        const response = await fetch(`/api/local/ui-state?page=${encodeURIComponent(pageKey)}`);
-        if (!response.ok) return;
-        const state = await response.json();
-        for (const section of document.querySelectorAll('[data-section]')) {
-            const key = section.dataset.section;
-            if (state[key] === true) setSectionExpanded(section, true, false);
-        }
-    } catch {
-    }
-}
-
-async function saveSectionState(section, isExpanded) {
-    try {
-        await fetch('/api/local/ui-state', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pageKey, sectionKey: section.dataset.section, isExpanded })
-        });
-    } catch {
-    }
-}
-
-function setSectionExpanded(section, isExpanded, persist) {
-    const header = section.querySelector('.advanced-section-header');
-    const content = section.querySelector('.advanced-section-content');
-    header.setAttribute('aria-expanded', String(isExpanded));
-    content.hidden = !isExpanded;
-    section.classList.toggle('expanded', isExpanded);
-    if (persist) saveSectionState(section, isExpanded);
-    if (section.dataset.section === 'access-history' && isExpanded) loadRecent();
-    if (section.dataset.section === 'logs' && isExpanded) loadLogs();
-}
-
-for (const section of document.querySelectorAll('[data-section]')) {
-    section.querySelector('.advanced-section-header').addEventListener('click', () => {
-        const isExpanded = section.querySelector('.advanced-section-header').getAttribute('aria-expanded') === 'true';
-        setSectionExpanded(section, !isExpanded, true);
-    });
-}
-
-const logsSeverityFilter = document.getElementById('logsSeverityFilter');
-const logsCategoryFilter = document.getElementById('logsCategoryFilter');
-const logsRefreshButton = document.getElementById('logsRefreshButton');
-if (logsSeverityFilter) {
-    logsSeverityFilter.addEventListener('change', () => loadLogs());
-}
-if (logsCategoryFilter) {
-    logsCategoryFilter.addEventListener('change', () => loadLogs());
-}
-if (logsRefreshButton) {
-    logsRefreshButton.addEventListener('click', () => loadLogs());
-}
-
-async function loadRecent() {
-    const container = document.getElementById('recentContainer');
-    if (container.dataset.loaded === 'true') return;
-    try {
-            const response = await fetch('/api/local/access-history');
-        if (!response.ok) throw new Error('Request failed');
-        const rows = await response.json();
-        if (!rows.length) {
-            container.innerText = 'No recent decisions.';
-            container.dataset.loaded = 'true';
-            return;
-        }
-        let html = '<table><thead><tr><th>Time</th><th>User</th><th>Device</th><th>Action</th><th>Reason</th></tr></thead><tbody>';
-        for (const item of rows) {
-            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${escapeHtml(item.userName ?? '(n/a)')}</td><td>${escapeHtml(item.deviceName)}</td><td>${escapeHtml(item.eventType)}</td><td>${escapeHtml(item.reason ?? '(n/a)')}</td></tr>`;
-        }
-        container.innerHTML = html + '</tbody></table>';
-        container.dataset.loaded = 'true';
-    } catch {
-        container.innerText = 'Access history is unavailable.';
-    }
-}
-
-async function loadLogs() {
-    const container = document.getElementById('logsContainer');
-    const severity = document.getElementById('logsSeverityFilter')?.value ?? '';
-    const category = document.getElementById('logsCategoryFilter')?.value ?? '';
-    const params = new URLSearchParams({ maxCount: '50' });
-    if (severity) params.set('severity', severity);
-    if (category) params.set('category', category);
-
-    try {
-        const response = await fetch(`/api/local/logs?${params.toString()}`);
-        if (!response.ok) throw new Error('Request failed');
-        const rows = await response.json();
-        if (!rows.length) {
-            container.innerText = 'No application logs yet.';
-            container.dataset.loaded = 'true';
-            return;
-        }
-        let html = '<table><thead><tr><th>Time</th><th>Severity</th><th>Category</th><th>Source</th><th>Message</th><th>Details</th></tr></thead><tbody>';
-        for (const item of rows) {
-            const message = escapeHtml(item.message ?? '(no message)');
-            const source = escapeHtml(item.source ?? 'unknown');
-            const details = escapeHtml(formatLogDetails(item));
-            html += `<tr><td>${formatLocalDateTime(item.occurredAtUtc)}</td><td>${escapeHtml(item.severity)}</td><td>${escapeHtml(item.category)}</td><td>${source}</td><td>${message}</td><td>${details}</td></tr>`;
-        }
-        container.innerHTML = html + '</tbody></table>';
-        container.dataset.loaded = 'true';
-    } catch {
-        container.innerText = 'Application logs are unavailable.';
-    }
-}
-
-function formatLocalDateTime(value) {
-    if (!value) return 'Never';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-// Log and history rows can contain client-supplied text, so never inject them as markup.
-function escapeHtml(value) {
-    if (value === null || value === undefined) return '';
-    return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-}
-
-function formatLogDetails(item) {
-    const parts = [];
-    if (item.exceptionType) parts.push(item.exceptionType);
-    if (item.exceptionMessage) parts.push(item.exceptionMessage);
-    if (item.detailsJson) parts.push(item.detailsJson);
-    if (item.correlationId) parts.push('correlation: ' + item.correlationId);
-    return parts.length ? parts.join(' | ') : '';
-}
-
-async function rotateSigningKey() {
-    const status = document.getElementById('securityStatus');
-    if (!confirm('Rotate the JWT signing key? This will immediately sign out all currently logged-in users, who will need to request access again.')) return;
-    const button = document.getElementById('rotateSigningKeyButton');
-    button.disabled = true;
-    status.innerText = 'Rotating signing key...';
-    try {
-        const response = await fetch('/api/local/security/rotate-signing-key', { method: 'POST' });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result?.message || 'Rotation failed.');
-        status.innerText = `Signing key rotated at ${formatLocalDateTime(result.rotatedAtUtc)}. ${result.revokedSessionCount} active session(s) invalidated. Fingerprint: ${result.keyFingerprint}`;
-    } catch (error) {
-        status.innerText = error.message || 'Signing key rotation failed.';
-    } finally {
-        button.disabled = false;
-    }
-}
-
-document.getElementById('rotateSigningKeyButton')?.addEventListener('click', rotateSigningKey);
-
-loadSectionState();
-</script>
-</body>
-</html>
-""";
-
-        return Content(html, "text/html", Encoding.UTF8);
+        return View(new LocalAdvancedPageViewModel(
+            BuildGuestLoginUrl(),
+            BuildCustomGuestLoginUrl(),
+            EvaluateGuestDnsStatus()));
     }
 
     [HttpGet("api/local/logs")]
@@ -901,5 +498,26 @@ public sealed record LocalSetupPageViewModel(
     string GuestLoginUrl,
     string CustomGuestLoginUrl,
     GuestDnsStatus GuestDnsStatus);
+
+public sealed record LocalSettingsPageViewModel(
+    bool RunAtWindowsStartup,
+    bool IsStartupSupported,
+    string SupportMessage,
+    bool ShowSavedNotice);
+
+public sealed record LocalAboutPageViewModel(
+    string Version,
+    string ReleaseDate);
+
+public sealed record LocalAdvancedPageViewModel(
+    string GuestLoginUrl,
+    string CustomGuestLoginUrl,
+    GuestDnsStatus GuestDnsStatus);
+
+public sealed record LocalAdminPageViewModel(
+    string GuestLoginUrl,
+    string CustomGuestLoginUrl,
+    GuestDnsStatus GuestDnsStatus,
+    string TokenExpiryOptionsJson);
 
 public sealed record GuestDnsStatus(bool IsConfigured, string Message);

@@ -282,6 +282,8 @@ dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Api\Ignyos.LanPortal.Api.c
     --self-contained true `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:Version=$Version `
+    -p:InformationalVersion=$Version `
     -o $apiOut
 
 Set-ApiUpdateChannelConfiguration -ApiOutputDirectory $apiOut -DevBaseUrl $DevUpdateBaseUrl
@@ -293,6 +295,8 @@ dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Web\Ignyos.LanPortal.Web.c
     --self-contained true `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:Version=$Version `
+    -p:InformationalVersion=$Version `
     -o $webOut
 
 Write-Host "Publishing Host..."
@@ -302,6 +306,7 @@ dotnet publish (Join-Path $repoRoot "Ignyos.LanPortal.Host\Ignyos.LanPortal.Host
     --self-contained true `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:Version=$Version `
     -p:InformationalVersion=$Version `
     -o $hostOut
 

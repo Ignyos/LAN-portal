@@ -23,6 +23,24 @@ never changes.
 Per-prefix counters, not a global counter: `bug-001`, `bug-002`, ... and `feat-001`, `feat-002`, ...
 counted separately. Starter prefixes: `bug`, `feat`, `chore`, `task`, `spike`.
 
+## Completion confirmation
+
+Work is done in slices. A slice may cover one item or several. A slice is bounded by the work
+actually performed — it is never sized to reduce how often the developer is asked.
+
+- An item is never marked complete, and never leaves `current/`, on AI judgment alone.
+- At the end of a slice the AI stops and presents one confirmation request listing every item that
+  slice touched. For each item it states what changed, how it was verified, and what was not
+  covered.
+- The developer answers per item. A single approval covering the whole list is allowed only when
+  the developer gives it explicitly; it is never assumed from silence or from a general "looks good".
+- Confirmed: update the item file, then perform the folder move.
+- Rejected: the item stays where it is and the feedback is appended to its item file so the next
+  session does not relitigate it.
+- Request first, write second. Marking an item complete in the same turn as asking defeats the gate.
+- Only items the slice actually touched appear in the list. Unrelated in-flight items are not
+  bundled in to ride along on the same approval.
+
 ## Checkpoints
 
 - Adding an item to `release-candidate-dev/` creates an expectation that a dev build/deploy is

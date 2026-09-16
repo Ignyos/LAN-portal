@@ -1,0 +1,48 @@
+@model Ignyos.LanPortal.Api.Controllers.LocalAdvancedPageViewModel
+@using Ignyos.LanPortal.Api.Services
+@inject IWebHostEnvironment WebHostEnvironment
+@{
+    var hostCssUrl = AssetVersionService.GetVersionedUrl(System.IO.Path.Combine(WebHostEnvironment.WebRootPath ?? string.Empty, "host.css"), "/host.css");
+    var advancedJsUrl = AssetVersionService.GetVersionedUrl(System.IO.Path.Combine(WebHostEnvironment.WebRootPath ?? string.Empty, "js", "local-advanced.js"), "/js/local-advanced.js");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LAN Portal | Advanced</title>
+  <link rel="stylesheet" href="@hostCssUrl" />
+</head>
+<body>
+  <div class="shell">
+    <header class="page-header"><p class="eyebrow">Advanced</p></header>
+    <main class="advanced-sections">
+      <section class="advanced-section" data-section="customize-url">
+        <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="customize-url-content"><span class="advanced-section-marker" aria-hidden="true">&gt;</span><span>Customize URL</span></button>
+        <div id="customize-url-content" class="advanced-section-content" hidden>
+          <p class="sub">Use these options only if you want to replace the default local URL with a custom LAN-friendly name.</p>
+          <div class="section"><div class="label">Recommended guest URL</div><div class="url">@Model.GuestLoginUrl</div><div class="qr"><img src="/api/local/setup/guest-login-qr.svg" alt="Guest access QR code" /></div></div>
+          <div class="section"><div class="label">Optional custom URL</div><div class="url">@Model.CustomGuestLoginUrl</div><div class="status @(Model.GuestDnsStatus.IsConfigured ? "ok" : "warn")">@Model.GuestDnsStatus.Message</div></div>
+          <div class="section"><div class="label">How to customize it</div><ol class="steps"><li>Create a DHCP reservation so this host keeps the same LAN IP.</li><li>In your router DNS settings, add an A record: lan.home.arpa -> this host LAN IP.</li><li>Reconnect guest devices to Wi-Fi or toggle Wi-Fi so they pick up updated DNS.</li><li>Share <span class="url">@Model.CustomGuestLoginUrl</span> instead of the default URL.</li></ol></div>
+        </div>
+      </section>
+      <section class="advanced-section" data-section="access-history">
+        <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="access-history-content"><span class="advanced-section-marker" aria-hidden="true">&gt;</span><span>Access History</span></button>
+        <div id="access-history-content" class="advanced-section-content" hidden><div id="recentContainer" class="muted">Loading...</div></div>
+      </section>
+      <section class="advanced-section" data-section="logs">
+        <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="logs-content"><span class="advanced-section-marker" aria-hidden="true">&gt;</span><span>Logs</span></button>
+        <div id="logs-content" class="advanced-section-content" hidden>
+          <div class="log-toolbar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;"><label>Severity <select id="logsSeverityFilter"><option value="">All</option><option>Information</option><option>Warning</option><option>Error</option><option>Critical</option></select></label><label>Category <select id="logsCategoryFilter"><option value="">All</option><option>Host</option><option>DeviceAuth</option><option>Security</option><option>Admin</option><option>Maintenance</option><option>App</option><option>Client</option></select></label><button id="logsRefreshButton" type="button">Refresh</button></div>
+          <div id="logsContainer" class="muted">Loading...</div>
+        </div>
+      </section>
+      <section class="advanced-section" data-section="security">
+        <button class="advanced-section-header" type="button" aria-expanded="false" aria-controls="security-content"><span class="advanced-section-marker" aria-hidden="true">&gt;</span><span>Security</span></button>
+        <div id="security-content" class="advanced-section-content" hidden><p class="sub">Rotating the JWT signing key immediately signs out every currently logged-in user. Use this after a suspected credential compromise or when you need to invalidate all existing access tokens.</p><p class="sub">Users will need to request access again after rotation. This does not change the portal address or user permissions.</p><button id="rotateSigningKeyButton" type="button">Rotate JWT signing key</button><div id="securityStatus" class="muted" role="status" aria-live="polite"></div></div>
+      </section>
+    </main>
+  </div>
+  <script src="@advancedJsUrl" defer></script>
+</body>
+</html>
