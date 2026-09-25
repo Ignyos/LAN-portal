@@ -28,6 +28,13 @@ counted separately. Starter prefixes: `bug`, `feat`, `chore`, `task`, `spike`.
 Work is done in slices. A slice may cover one item or several. A slice is bounded by the work
 actually performed — it is never sized to reduce how often the developer is asked.
 
+An item in `current/` has one of two execution states in its item file:
+
+- `Status: current` means implementation work may continue within the item's existing scope.
+- `Status: awaiting-confirmation` means the implementation slice has stopped and is waiting for
+  the developer's per-item completion decision. It is not an invitation to resume implementation,
+  add verification, or resolve unchecked optional evidence.
+
 - An item is never marked complete, and never leaves `current/`, on AI judgment alone.
 - At the end of a slice the AI stops and presents one confirmation request listing every item that
   slice touched. For each item it states what changed, how it was verified, and what was not
@@ -38,6 +45,12 @@ actually performed — it is never sized to reduce how often the developer is as
 - Rejected: the item stays where it is and the feedback is appended to its item file so the next
   session does not relitigate it.
 - Request first, write second. Marking an item complete in the same turn as asking defeats the gate.
+- When a slice is ready for confirmation, set the item status to `awaiting-confirmation` in the
+  confirmation request's preparation step, but do not move the item or mark acceptance criteria
+  complete until the developer answers.
+- When resuming work, inspect the item status first. If it is `awaiting-confirmation`, present the
+  pending confirmation state and stop; resume only after an explicit developer decision to reject,
+  defer, or continue the item.
 - Only items the slice actually touched appear in the list. Unrelated in-flight items are not
   bundled in to ride along on the same approval.
 

@@ -14,7 +14,7 @@ Generated: 2026-09-07T00:00:00Z
 
 ### Current Sprint / Active Work (`current/`)
 
-- [feat-001](current/feat-001-controller-html-asset-versioning-refactor.md) — Controller HTML and asset versioning refactor (release-required)
+- [Nothing currently in progress]
 
 ### Release Candidates — Production (`release-candidate/`)
 
